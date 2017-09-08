@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
+	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
+	  <AssemblyVersion>0.1.0</AssemblyVersion>
+	  <FileVersion>$(Version)</FileVersion>
+	  <Version>0.1.0-beta</Version>
+    <PackageVersion>$(Version)</PackageVersion>
+    <Authors>Microsoft Corporation</Authors>
+    <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>Preview release</PackageReleaseNotes>
+    <Copyright>Copyright © Microsoft Corporation.</Copyright>
+    <PackageProjectUrl>https://github.com/azure/azure-data-lake-store-net</PackageProjectUrl>
+    <PackageTags>adls sdk datalake azure</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Rest.ClientRuntime.Azure.Authentication" Version="2.3.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net452'">
+    <Reference Include="System.Net.Http" />
+	<Reference Include="System.Management" />
+	<PackageReference Include="NLog" Version="4.4.12" />
+	<PackageReference Include="NLog.Config" Version="4.4.12" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.4'">
+    <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
+	<PackageReference Include="NLog" Version="5.0.0-beta09" />
+	<PackageReference Include="NLog.Config" Version="4.5.0-alpha04" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp1.1'">
+    <PackageReference Include="NLog" Version="5.0.0-beta09" />
+	<PackageReference Include="NLog.Config" Version="4.5.0-alpha04" />
+  </ItemGroup>
+</Project>
