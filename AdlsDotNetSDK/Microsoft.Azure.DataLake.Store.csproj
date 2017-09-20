@@ -5,9 +5,9 @@
 	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>0.1.0</AssemblyVersion>
 	  <FileVersion>$(Version)</FileVersion>
-	  <Version>0.1.0-beta</Version>
+	  <Version>0.1.1-beta</Version>
     <PackageVersion>$(Version)</PackageVersion>
-    <Authors>Microsoft Corporation</Authors>
+    <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReleaseNotes>Preview release</PackageReleaseNotes>
@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Rest.ClientRuntime.Azure.Authentication" Version="2.3.1" />
+    <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.10" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.2" />
   </ItemGroup>
 
