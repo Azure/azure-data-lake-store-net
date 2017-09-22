@@ -137,7 +137,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (req == null) throw new ArgumentNullException(nameof(req)); //Check if req is not null
             if (quer == null) throw new ArgumentNullException(nameof(quer)); //Check if quer is not null
             if (client == null) throw new ArgumentNullException(nameof(client));//Check for client
-            if (String.IsNullOrEmpty(client.AccountDomain) || string.IsNullOrEmpty(client.AccountDomain))//Check the client account
+            if (String.IsNullOrEmpty(client.AccountFQDN) || string.IsNullOrEmpty(client.AccountFQDN))//Check the client account
             {
                 resp.IsSuccessful = false;
                 resp.Error = "The client account name is missing.";
@@ -431,7 +431,7 @@ namespace Microsoft.Azure.DataLake.Store
             StringBuilder urlString = new StringBuilder(UrlLength);
             urlString.Append(client.GetHttpPrefix());
             urlString.Append("://");
-            urlString.Append(client.AccountDomain);
+            urlString.Append(client.AccountFQDN);
             urlString.Append(op.Namespace);
             try
             {

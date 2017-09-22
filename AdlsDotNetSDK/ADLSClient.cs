@@ -48,7 +48,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Azure data lake store account name including full domain name
         /// </summary>
-        public string AccountDomain { get; }
+        public string AccountFQDN { get; }
         /// <summary>
         /// Field that just tracks the number of Clients running in an application
         /// </summary>
@@ -121,8 +121,8 @@ namespace Microsoft.Azure.DataLake.Store
         }
         private AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
         {
-            AccountDomain = accnt.Trim();
-            if (!skipAccntValidation && !IsValidAccount(AccountDomain))
+            AccountFQDN = accnt.Trim();
+            if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
             {
                 throw new ArgumentException("Account name is invalid");
             }
@@ -130,14 +130,14 @@ namespace Microsoft.Azure.DataLake.Store
             AccessToken = token;
             if (ClientLogger.IsTraceEnabled)
             {
-                ClientLogger.Trace($"AdlsStoreClient {ClientId} created for account {AccountDomain} for SDK version {SdkVersion}");
+                ClientLogger.Trace($"AdlsStoreClient {ClientId} created for account {AccountFQDN} for SDK version {SdkVersion}");
             }
         }
 
         private AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false)
         {
-            AccountDomain = accnt.Trim();
-            if (!skipAccntValidation && !IsValidAccount(AccountDomain))
+            AccountFQDN = accnt.Trim();
+            if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
             {
                 throw new ArgumentException("Account name is invalid");
             }
@@ -164,22 +164,22 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Factory method that returns a AdlsClient
         /// </summary>
-        /// <param name="accnt">Azure data lake store account name including full domain name (e.g. contoso.azuredatalake.net)</param>
-        /// <param name="token">Token</param>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="token">Full authorization Token e.g. Bearing: abcddsfere.....</param>
         /// <returns>AdlsClient</returns>
-        public static AdlsClient CreateClient(string accnt, string token)
+        public static AdlsClient CreateClient(string accountFqdn, string token)
         {
-            return new AdlsClient(accnt, Interlocked.Increment(ref _atomicClientId), token);
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), token);
         }
         /// <summary>
         /// Factory method that returns a AdlsClient
         /// </summary>
-        /// <param name="accnt">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalake.net)</param>
-        /// <param name="creds">Credentials that gets the Auth token</param>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
         /// <returns>AdlsClient</returns>
-        public static AdlsClient CreateClient(string accnt, ServiceClientCredentials creds)
+        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds)
         {
-            return new AdlsClient(accnt, Interlocked.Increment(ref _atomicClientId), creds);
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds);
         }
         #endregion
 
@@ -319,7 +319,8 @@ namespace Microsoft.Azure.DataLake.Store
         public AdlsInputStream GetReadStream(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
             return GetReadStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
-        }/// <summary>
+        }
+        /// <summary>
          /// Asynchronous API that returns the stream to read data from file in ADLS
          /// </summary>
          /// <param name="filename">File name</param>
@@ -338,7 +339,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             DirectoryEntry diren = await Core
-                .GetFileStatusAsync(filename, UserGroupRepresentation.OID, this,
+                .GetFileStatusAsync(filename, UserGroupRepresentation.ObjectID, this,
                     new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
             if (!resp.IsSuccessful)
             {
@@ -382,7 +383,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw GetExceptionFromResponse(resp, $"Error trying to append to file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStream(filename, this, false, leaseId);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId);
         }
         /// <summary>
         /// Synchronous API that returns the stream to write data to a file in ADLS
@@ -435,7 +436,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStream(filename, this, true, leaseId);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId);
         }
 
         /// <summary>
@@ -478,7 +479,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
             }
-            return AdlsOutputStream.GetAdlsOutputStream(filename, this, true, leaseId).GetAwaiter().GetResult();
+            return AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Asynchronous api to delete a file or directory. For directory it will only delete if it is empty.
@@ -541,7 +542,7 @@ namespace Microsoft.Azure.DataLake.Store
             return isSucceded;
         }
         /// <summary>
-        /// Synchronous api to delete a file or directory recursively
+        /// Synchronous api to delete a file or directory recursively. If it is a non-empty directory then it deletes the sub-directories or files.
         /// </summary>
         /// <param name="path">Path of file or directory</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
@@ -551,7 +552,8 @@ namespace Microsoft.Azure.DataLake.Store
             return DeleteRecursiveAsync(path, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
-        /// Asynchronous API to renames a path.
+        /// Asynchronous API to rename a file or directory.
+        /// For renaming directory: If the destination exists then it puts the source directory one level under the destination.
         /// </summary>
         /// <param name="path">Path of the source file or directory</param>
         /// <param name="destination">Destination path. For directory: If the destination exists then it puts the source directory one level under the destination. If tthere is a subdirectory with same name as source one level under the destination path, rename fails</param>
@@ -566,7 +568,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (path.Equals("/"))
             {
-                throw new ArgumentException("Cant rename the root");
+                throw new ArgumentException("Cannot rename the root");
             }
             if (string.IsNullOrEmpty(destination))
             {
@@ -574,10 +576,10 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (path.Equals(destination))
             {
-                DirectoryEntry diren = await GetDirectoryEntryAsync(path, UserGroupRepresentation.OID, cancelToken);
+                DirectoryEntry diren = await GetDirectoryEntryAsync(path, UserGroupRepresentation.ObjectID, cancelToken);
                 if (diren.Type != DirectoryEntryType.FILE)
                 {
-                    throw new ArgumentException("Cant rename directories same name");
+                    throw new ArgumentException("Cannot rename directories same name");
                 }
             }
             OperationResponse resp = new OperationResponse();
@@ -590,7 +592,7 @@ namespace Microsoft.Azure.DataLake.Store
             return isSucceeded;
         }
         /// <summary>
-        /// Synchronous API to renames a path.
+        /// Synchronous API to rename a file or directory.
         /// For renaming directory: If the destination exists then it puts the source directory one level under the destination.
         /// </summary>
         /// <param name="path">Path of the source file or directory</param>
@@ -612,7 +614,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="uid">Way the user or group object will be represented</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Returns the metadata of the file or directory</returns>
-        public async Task<DirectoryEntry> GetDirectoryEntryAsync(string path, UserGroupRepresentation uid = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        public async Task<DirectoryEntry> GetDirectoryEntryAsync(string path, UserGroupRepresentation uid = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -631,12 +633,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// Synchronously gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
         /// </summary>
         /// <param name="path">Path of file or directory</param>
-        /// <param name="uid">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Returns the metadata of the file or directory</returns>
-        public DirectoryEntry GetDirectoryEntry(string path, UserGroupRepresentation uid = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        public DirectoryEntry GetDirectoryEntry(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return GetDirectoryEntryAsync(path, uid, cancelToken).GetAwaiter().GetResult();
+            return GetDirectoryEntryAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Asynchronous API to concatenate source files to a destination file
@@ -676,12 +678,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// By default listAfter and listBefore is empty and we enuerate all the directory entries.
         /// </summary>
         /// <param name="path">Path of the directory</param>
-        /// <param name="uid">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Enumerable that enumerates over the contents</returns>
-        public IEnumerable<DirectoryEntry> EnumerateDirectory(string path, UserGroupRepresentation uid = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        public IEnumerable<DirectoryEntry> EnumerateDirectory(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return EnumerateDirectory(path, -1, "", "", uid, cancelToken);
+            return EnumerateDirectory(path, -1, "", "", userIdFormat, cancelToken);
         }
         /// <summary>
         /// Returns a enumerable that enumerates the sub-directories or files contained in a directory
@@ -690,16 +692,16 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="maxEntries">List size to obtain from server</param>
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
         /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
-        /// <param name="uid">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Enumerable that enumerates over the contents</returns>
-        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore, UserGroupRepresentation uid = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
                 throw new ArgumentException("Path is null");
             }
-            return new FileStatusOutput(listBefore, listAfter, maxEntries, uid, this, path);
+            return new FileStatusOutput(listBefore, listAfter, maxEntries, userIdFormat, this, path);
         }
         /// <summary>
         /// Asynchronously sets the expiry time
@@ -990,16 +992,16 @@ namespace Microsoft.Azure.DataLake.Store
         /// Asynchronously gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
-        /// <param name="ugr">way to represent the user/group object</param>
+        /// <param name="userIdFormat">way to represent the user/group object</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation ugr = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        public async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            AclStatus status = await Core.GetAclStatusAsync(path, ugr, this, new RequestOptions(new ExponentialRetryPolicy()),
+            AclStatus status = await Core.GetAclStatusAsync(path, userIdFormat, this, new RequestOptions(new ExponentialRetryPolicy()),
                 resp, cancelToken);
             if (!resp.IsSuccessful)
             {
@@ -1011,14 +1013,14 @@ namespace Microsoft.Azure.DataLake.Store
         /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
-        /// <param name="ugr">way to represent the user/group object</param>
+        /// <param name="userIdFormat">way to represent the user/group object</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public AclStatus GetAclStatus(string path, UserGroupRepresentation ugr = UserGroupRepresentation.OID, CancellationToken cancelToken = default(CancellationToken))
+        public AclStatus GetAclStatus(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return GetAclStatusAsync(path, ugr, cancelToken).GetAwaiter().GetResult();
+            return GetAclStatusAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
-        /// Gets contentSummary of a file or directory
+        /// Gets content summary of a file or directory
         /// </summary>
         /// <param name="path">Path of the directory or file</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
@@ -1028,7 +1030,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         /// <summary>
-        /// Performs concurrent append at server. The offset at which append will occur is determined by server. Asynchronous operation.
+        /// Asynchronous API to perform concurrent append at server. The offset at which append will occur is determined by server. Asynchronous operation.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>
@@ -1052,7 +1054,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
         }
         /// <summary>
-        /// Performs concurrent append at server. The offset at which append will occur is determined by server. Synchronous operation
+        /// Synchronous API to perform concurrent append at server. The offset at which append will occur is determined by server.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>

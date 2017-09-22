@@ -13,7 +13,7 @@ namespace Microsoft.Azure.DataLake.Store.Acl
         /// <summary>
         /// Object ID of the object depending on the type of the ACL entry
         /// </summary>
-        public string TypeName { get; }
+        public string UserOrGroupId { get; }
         /// <summary>
         /// ACCESS or DEFAULT
         /// </summary>
@@ -26,13 +26,13 @@ namespace Microsoft.Azure.DataLake.Store.Acl
         /// Public constructor
         /// </summary>
         /// <param name="type">Type of ACL entry: User/group/Other/mask</param>
-        /// <param name="typeName">Object ID of the object depending on the type of the ACL entry</param>
+        /// <param name="userOrGroupId">Object ID of the object depending on the type of the ACL entry. For acl type other and mask it should be null</param>
         /// <param name="scope">ACCESS or DEFAULT</param>
         /// <param name="action">The type of ACL to set</param>
-        public AclEntry(AclType type, string typeName, AclScope scope, AclAction action)
+        public AclEntry(AclType type, string userOrGroupId, AclScope scope, AclAction action)
         {
             Type = type;
-            TypeName = typeName;
+            UserOrGroupId = userOrGroupId;
             Scope = scope;
             Action = action;
         }
@@ -60,11 +60,11 @@ namespace Microsoft.Azure.DataLake.Store.Acl
             if (parts.Length == 4) //Because it is of AclScope default
             {
                 strtPartIndx++;
-                scope = AclScope.DEFAULT;
+                scope = AclScope.Default;
             }
             else
             {
-                scope = AclScope.ACCESS;
+                scope = AclScope.Access;
             }
             AclType aclType = (AclType)Enum.Parse(typeof(AclType), parts[strtPartIndx].Trim());//This will throw exception
             string aclNm = parts[strtPartIndx + 1].Trim();
@@ -132,7 +132,7 @@ namespace Microsoft.Azure.DataLake.Store.Acl
         /// <returns>Acl entry in a string format where each part is delimited by ':'</returns>
         public string ToString(bool removeAcl)
         {
-            return (Scope == AclScope.DEFAULT ? "default:" : "") + Enum.GetName(typeof(AclType), Type) + ":" + TypeName + (removeAcl ? "" : ":" + Action.GetRwx());
+            return (Scope == AclScope.Default ? "default:" : "") + Enum.GetName(typeof(AclType), Type) + ":" + UserOrGroupId + (removeAcl ? "" : ":" + Action.GetRwx());
         }
         /// <summary>
         /// Returns true if the type, type name, scope and action are all same
@@ -141,7 +141,7 @@ namespace Microsoft.Azure.DataLake.Store.Acl
         /// <returns>True if Acl entries are equal else false</returns>
         public bool Equals(AclEntry entry)
         {
-            return Type.Equals(entry.Type) && TypeName.Equals(entry.TypeName) &&
+            return Type.Equals(entry.Type) && UserOrGroupId.Equals(entry.UserOrGroupId) &&
                    Scope.Equals(entry.Scope) && Action.Equals(entry.Action);
         }
         /// <summary>

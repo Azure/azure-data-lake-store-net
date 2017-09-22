@@ -49,19 +49,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// Type- File or directory
         /// </summary>
         public DirectoryEntryType Type { get; }
-
-        /// <summary>
-        /// Block Size reported by server
-        /// </summary>
-        public long Blocksize { get; }
-        /// <summary>
-        /// Number of times the file is replicated
-        /// </summary>
-        public int ReplicationFactor { get; }
         /// <summary>
         /// Boolean indicating whether ACLs are set
         /// </summary>
-        public bool AclBit { get; }
+        public bool HasAcl { get; }
         /// <summary>
         /// Instant when the file will expire
         /// </summary>
@@ -95,11 +86,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="lastModifiedTime">Last modified time</param>
         /// <param name="type">File or directory</param>
         /// <param name="permission">Unix style permission</param>
-        /// <param name="replicationFactor"></param>
-        /// <param name="blocksize"></param>
-        /// <param name="aclBit">Whether ACLs are set</param>
+        /// <param name="hasAcl">Whether ACLs are set</param>
         /// <param name="expiryTime">Time when file would expire</param>
-        internal DirectoryEntry(String name, String fullName, long length, String group, String user, long lastAccessTime, long lastModifiedTime, string type, String permission, int replicationFactor, long blocksize, bool aclBit, long expiryTime)
+        internal DirectoryEntry(String name, String fullName, long length, String group, String user, long lastAccessTime, long lastModifiedTime, string type, String permission, bool hasAcl, long expiryTime)
         {
             Name = name;
             FullName = fullName;
@@ -110,9 +99,7 @@ namespace Microsoft.Azure.DataLake.Store
             LastModifiedTime = lastModifiedTime < 0 ? null : (DateTime?)GetDateTimeFromServerTime(lastModifiedTime);
             Type = (DirectoryEntryType)Enum.Parse(typeof(DirectoryEntryType), type);
             Permission = permission;
-            ReplicationFactor = replicationFactor;
-            Blocksize = blocksize;
-            AclBit = aclBit;
+            HasAcl = hasAcl;
             ExpiryTime = expiryTime <= 0 ? null : (DateTime?)GetDateTimeFromServerTime(expiryTime);
         }
         /// <summary>

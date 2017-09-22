@@ -605,17 +605,17 @@ namespace Microsoft.Azure.DataLake.Store
         /// Gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
-        /// <param name="usg">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
         /// <param name="client">ADLS Client</param>
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Returns the metadata of the file or directory</returns>
-        public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? usg, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
-            usg = usg ?? UserGroupRepresentation.OID;
-            qp.Add("tooid", Convert.ToString(usg == UserGroupRepresentation.OID));
+            userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
+            qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
             DirectoryEntry der;
             var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.GETFILESTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken);
             if (!resp.IsSuccessful) return null;
@@ -636,10 +636,8 @@ namespace Microsoft.Azure.DataLake.Store
                                 long length = 0,
                                     lastAccessTime = -1,
                                     lastModifiedTime = -1,
-                                    blocksize = 256 * 1024 * 1024,
                                     expiryTime = -1;
                                 bool aclBit = false;
-                                long replicationFactor = 1;
                                 do
                                 {
                                     jsonReader.Read();
@@ -658,10 +656,6 @@ namespace Microsoft.Azure.DataLake.Store
                                             case "type":
                                                 jsonReader.Read();
                                                 type = (string)jsonReader.Value;
-                                                break;
-                                            case "blockSize":
-                                                jsonReader.Read();
-                                                blocksize = (long)jsonReader.Value;
                                                 break;
                                             case "group":
                                                 jsonReader.Read();
@@ -683,10 +677,6 @@ namespace Microsoft.Azure.DataLake.Store
                                                 jsonReader.Read();
                                                 lastModifiedTime = (long)jsonReader.Value;
                                                 break;
-                                            case "replication":
-                                                jsonReader.Read();
-                                                replicationFactor = (long)jsonReader.Value;
-                                                break;
                                             case "msExpirationTime":
                                                 jsonReader.Read();
                                                 expiryTime = (long)jsonReader.Value;
@@ -700,8 +690,7 @@ namespace Microsoft.Azure.DataLake.Store
                                 } while (!jsonReader.TokenType.Equals(JsonToken.EndObject));
                                 string fullName = string.IsNullOrEmpty(name) ? path : path + "/" + name;
                                 der = new DirectoryEntry(name, fullName, length, group, user, lastAccessTime,
-                                    lastModifiedTime, type, permission, (int)replicationFactor, blocksize, aclBit,
-                                    expiryTime);
+                                    lastModifiedTime, type, permission, aclBit, expiryTime);
                             }
                         }
                     }
@@ -729,13 +718,13 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
         /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
         /// <param name="listSize">List size to obtain from server</param>
-        /// <param name="ugr">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
         /// <param name="client">ADLS Client</param>
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>List of directoryentries</returns>
-        public static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? ugr, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        public static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
             if (!string.IsNullOrWhiteSpace(listAfter))
@@ -750,11 +739,8 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("listSize", Convert.ToString(listSize));
             }
-            ugr = ugr ?? UserGroupRepresentation.OID;
-            if (ugr == UserGroupRepresentation.OID)
-            {
-                qp.Add("tooid", "true");
-            }
+            userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
+            qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
             var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.LISTSTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
@@ -781,8 +767,6 @@ namespace Microsoft.Azure.DataLake.Store
                                 long lastModifiedTime = -1;
                                 string type = "";
                                 String permission = "";
-                                long replicationFactor = 1;
-                                long blocksize = 256 * 1024 * 1024;
                                 bool aclBit = true;
                                 long expiryTime = -1;
                                 do
@@ -793,7 +777,7 @@ namespace Microsoft.Azure.DataLake.Store
                                         string fullName = string.IsNullOrEmpty(name) ? path : path + "/" + name;
                                         DirectoryEntry dir =
                                             new DirectoryEntry(name, fullName, length, group, user, lastAccessTime,
-                                                lastModifiedTime, type, permission, (int)replicationFactor, blocksize,
+                                                lastModifiedTime, type, permission,
                                                 aclBit, expiryTime);
                                         direcList.Add(dir);
                                     }
@@ -812,10 +796,6 @@ namespace Microsoft.Azure.DataLake.Store
                                             case "type":
                                                 jsonReader.Read();
                                                 type = (string)jsonReader.Value;
-                                                break;
-                                            case "blockSize":
-                                                jsonReader.Read();
-                                                blocksize = (long)jsonReader.Value;
                                                 break;
                                             case "group":
                                                 jsonReader.Read();
@@ -836,10 +816,6 @@ namespace Microsoft.Azure.DataLake.Store
                                             case "modificationTime":
                                                 jsonReader.Read();
                                                 lastModifiedTime = (long)jsonReader.Value;
-                                                break;
-                                            case "replication":
-                                                jsonReader.Read();
-                                                replicationFactor = (long)jsonReader.Value;
                                                 break;
                                             case "msExpirationTime":
                                                 jsonReader.Read();
@@ -1147,22 +1123,19 @@ namespace Microsoft.Azure.DataLake.Store
         /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
-        /// <param name="ugr">way to represent the user/group object</param>
+        /// <param name="userIdFormat">way to represent the user/group object</param>
         /// <param name="client">ADLS Client</param>
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        /// <returns>Instance encapsulating ACL entry list, owner ID, group ID, octal permission and sticky bit</returns>
-        public static async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation? ugr, AdlsClient client, RequestOptions req,
+        /// <returns>Acl information: ACL entry list, owner ID, group ID, octal permission and sticky bit</returns>
+        public static async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req,
             OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             AclStatus status;
             QueryParams qp = new QueryParams();
-            ugr = ugr ?? UserGroupRepresentation.OID;
-            if (ugr == UserGroupRepresentation.OID)
-            {
-                qp.Add("tooid", "true");
-            }
+            userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
+            qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
             var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.GETACLSTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
@@ -1244,7 +1217,7 @@ namespace Microsoft.Azure.DataLake.Store
             return status;
         }
         /// <summary>
-        /// Gets contentSummary of a file or directory
+        /// Gets content summary of a file or directory
         /// </summary>
         /// <param name="path">Path of the directory or file</param>
         /// <param name="client">ADLS Client</param>

@@ -8,10 +8,10 @@
         /// <summary>
         /// Object ID which is a immutable GUID representing the user or group.
         /// </summary>
-        OID,
+        ObjectID,
         /// <summary>
         /// User Principal name of the user or group. This can be changed. This involves an additional lookup.
         /// </summary>
-        UPN
+        UserPrincipalName
     }
 }

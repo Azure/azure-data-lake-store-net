@@ -5,7 +5,7 @@
     /// </summary>
     public enum AclScope
     {
-        ACCESS,
-        DEFAULT
+        Access,
+        Default
     }
 }

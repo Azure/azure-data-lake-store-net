@@ -85,10 +85,10 @@ namespace Microsoft.Azure.DataLake.Store
             Buffer = new byte[BufferCapacity];
         }
 
-        internal static async Task<AdlsOutputStream> GetAdlsOutputStream(string filename, AdlsClient client, bool isNew, string leaseId)
+        internal static async Task<AdlsOutputStream> GetAdlsOutputStreamAsync(string filename, AdlsClient client, bool isNew, string leaseId)
         {
             var adlsOpStream = new AdlsOutputStream(filename, client, leaseId);
-            await adlsOpStream.InitializeFileSize(isNew);
+            await adlsOpStream.InitializeFileSizeAsync(isNew);
             if (OutStreamLog.IsTraceEnabled)
             {
                 OutStreamLog.Trace($"ADLFileOutputStream created for client {client.ClientId} for file {filename}, create={isNew}");
@@ -100,7 +100,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="isNew">True if we are creating the file else false</param>
         /// <returns></returns>
-        private async Task InitializeFileSize(bool isNew)
+        private async Task InitializeFileSizeAsync(bool isNew)
         {
             if (isNew)
             {
@@ -110,7 +110,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 OperationResponse resp = new OperationResponse();
                 //Initialize the filepointer to the current length of file
-                DirectoryEntry diren = await Core.GetFileStatusAsync(Filename, UserGroupRepresentation.OID, Client,
+                DirectoryEntry diren = await Core.GetFileStatusAsync(Filename, UserGroupRepresentation.ObjectID, Client,
                     new RequestOptions(new ExponentialRetryPolicy()), resp);
                 if (diren == null)
                 {
