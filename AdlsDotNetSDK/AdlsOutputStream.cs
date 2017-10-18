@@ -17,7 +17,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Logger to log messages related to output stream
         /// </summary>
-        private static readonly Logger OutStreamLog = LogManager.GetLogger("asdl.dotnet.OutputStream");
+        private static readonly Logger OutStreamLog = LogManager.GetLogger("adls.dotnet.OutputStream");
         /// <summary>
         /// Full path of the file
         /// </summary>
@@ -91,7 +91,7 @@ namespace Microsoft.Azure.DataLake.Store
             await adlsOpStream.InitializeFileSizeAsync(isNew);
             if (OutStreamLog.IsTraceEnabled)
             {
-                OutStreamLog.Trace($"ADLFileOutputStream created for client {client.ClientId} for file {filename}, create={isNew}");
+                OutStreamLog.Trace($"ADLFileOutputStream, Created for client {client.ClientId} for file {filename}, create={isNew}");
             }
             return adlsOpStream;
         }
@@ -205,7 +205,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (OutStreamLog.IsTraceEnabled)
             {
-                OutStreamLog.Trace($"Stream write of size {count} for file {Filename} for client {Client.ClientId}");
+                OutStreamLog.Trace($"ADLFileOutputStream, Stream write of size {count} for file {Filename} for client {Client.ClientId}");
             }
         }
         /// <summary>
@@ -304,7 +304,7 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     if (OutStreamLog.IsTraceEnabled)
                     {
-                        OutStreamLog.Trace($"Stream closed for file {Filename} for client {Client.ClientId}");
+                        OutStreamLog.Trace($"ADLFileOutputStream, Stream closed for file {Filename} for client {Client.ClientId}");
                     }
                 }
                 base.Dispose(disposing);
@@ -326,7 +326,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (OutStreamLog.IsTraceEnabled)
             {
-                OutStreamLog.Trace($"Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
+                OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
             await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, (int)FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
@@ -347,7 +347,7 @@ namespace Microsoft.Azure.DataLake.Store
                     {
                         if (OutStreamLog.IsDebugEnabled)
                         {
-                            OutStreamLog.Debug($"Zero size Append succeded and the expected FileSize is {FilePointer + BufferSize}, ignoring BadOffsetException for session {LeaseId} for file {Filename} for client {Client.ClientId}");
+                            OutStreamLog.Debug($"ADLFileOutputStream, Zero size Append succeded and the expected FileSize is {FilePointer + BufferSize}, ignoring BadOffsetException for session {LeaseId} for file {Filename} for client {Client.ClientId}");
                         }
                         FilePointer += BufferSize;
                         BufferSize = 0;
@@ -356,7 +356,7 @@ namespace Microsoft.Azure.DataLake.Store
                     }
                     if (OutStreamLog.IsDebugEnabled)
                     {
-                        OutStreamLog.Debug($"Append failed at offset {FilePointer} for session {LeaseId} for file {Filename} for client {Client.ClientId}");
+                        OutStreamLog.Debug($"ADLFileOutputStream, Append failed at offset {FilePointer} for session {LeaseId} for file {Filename} for client {Client.ClientId}");
                     }
                 }
                 throw Client.GetExceptionFromResponse(resp, $"Error in appending for file {Filename} at offset {FilePointer}.");
@@ -380,7 +380,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (OutStreamLog.IsTraceEnabled)
             {
-                OutStreamLog.Trace($"Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
+                OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
             Core.Append(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
@@ -401,7 +401,7 @@ namespace Microsoft.Azure.DataLake.Store
                     {
                         if (OutStreamLog.IsDebugEnabled)
                         {
-                            OutStreamLog.Debug($"Zero size Append succeded and the expected FileSize is {FilePointer + BufferSize}, ignoring BadOffsetException for session {LeaseId} for file {Filename} for client {Client.ClientId}");
+                            OutStreamLog.Debug($"ADLFileOutputStream, Zero size Append succeded and the expected FileSize is {FilePointer + BufferSize}, ignoring BadOffsetException for session {LeaseId} for file {Filename} for client {Client.ClientId}");
                         }
                         FilePointer += BufferSize;
                         BufferSize = 0;
@@ -410,7 +410,7 @@ namespace Microsoft.Azure.DataLake.Store
                     }
                     if (OutStreamLog.IsDebugEnabled)
                     {
-                        OutStreamLog.Debug($"Append failed at offset {FilePointer} for session {LeaseId} for file {Filename} for client {Client.ClientId}");
+                        OutStreamLog.Debug($"ADLFileOutputStream, Append failed at offset {FilePointer} for session {LeaseId} for file {Filename} for client {Client.ClientId}");
                     }
                 }
                 throw Client.GetExceptionFromResponse(resp, $"Error in appending for file {Filename} at offset {FilePointer}.");

@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.Azure.DataLake.Store.FileTransfer;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Rest;
 using NLog;
@@ -28,7 +29,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Logger to log information (debug/error/trace) regarding client
         /// </summary>
-        private static readonly Logger ClientLogger = LogManager.GetLogger("asdl.dotnet");
+        private static readonly Logger ClientLogger = LogManager.GetLogger("adls.dotnet");
         /// <summary>
         /// Object synchronise setters/getters for clienttoken and proto
         /// </summary>
@@ -69,6 +70,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// SDK version- AssemblyFileVersion
         /// </summary>
         private static readonly string SdkVersion;
+        // Default number of threads used by tools using the SDK
+        internal static int DefaultNumThreads;
         #endregion
 
         #region Constructors
@@ -94,8 +97,7 @@ namespace Microsoft.Azure.DataLake.Store
             try
             {
 #if NET452
-                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT Caption, Version, OSArchitecture FROM Win32_OperatingSystem");
-                foreach (var os in searcher.Get())
+                foreach (var os in new ManagementObjectSearcher("SELECT Caption, Version, OSArchitecture FROM Win32_OperatingSystem").Get())
                 {
                     var version = os["Version"].ToString();
                     var productName = os["Caption"].ToString();
@@ -103,7 +105,14 @@ namespace Microsoft.Azure.DataLake.Store
                     osInfo = productName + " " + version + " " + architecture;
                 }
                 dotNetVersion = "NET452";
+                int coreCount = 0;
+                foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
+                {
+                    coreCount += int.Parse(item["NumberOfCores"].ToString());
+                }
+                DefaultNumThreads = 8 * coreCount;
 #else
+                DefaultNumThreads=128;
                 osInfo = System.Runtime.InteropServices.RuntimeInformation.OSDescription + " " +
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
 #if NETSTANDARD1_4
@@ -130,7 +139,7 @@ namespace Microsoft.Azure.DataLake.Store
             AccessToken = token;
             if (ClientLogger.IsTraceEnabled)
             {
-                ClientLogger.Trace($"AdlsStoreClient {ClientId} created for account {AccountFQDN} for SDK version {SdkVersion}");
+                ClientLogger.Trace($"AdlsStoreClient, {ClientId} created for account {AccountFQDN} for SDK version {SdkVersion}");
             }
         }
 
@@ -416,7 +425,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (ClientLogger.IsTraceEnabled)
             {
-                ClientLogger.Trace($"Create File {filename} for client {ClientId}");
+                ClientLogger.Trace($"AdlsStoreClient, Create File {filename} for client {ClientId}");
             }
             string leaseId = Guid.NewGuid().ToString();
             RetryPolicy policy;
@@ -459,7 +468,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (ClientLogger.IsTraceEnabled)
             {
-                ClientLogger.Trace($"Create File {filename} for client {ClientId}");
+                ClientLogger.Trace($"AdlsStoreClient, Create File {filename} for client {ClientId}");
             }
             string leaseId = Guid.NewGuid().ToString();
             RetryPolicy policy;
@@ -599,7 +608,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="destination">Destination path</param>
         /// <param name="overwrite">For file: If true then overwrites the destination file if it exists 
         ///                         For directory: If the destination directory exists, then this flag has no use. Because it puts the source one level under destination.
-        ///                                        If there is a subdirectory with same name as source one level under the destination path, this flag has no use. Rename fails  </param>
+        ///                                        If there is a subdirectory with same name as source one level under the destination path, this flag has no use, rename fails  </param>
         ///                         By default it is false
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if the path is renamed successfully else false</returns>
@@ -708,7 +717,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="eopt">Different type of expiry method for example: never expire, relative to now, etc that defines how to evaluate expiryTime</param>
-        /// <param name="expiryTime">Expiry time value. It's interepreation depends on what ExpiryOption user passes</param>
+        /// <param name="expiryTime">Expiry time value. It's interpretation depends on what ExpiryOption user passes</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public async Task SetExpiryTimeAsync(string path, ExpiryOption eopt, long expiryTime, CancellationToken cancelToken = default(CancellationToken))
         {
@@ -729,7 +738,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="eopt">Different type of expiry method for example: never expire, relative to now, etc that defines how to evaluate expiryTime</param>
-        /// <param name="expiryTime">Expiry time value. It's interepreation depends on what ExpiryOption user passes</param>
+        /// <param name="expiryTime">Expiry time value in milliseconds. It's interpretation depends on what ExpiryOption user passes</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public void SetExpiryTime(string path, ExpiryOption eopt, long expiryTime,
             CancellationToken cancelToken = default(CancellationToken))
@@ -1023,10 +1032,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// Gets content summary of a file or directory
         /// </summary>
         /// <param name="path">Path of the directory or file</param>
+        /// <param name="numThreads">Number of threads</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public ContentSummary GetContentSummary(string path, CancellationToken cancelToken = default(CancellationToken))
+        public ContentSummary GetContentSummary(string path,int numThreads=-1, CancellationToken cancelToken = default(CancellationToken))
         {
-            return ContentProcessor.GetContentSummary(this, path, cancelToken);
+            return ContentProcessor.GetContentSummary(this, path,numThreads, cancelToken);
         }
 
         /// <summary>
@@ -1099,13 +1109,43 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return true;
         }
+        /// <summary>
+        /// Upload directory or file from local to remote. Transfers the contents under source directory or file under 
+        /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// </summary>
+        /// <param name="srcPath">Local source path</param>
+        /// <param name="destPath">Remote destination path - It should always be a directory.</param>
+        /// <param name="numThreads">Number of threads- if not passed will take default number of threads (8 times the number of physical cores)</param>
+        /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination exists</param>
+        /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
+        /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration</param>
+        /// <returns>Transfer Status encapsulating the details of upload</returns>
+        public TransferStatus BulkUpload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite,IProgress < TransferStatus> progressTracker = null,bool notRecurse=false)
+        {
+            return FileUploader.Upload(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker ,notRecurse);
+        }
+        /// <summary>
+        /// Download directory or file from remote server to local. Transfers the contents under source directory or file under 
+        /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// </summary>
+        /// <param name="srcPath">Remote source path</param>
+        /// <param name="destPath">Local destination path. It should always be a directory.</param>
+        /// <param name="numThreads">Number of threads- if not passed will take default number of threads (8 times the number of physical cores)</param>
+        /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination exists</param>
+        /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
+        /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration</param>
+        /// <returns>Transfer status encapsulating the details of download</returns>
+        public TransferStatus BulkDownload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null,bool notRecurse=false)
+        {
+            return FileDownloader.Download(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse);
+        }
         #endregion
         /// <summary>
         /// Returns a ADLS Exception based on response from the server
         /// </summary>
         /// <param name="resp">Response encapsulating errors or exceptions</param>
         /// <param name="defaultMessage">Default message</param>
-        /// <returns></returns>
+        /// <returns>Adls Exception</returns>
         public AdlsException GetExceptionFromResponse(OperationResponse resp, string defaultMessage)
         {
 

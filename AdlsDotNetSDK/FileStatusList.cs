@@ -13,7 +13,7 @@ namespace Microsoft.Azure.DataLake.Store
     internal class FileStatusOutput : IEnumerable<DirectoryEntry>
     {
         /// <summary>
-        /// Number of maximum directory entries
+        /// Number of maximum directory entries to be retrieved from server. If -1 then retrieve all entries
         /// </summary>
         private readonly int _maxEntries;
 
@@ -38,7 +38,7 @@ namespace Microsoft.Azure.DataLake.Store
         private readonly UserGroupRepresentation? _ugr;
 
         /// <summary>
-        /// Path of the directory conatianing the sub-directories or files
+        /// Path of the directory containing the sub-directories or files
         /// </summary>
         private readonly string _path;
         /// <summary>

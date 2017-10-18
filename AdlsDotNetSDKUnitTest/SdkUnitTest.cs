@@ -133,7 +133,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Setup client from the super owner of the account
         /// </summary>
         /// <returns>AdlsClient</returns>
-        private static AdlsClient SetupSuperClient()
+        internal static AdlsClient SetupSuperClient()
         {
             string clientId = _ownerClientId;
             string clientSecret = _ownerClientSecret;
@@ -415,12 +415,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFileAsync(path, IfExists.Overwrite, "").GetAwaiter().GetResult())
             { }
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.WriteAsync(textByte1, 0, textByte1.Length).GetAwaiter().GetResult();
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[1024 * 1024];
@@ -1094,6 +1094,31 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.Fail("Trying to concat one file should throw an exception");
         }
         /// <summary>
+        /// Unit test to test failure when the destination is folder
+        /// </summary>
+        [TestMethod]
+        [ExpectedException((typeof(AdlsException)))]
+        public void TestConcatException4()
+        {
+            string destPath = "/Test/dir1/destPath4";
+            List<string> srcList = new List<string>()
+            {
+                "/Test/dir1/Source4/SrcFile1.txt",
+                "/Test/dir1/Source4/SrcFile2.txt"
+            };
+            byte[] textByte1 = Encoding.UTF8.GetBytes("Hello World");
+            _adlsClient.CreateDirectory(destPath);
+            using (var ostream = _adlsClient.CreateFile(srcList[0], IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            using (var ostream = _adlsClient.CreateFile(srcList[1], IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            _adlsClient.ConcatenateFiles(destPath, srcList);
+        }
+        /// <summary>
         /// Unit test to concat two file with and without deleting the source directory
         /// </summary>
         /// <param name="deleteSource">Whether to delete source directory</param>
@@ -1240,7 +1265,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         [TestMethod]
         [ExpectedException(typeof(AdlsException))]
-        public void TestExpiryFailDiretory()
+        public void TestExpiryFailDirectory()
         {
             string path = "/Test/dir1/ExpiryFolder";
             _adlsClient.CreateDirectory(path, "");
@@ -1283,7 +1308,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             DateTime dt = DateTime.UtcNow.AddDays(1);
-            long milliseconds = (long)(dt - new DateTime(1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds;
+            long milliseconds = (long)(dt - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
             _adlsClient.SetExpiryTime(path, ExpiryOption.Absolute, milliseconds);
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
             Assert.IsNotNull(diren.ExpiryTime);

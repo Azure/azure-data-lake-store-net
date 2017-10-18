@@ -19,11 +19,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Logger to log messages related to Http transport
         /// </summary>
-        private static readonly Logger WebTransportLog = LogManager.GetLogger("asdl.dotnet.WebTransport");
+        private static readonly Logger WebTransportLog = LogManager.GetLogger("adls.dotnet.WebTransport");
         /// <summary>
         /// Logger to log messages related to authorization token
         /// </summary>
-        private static readonly Logger TokenLog = LogManager.GetLogger("asdl.dotnet.WebTransport.Token");
+        private static readonly Logger TokenLog = LogManager.GetLogger("adls.dotnet.WebTransport.Token");
         /// <summary>
         /// Delegate that encapsulatesz the method that gets called when CancellationToken is cancelled
         /// </summary>

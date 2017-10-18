@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading;
+using Microsoft.Azure.DataLake.Store.QueueTools;
 
 namespace Microsoft.Azure.DataLake.Store
 {
@@ -16,11 +17,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Total number of thread workers
         /// </summary>
-        internal const int NoThreads = 16;
-        /// <summary>
-        /// Number of directory entries to obtain from the server for doing list status
-        /// </summary>
-        private const int ListSize = 16000;
+        internal int NumThreads;
         /// <summary>
         /// Array of thread workers
         /// </summary>
@@ -28,7 +25,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Queue for containing the directory entries picked by the thread worker
         /// </summary>
-        private readonly ContentProcessQueue _queue;
+        private readonly QueueWrapper<DirectoryEntry> _queue;
         /// <summary>
         /// Client exception if any raised by any thread
         /// </summary>
@@ -60,28 +57,29 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="client">ADLS Client</param>
         /// <param name="path">Path of the directory or file</param>
+        /// <param name="numThreads"> Number of threads</param>
         /// <param name="cancelToken">Cacellation Token</param>
         /// <returns>Content summary</returns>
-        internal static ContentSummary GetContentSummary(AdlsClient client, string path,
+        internal static ContentSummary GetContentSummary(AdlsClient client, string path, int numThreads=-1,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            ContentProcessor processor = new ContentProcessor(client, path, cancelToken);
-            return processor.GetContentSummary();
+            return new ContentProcessor(client, path,numThreads, cancelToken).GetContentSummary();
         }
 
-        private ContentProcessor(AdlsClient client, string path, CancellationToken cancelToken = default(CancellationToken))
+        private ContentProcessor(AdlsClient client, string path,int numThreads, CancellationToken cancelToken = default(CancellationToken))
         {
             Client = client;
             CancelToken = cancelToken;
-            _threadWorker = new Thread[NoThreads];
-            for (int i = 0; i < NoThreads; i++)
+            NumThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
+            _threadWorker = new Thread[NumThreads];
+            for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i] = new Thread(Run)
                 {
                     Name = "Thread-" + i
                 };
             }
-            _queue = new ContentProcessQueue();
+            _queue = new QueueWrapper<DirectoryEntry>(NumThreads);
             RootPath = path;
         }
         /// <summary>
@@ -91,12 +89,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Content summary-Total file count, directory count, total size</returns>
         private ContentSummary GetContentSummary()
         {
-            _queue.Enqueue(new DirectoryEntry(RootPath));
-            for (int i = 0; i < NoThreads; i++)
+            _queue.Add(new DirectoryEntry(RootPath));
+            for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Start();
             }
-            for (int i = 0; i < NoThreads; i++)
+            for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Join();
             }
@@ -140,7 +138,7 @@ namespace Microsoft.Azure.DataLake.Store
                 //GetException should be put here because some threads might be in waiting state and come back and see exception
                 if (GetException() != null || der == null)//der==null: Time to finish as all other threads have no entries
                 {
-                    _queue.Enqueue(null);//Poison block to notify other threads to close
+                    _queue.Add(null);//Poison block to notify other threads to close
                     return;
                 }
                 if (CancelToken.IsCancellationRequested)//Check if operation is cancelled
@@ -150,18 +148,17 @@ namespace Microsoft.Azure.DataLake.Store
                         Ex = new OperationCanceledException()
                     };
                     SetException(excep);
-                    _queue.Enqueue(null);
+                    _queue.Add(null);
                     return;
                 }
-                FileStatusOutput fop = new FileStatusOutput("", "", ListSize, null, Client, der.FullName);
                 try
                 {
-                    foreach (var dir in fop)
+                    foreach (var dir in Client.EnumerateDirectory(der.FullName))
                     {
                         if (dir.Type == DirectoryEntryType.DIRECTORY)
                         {
                             Interlocked.Increment(ref _directoryCount);
-                            _queue.Enqueue(dir);
+                            _queue.Add(dir);
                         }
                         else
                         {
@@ -175,7 +172,7 @@ namespace Microsoft.Azure.DataLake.Store
                     if (ex.HttpStatus != HttpStatusCode.NotFound)//Do not stop summary if the file is deleted
                     {
                         SetException(ex);//Sets the global exception to signal other threads to close
-                        _queue.Enqueue(null);//Handle corner cases like when exception is raised other threads can be in wait state
+                        _queue.Add(null);//Handle corner cases like when exception is raised other threads can be in wait state
                         return;
                     }
                 }

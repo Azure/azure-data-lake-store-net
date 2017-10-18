@@ -109,7 +109,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>DateTime instance</returns>
         internal static DateTime GetDateTimeFromServerTime(long time)
         {
-            return new DateTime(1970, 1, 1).Add(new TimeSpan(time * 10000));
+            return new DateTime(1970, 1, 1,0,0,0,DateTimeKind.Utc).Add(new TimeSpan(time * 10000));
         }
     }
 

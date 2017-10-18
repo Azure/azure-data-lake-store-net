@@ -6,6 +6,9 @@
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 
   <PropertyGroup>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+  <PropertyGroup>
     <PostBuildEvent>copy $(ProjectDir)NLog.config $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <ItemGroup>
@@ -18,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AdlsDotNetSDK\Microsoft.Azure.DataLake.Store.csproj" />
     <ProjectReference Include="..\MockServer\MockServer.csproj" />
+    <ProjectReference Include="..\TestDataCreator\TestDataCreator.csproj" />
   </ItemGroup>
 
   <ItemGroup>

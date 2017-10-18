@@ -16,7 +16,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Logger to log messages related to input stream
         /// </summary>
-        private static readonly Logger IpStreamLog = LogManager.GetLogger("asdl.dotnet.InputStream");
+        private static readonly Logger IpStreamLog = LogManager.GetLogger("adls.dotnet.InputStream");
         /// <summary>
         /// Filename including the full path
         /// </summary>
@@ -103,7 +103,7 @@ namespace Microsoft.Azure.DataLake.Store
             Buffer = new byte[BufferCapacity];
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"ADLInputStream created for file {Filename}, client {client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream, Created for file {Filename}, client {client.ClientId}");
             }
         }
         /// <summary>
@@ -179,7 +179,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace("Stream read at offset {0} for file {1} for client {2}", FilePointer, Filename, Client.ClientId);
+                IpStreamLog.Trace("ADLFileInputStream, Stream read at offset {0} for file {1} for client {2}", FilePointer, Filename, Client.ClientId);
             }
             return true;
         }
@@ -210,7 +210,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (FilePointer >= Entry.Length) return 0;
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"AdlInputStream.ReadServiceAsync Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream.ReadServiceAsync, Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
             BufferSize = await Core.OpenAsync(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
@@ -231,7 +231,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (FilePointer >= Entry.Length) return 0;
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"AdlInputStream.ReadServiceAsync Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream.ReadServiceAsync, Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
             BufferSize = Core.Open(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
@@ -284,7 +284,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"AdlInputStream.Read: Read offset {offset} for file {Filename} for client {Client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream.Read, Read offset {offset} for file {Filename} for client {Client.ClientId}");
             }
             return bytesRead;
         }
@@ -298,7 +298,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"AdlInputStream.Seek Seek to offset {offset} from {Enum.GetName(typeof(SeekOrigin), origin)} for file {Filename} for client {Client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream, Seek to offset {offset} from {Enum.GetName(typeof(SeekOrigin), origin)} for file {Filename} for client {Client.ClientId}");
             }
             if (_isDisposed)
             {
@@ -369,7 +369,7 @@ namespace Microsoft.Azure.DataLake.Store
             FilePointer = 0;
             if (IpStreamLog.IsTraceEnabled)
             {
-                IpStreamLog.Trace($"ADLInputStream closed for file {Filename}, client {Client.ClientId}");
+                IpStreamLog.Trace($"ADLFileInputStream, Closed for file {Filename}, client {Client.ClientId}");
             }
             base.Dispose(disposing);
         }

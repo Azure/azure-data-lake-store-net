@@ -1,5 +1,7 @@
 # Changes to the SDK
-### Version 0.1.2-beta
+### Version 1.0.0
+- Add bulk upload and bulk download
+### Version 0.1.3-beta
 - Fix the Newtonsoft.Json reference to 6.0.8 for .NET452 to be compatible with powershell and other azure libraries
 ### Version 0.1.2-beta
 - Fix objectid bug in Core.getfileliststatus and Core.getaclstatus and add unit test for it
