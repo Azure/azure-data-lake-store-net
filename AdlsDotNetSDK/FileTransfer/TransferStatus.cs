@@ -48,7 +48,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// Tracks number of empty directories transferred correctly
         /// </summary>
         public long DirectoriesTransferred;
-        private readonly Object _lock = new Object(); 
+        private readonly Object _lock = new Object();
         /// <summary>
         /// List of directories or chunks or unchunked files that did not get transferred correctly
         /// </summary>
@@ -78,9 +78,17 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
     public class SingleEntryTransferStatus
     {
         /// <summary>
-        /// Name of the hunk or file or directory
+        /// Name of the chunk or file or directory
         /// </summary>
         public string EntryName { get; }
+        /// <summary>
+        /// Chunk Id.
+        /// </summary>
+        internal int ChunkId;
+        /// <summary>
+        /// Source file name
+        /// </summary>
+        internal string Source;
         /// <summary>
         /// Size of the chunk or file
         /// </summary>
@@ -97,13 +105,20 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// Status of the transfer: Successful or failed or skipped if we didnt want to overwrite the destination if it exists
         /// </summary>
         public SingleChunkStatus Status { get; }
-        internal SingleEntryTransferStatus(string entry,string err,EntryType type,SingleChunkStatus status,long entrySize=0)
+
+        internal SingleEntryTransferStatus(string source, string dest, string err, EntryType type, SingleChunkStatus status, int chunkId = -1, long entrySize = 0)
         {
-            EntryName = entry;
-            Errors = err;
+            Source = source;
             Type = type;
             Status = status;
+            ChunkId = chunkId;
+            EntryName = dest;
+            Errors = err;
             EntrySize = entrySize;
+        }
+        public override string ToString()
+        {
+            return $"JobStatus: {Status}, Error: {Errors}";
         }
     }
     /// <summary>

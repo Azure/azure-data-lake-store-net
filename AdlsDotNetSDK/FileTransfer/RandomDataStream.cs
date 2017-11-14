@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 namespace Microsoft.Azure.DataLake.Store.FileTransfer
 
 {
-    internal class RandomDataStream : System.IO.Stream
+    internal class RandomDataStream : Stream
     {
         private static int size = 1024 * 1024 * 16;
         private static byte[] internalBuffer = new byte[size * 2];

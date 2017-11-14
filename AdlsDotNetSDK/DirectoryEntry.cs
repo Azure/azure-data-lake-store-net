@@ -18,61 +18,75 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Name of the entry
         /// </summary>
-        public String Name { get; }
+        public String Name { get; internal set; }
 
         /// <summary>
         /// Full Path of the directory entry
         /// </summary>
-        public String FullName { get; }
+        public String FullName { get; internal set; }
 
         /// <summary>
         /// Size of the file. Zero for directory
         /// </summary>
-        public long Length { get; }
+        public long Length { get; internal set; }
         /// <summary>
         /// Group owner of the file or directory
         /// </summary>
-        public String Group { get; }
+        public String Group { get; internal set; }
         /// <summary>
         /// User owner of the file or directory 
         /// </summary>
-        public String User { get; }
+        public String User { get; internal set; }
         /// <summary>
         /// Instant when the file was last accessed
         /// </summary>
-        public DateTime? LastAccessTime { get; }
+        public DateTime? LastAccessTime { get; internal set; }
         /// <summary>
         /// Instant when the file was last modified
         /// </summary>
-        public DateTime? LastModifiedTime { get; }
+        public DateTime? LastModifiedTime { get; internal set; }
         /// <summary>
         /// Type- File or directory
         /// </summary>
-        public DirectoryEntryType Type { get; }
+        public DirectoryEntryType Type { get; internal set; }
         /// <summary>
         /// Boolean indicating whether ACLs are set
         /// </summary>
-        public bool HasAcl { get; }
+        public bool HasAcl { get; internal set; }
         /// <summary>
         /// Instant when the file will expire
         /// </summary>
-        public DateTime? ExpiryTime { get; }
+        public DateTime? ExpiryTime { get; internal set; }
         /// <summary>
         /// Unix style permission string
         /// </summary>
-        public String Permission { get; }
+        public String Permission { get; internal set; }
         /// <summary>
         /// Default constructor
         /// </summary>
-        public DirectoryEntry() { Name = null; }
+        public DirectoryEntry() { }
         /// <summary>
         /// Initializes the name and full name
         /// </summary>
         /// <param name="fullName"></param>
         internal DirectoryEntry(string fullName)
         {
-            Name = fullName;
-            FullName = fullName;
+            FullName = Name = fullName;
+        }
+
+        internal DirectoryEntry(DirectoryEntry dir)
+        {
+            Name = new string(dir.Name.ToCharArray());
+            FullName = new string(dir.FullName.ToCharArray());
+            Length = dir.Length;
+            Group = new string(dir.Group.ToCharArray());
+            User = new string(dir.User.ToCharArray());
+            LastAccessTime = dir.LastAccessTime;
+            LastModifiedTime = dir.LastModifiedTime;
+            Type = dir.Type;
+            Permission = new string(dir.Permission.ToCharArray());
+            HasAcl = HasAcl;
+            ExpiryTime = dir.ExpiryTime;
         }
         /// <summary>
         /// Constructor that initializes each property

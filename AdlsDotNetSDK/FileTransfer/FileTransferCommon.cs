@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using NLog;
 using Microsoft.Azure.DataLake.Store.FileTransfer.Jobs;
 using Microsoft.Azure.DataLake.Store.QueueTools;
@@ -17,6 +18,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
     internal abstract class FileTransferCommon
     {
         protected static readonly Logger FileTransferLog = LogManager.GetLogger("adls.dotnet.FileTransfer");
+        private static readonly Logger JobLog = LogManager.GetLogger("adls.dotnet.FileTransfer.Job");
         /// <summary>
         /// If true then will not recurse under sub directories
         /// </summary>
@@ -40,7 +42,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <summary>
         /// Priority queue containing jobs for Consumer threads
         /// </summary>
-        internal PriorityQueueWrapper<Job> ConsumerQueue { get; }
+        internal PriorityQueueWrapper<BaseJob> ConsumerQueue { get; }
 
         protected AdlsClient Client { get; }
         /// <summary>
@@ -85,9 +87,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         private long _consumerDone;
 
         private bool _shouldRunProducer;
-        
-        protected FileTransferCommon(string srcPath, string destPath, AdlsClient client, int numThreads, IfExists doOverwrite, IProgress<TransferStatus> progressTracker,bool notRecurse, bool ingressOrEgressTest, long chunkSize)
-
+        protected readonly TransferLog RecordedMetadata;
+        protected const string TransferLogFileSeparator = "-";
+        protected CancellationToken CancelToken;
+        protected FileTransferCommon(string srcPath, string destPath, AdlsClient client, int numThreads, IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, bool ingressOrEgressTest, long chunkSize, string metaDataPath, CancellationToken cancelToken, string metaDataInfo = null)
         {
             if (string.IsNullOrWhiteSpace(srcPath))
             {
@@ -103,18 +106,26 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             NumConsumerThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
             ChunkSize = chunkSize;
             NotRecurse = notRecurse;
+            metaDataInfo = string.IsNullOrEmpty(metaDataInfo) ? ChunkSize.ToString() : metaDataInfo + $",ChunkSize:{chunkSize},{(NotRecurse ? "NotRecurse" : "Recurse")}";
+            RecordedMetadata = new TransferLog(resume, metaDataPath, metaDataInfo);
 #if NET452
             ServicePointManager.DefaultConnectionLimit = NumConsumerThreads;
-            ServicePointManager.Expect100Continue = false;
-            ServicePointManager.UseNagleAlgorithm = false;
-            WebRequest.DefaultWebProxy = null;
 #endif
             Status = new TransferStatus();
-            ConsumerQueue = new PriorityQueueWrapper<Job>();
+            ConsumerQueue = new PriorityQueueWrapper<BaseJob>();
+            CancelToken = cancelToken;
         }
+        // Gets the metadata path where the metadata is stored for transfer to resume. For upload, it will be the source path appended with the destination directory or file.
+        // For download it will be the destination path appended with source directory or file.
+        internal static string GetTransferLogFileName(string sourcePath, string destPath, char sourceSeparator, char destSeparator)
+        {
+            string separator = Regex.Escape($"{sourceSeparator}{destSeparator}");
+            var regex = new Regex($"[:{separator}]");
+            return $"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat";
+        }
+
         /// Adds jobs for concat
-        internal abstract void AddConcatJobToQueue(string chunkSegmentFolder, string dest, long totSize,
-            long totalChunks);
+        internal abstract void AddConcatJobToQueue(string source, string chunkSegmentFolder, string dest, long totSize, long totalChunks, bool doUploadRenameOnly = false);
         /// <summary>
         /// Initializes the producer threads, consumer threads- This is not done in constructor because it has separate immplementation for start enumeration
         /// </summary>
@@ -197,6 +208,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             //Sets up the producer threads for first pass producer run and conumer threads
             SetupThreads();
+            if (CancelToken.IsCancellationRequested)
+            {
+                return Status;
+            }
             //Runs the enumeration first and waits for it to end
             StartProducer();
             WaitForProducerToFinish();
@@ -204,6 +219,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             // After enumeration we have a better idea the sample distribution of file sizes
             // In second pass we can determine how the chunking will be done for uploader or downloader
             InitializesProducerThreads(FinalPassProducerRun);
+            if (CancelToken.IsCancellationRequested)
+            {
+                return Status;
+            }
             StartProducer();
             //Now the consumer can run in parallel to producer
             StartConsumer();
@@ -220,6 +239,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             {
                 _threadConsumer[i].Join();
             }
+            RecordedMetadata.EndRecording(CancelToken.IsCancellationRequested);
             if (ProgressTracker != null)
             {
                 Interlocked.Increment(ref _consumerDone);
@@ -244,22 +264,36 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         protected abstract string GetDestDirectoryFormatted(string relPath);
         /// Gets the destination directory separator
         protected abstract char GetDestDirectorySeparator();
-        /// Creates the MetaData for uploader or downloader
-        internal abstract FileMetaData AssignMetaData(string fileFullName, string chunkSegmentFolder, string destPath,
-            long fileLength, long numChunks);
-
-        protected void AddDirectoryToConsumerQueue(string dirFullName, bool isUpload)
+        /// Creates the MetaData for uploader or downloader, alreadyChunksTransferred will be greater than -1 only if a chunked file is being resumed after it is incomplete last time
+        internal abstract FileMetaData AssignMetaData(string fileFullName, string chunkSegmentFolder, string destPath, long fileLength, long numChunks, long alreadyChunksTransferred = -1);
+        internal void AddBeginRecord(string source, string segmentFolder)
         {
+            RecordedMetadata.AddRecord($"BEGIN{TransferLog.MetaDataDelimiter}{source}{TransferLog.MetaDataDelimiter}{segmentFolder}");
+        }
+
+        internal void AddCompleteRecord(string source, bool autoFlush = false)
+        {
+            RecordedMetadata.AddRecord($"COMPLETE{TransferLog.MetaDataDelimiter}{source}", autoFlush);
+        }
+        // If the transfer process is being resumed and it was successfully transfered before then we return false- meaning 
+        // it does not need to be transfered
+        protected bool AddDirectoryToConsumerQueue(string dirFullName, bool isUpload)
+        {
+            if (RecordedMetadata.EntryTransferredSuccessfulLastTime(dirFullName))
+            {
+                return false;
+            }
             string relativePath = GetDestDirectoryFormatted(dirFullName.Substring(SourcePath.Length));
             string destPath = DestPath + GetDestDirectorySeparator() + relativePath;
-            ConsumerQueue.Add(new MakeDirJob(destPath, Client, isUpload));
+            ConsumerQueue.Add(new MakeDirJob(dirFullName, destPath, Client, isUpload));
             if (FileTransferLog.IsDebugEnabled)
             {
                 FileTransferLog.Debug($"FileTransfer.DirectoryProduced, {destPath}");
             }
+            return true;
         }
         /// Adds file or its chunks to Consumer queue
-        protected long AddFileToConsumerQueue(string fileFullName, long fileLength, bool isToBeChunked)
+        protected long AddFileToConsumerQueue(string fileFullName, long fileLength, bool isToBeChunked, out long fileSizeToTransfer)
         {
             string relativePath;
             if (SourcePath.Equals(fileFullName)) //This is the case when the input path is a file
@@ -272,26 +306,51 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 relativePath = GetDestDirectoryFormatted(relativePath);
             }
             long numChunks = 0;
-            string tempGuid = null;
+            string tempChunkFolder = null;
+            fileSizeToTransfer = 0;
+            // We will never be here if the log has detected that the file is done
             if (isToBeChunked)
             {
-                //Create the metadata
+                //If RecordedMetadata.EntryTransferAttemptedLastTime(fileFullName) is true then the file was attempted and incomplete. Because if it is successful then we will not be here
+                int numChunksAlreadyTransferred = RecordedMetadata.EntryTransferAttemptedLastTime(fileFullName) ? RecordedMetadata.LoadedMetaData[fileFullName].Chunks.Count : -1;
+                // numChunksAlreadyTransferred is -1 means this file was not attempted before so effectively 0 chunks were done
                 numChunks = fileLength / ChunkSize + (fileLength % ChunkSize == 0 ? 0 : 1);
-                tempGuid = Guid.NewGuid().ToString();
-                FileMetaData bulk = AssignMetaData(fileFullName, DestPath + relativePath + tempGuid + "Segments", DestPath + relativePath, fileLength, numChunks);
-                for (int i = 0; i < numChunks; i++)
-                {
-                    ConsumerQueue.Add(new CopyFileJob(i, bulk, Client));
+                tempChunkFolder = RecordedMetadata.EntryTransferAttemptedLastTime(fileFullName) ? RecordedMetadata.LoadedMetaData[fileFullName].SegmentFolder : DestPath + relativePath + Guid.NewGuid() + "Segments";
+                var bulk = AssignMetaData(fileFullName, tempChunkFolder, DestPath + relativePath, fileLength, numChunks, numChunksAlreadyTransferred);
+                if (numChunksAlreadyTransferred == numChunks)
+                {// If all chunks were transferred correctly then add a CopyFileJob only. CopyFileJob will make the necessary checks and determine which state we are in
+                    ConsumerQueue.Add(new CopyFileJob(0, bulk, Client));
                 }
+                else
+                {
+                    // If this file was attempted in last transfer and it is being resumed, at the enumeration time we just add the jobs for the chunks which are not 
+                    // reported in the log file. In reality there can be different states 1) Only those reported in resume file are done 2) More than reported are done however concat wasn't started yet
+                    // 3) All chunks are actually done and concat is half done 4) All chunks are done and concat is done. The discrepancy between the resume file and actual events is because the
+                    // log file is written in a separate producer-consumer queue (not serialized) for perf reasons. All these cases checked and are taken care in FileMetaData.
+                    // If we are in state 1 and 2 then the jobs are done as expected. If we are in states beyond 2 then we do the required concat job and chunks
+                    // are reported done without any actual transfer.
+                    for (int i = 0; i < numChunks; i++)
+                    {
+                        if (RecordedMetadata.EntryTransferAttemptedLastTime(fileFullName) && RecordedMetadata.LoadedMetaData[fileFullName].Chunks.Contains(i))
+                        {
+                            continue;
+                        }
+                        ConsumerQueue.Add(new CopyFileJob(i, bulk, Client));
+                        fileSizeToTransfer += i == numChunks - 1 ? fileLength - i * ChunkSize : ChunkSize;
+                    }
+                }
+                // Number of chunks to be uploaded for this file will be the total chunks minus the chunks already transferred
+                numChunks -= numChunksAlreadyTransferred < 0 ? 0 : numChunksAlreadyTransferred;
             }
             else
             {
                 FileMetaData bulk = AssignMetaData(fileFullName, null, DestPath + relativePath, fileLength, numChunks);
                 ConsumerQueue.Add(new CopyFileJob(-1, bulk, Client));
+                fileSizeToTransfer = fileLength;
             }
             if (FileTransferLog.IsDebugEnabled)
             {
-                FileTransferLog.Debug($"FileTransfer.FileProduced, Name: {fileFullName}, Dest: {DestPath + relativePath + (tempGuid != null ? tempGuid + "Segments" : "")}, Length: {fileLength}, Chunks: {numChunks}");
+                FileTransferLog.Debug($"FileTransfer.FileProduced, Name: {fileFullName}, Dest: {tempChunkFolder ?? DestPath + relativePath}, Length: {fileLength}, Chunks: {numChunks}");
             }
             return numChunks;
         }
@@ -308,7 +367,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             }
             if (unchunkedFile > 0)
             {
-                Interlocked.Add(ref Status.TotalNonChunkedFileToTransfer, size);
+                Interlocked.Add(ref Status.TotalNonChunkedFileToTransfer, unchunkedFile);
             }
             if (chunks > 0)
             {
@@ -316,7 +375,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             }
             if (numDirectories > 0)
             {
-                Interlocked.Add(ref Status.TotalDirectoriesToTransfer,numDirectories);
+                Interlocked.Add(ref Status.TotalDirectoriesToTransfer, numDirectories);
             }
         }
         /// <summary>
@@ -327,7 +386,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             while (Interlocked.Read(ref _consumerDone) == 0)
             {
                 ProgressTracker.Report(Status);
-                Thread.Sleep(5000);
+                Thread.Sleep(50);
             }
         }
         /// <summary>
@@ -337,6 +396,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             while (true)
             {
+                if (CancelToken.IsCancellationRequested)
+                {
+                    return;
+                }
                 var job = ConsumerQueue.Poll();
 
                 if (job is PoisonJob)
@@ -344,29 +407,39 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                     ConsumerQueue.Add(new PoisonJob());
                     return;
                 }
-                SingleEntryTransferStatus res = job.DoRun();
+                var res = job.DoRun(JobLog) as SingleEntryTransferStatus;
+                if (res == null)
+                {
+                    continue;
+                }
                 if (res.Status == SingleChunkStatus.Successful)
                 {
                     if (res.Type == EntryType.Chunk)
                     {
                         Interlocked.Increment(ref Status.ChunksTransfered);
+                        RecordedMetadata.AddRecord($"CHUNK{TransferLog.MetaDataDelimiter}{res.Source}{TransferLog.MetaDataDelimiter}{res.ChunkId}");
                     }
                     else if (res.Type == EntryType.File)
                     {
+                        // Entry size is zero for concat
                         if (res.EntrySize != 0)
                         {
                             Interlocked.Increment(ref Status.NonChunkedFileTransferred);
                         }
                         Interlocked.Increment(ref Status.FilesTransfered);
+                        // For successful concat we want to flush the metadata records
+                        AddCompleteRecord(res.Source, res.EntrySize == 0);
                     }
                     else
                     {
                         Interlocked.Increment(ref Status.DirectoriesTransferred);
+                        AddCompleteRecord(res.Source);
                     }
                     if (res.EntrySize > 0)
                     {
                         Interlocked.Add(ref Status.SizeTransfered, res.EntrySize);
                     }
+
                 }
                 else if (res.Status == SingleChunkStatus.Failed)
                 {

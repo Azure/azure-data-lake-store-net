@@ -91,7 +91,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="settingName"></param>
         /// <returns></returns>
-        private static string ReadSetting(string settingName)
+        internal static string ReadSetting(string settingName)
         {
             return AppSettings[settingName];
         }
@@ -104,10 +104,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             _accntName = ReadSetting("Account");
             _ownerObjectId = ReadSetting("AccountOwnerObjectId");
-            _ownerClientId = ReadSetting("AccountOwnerClientId"); 
-            _ownerClientSecret = ReadSetting("AccountOwnerClientSecret"); 
-            _nonOwner1ObjectId = ReadSetting("NonOwner1ObjectId"); 
-            _nonOwner1ClientId = ReadSetting("NonOwner1ClientId"); 
+            _ownerClientId = ReadSetting("AccountOwnerClientId");
+            _ownerClientSecret = ReadSetting("AccountOwnerClientSecret");
+            _nonOwner1ObjectId = ReadSetting("NonOwner1ObjectId");
+            _nonOwner1ClientId = ReadSetting("NonOwner1ClientId");
             _nonOwner1ClientSecret = ReadSetting("NonOwner1ClientSecret");
             _nonOwner2ObjectId = ReadSetting("NonOwner2ObjectId");
             _nonOwner2ClientId = ReadSetting("NonOwner2ClientId");
@@ -268,13 +268,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string text2 = "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.";
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
                 ostream.Write(textByte2, 0, textByte2.Length);
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (Stream istream = _adlsClient.GetReadStream(path))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[25];
@@ -296,7 +296,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string path = "/Test/dir1/testAppendNotExist.txt";
             string text1 = RandomString(300);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
@@ -315,7 +315,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             { }
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.Write(textByte1, 0, 3 * 1024 * 1024);
                 ostream.Write(textByte1, 3 * 1024 * 1024, 2 * 1024 * 1024);
@@ -326,7 +326,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 ostream.Write(textByte1, 14 * 1024 * 1024, 8 * 1024 * 1024);
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[1024 * 1024];
@@ -351,7 +351,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             { }
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.Write(textByte1, 0, 2 * 1024 * 1024);
                 ostream.Write(textByte1, 2 * 1024 * 1024, 1 * 1024 * 1024);
@@ -362,7 +362,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 ostream.Write(textByte1, 14 * 1024 * 1024, 2 * 1024 * 1024);
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[1024 * 1024];
@@ -386,12 +386,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             { }
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[1024 * 1024];
@@ -488,7 +488,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string path = "/Test/dir1/testAppend2.txt";
             string text1 = RandomString(27 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
@@ -496,13 +496,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string text3 = RandomString(100 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             byte[] textByte3 = Encoding.UTF8.GetBytes(text3);
-            using (AdlsOutputStream ostream = _adlsClient.GetAppendStream(path))
+            using (var ostream = _adlsClient.GetAppendStream(path))
             {
                 ostream.Write(textByte2, 0, textByte2.Length);
                 ostream.Write(textByte3, 0, textByte3.Length);
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 istream.Seek(textByte1.Length, SeekOrigin.Begin);
                 int noOfBytes;
@@ -527,19 +527,19 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekCurrent()
         {
-            
+
             string path = "/Test/dir1/testSeekCurrent.txt";
             int strLength = 24 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int lengthToReadBeforeSeek = strLength / 8;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string expectedOp = "";
             string actualOp = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 byte[] buff = new byte[strLength];
                 int totalBytes = 0, startByte = 0;
@@ -601,13 +601,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string expectedOp = "";
             string actualOp = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 byte[] buff = new byte[strLength];
                 int totalBytes = 0, startBytes = 0;
@@ -677,13 +677,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string expectedOp = "";
             string actualOp = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 byte[] buff = new byte[strLength];
                 int totalBytes = 0, startBytes = 0;
@@ -737,13 +737,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string expectedOp = "";
             string actualOp = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(path))
+            using (var istream = _adlsClient.GetReadStream(path))
             {
                 byte[] buff = new byte[strLength];
                 int totalBytes = 0, startBytes = 0;
@@ -909,7 +909,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFilePath, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFilePath, IfExists.Overwrite, ""))
             {
                 ostream.Write(srcByte, 0, srcByte.Length);
             }
@@ -925,7 +925,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string output = "";
             try
             {
-                using (AdlsInputStream istream = _adlsClient.GetReadStream(destFilePath))
+                using (var istream = _adlsClient.GetReadStream(destFilePath))
                 {
                     int noOfBytes;
                     byte[] buffer = new byte[2 * 1024 * 1024];
@@ -953,13 +953,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFilePath, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFilePath, IfExists.Overwrite, ""))
             {
                 ostream.Write(srcByte, 0, srcByte.Length);
             }
             string destFileText = RandomString(strLength);
             byte[] destByte = Encoding.UTF8.GetBytes(destFileText);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(destFilePath, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(destFilePath, IfExists.Overwrite, ""))
             {
                 ostream.Write(destByte, 0, destByte.Length);
             }
@@ -988,7 +988,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 }
             }
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(destFilePath))
+            using (var istream = _adlsClient.GetReadStream(destFilePath))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[2 * 1024 * 1024];
@@ -1133,14 +1133,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string srcFile1 = sourcePath + "/srcPath4.txt";
             string text1 = RandomString(10 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string srcFile2 = sourcePath + "/srcPath5.txt";
             string text2 = RandomString(3 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte2, 0, textByte2.Length);
             }
@@ -1148,7 +1148,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             srcList.Add(srcFile2);
             _adlsClient.ConcatenateFiles(destPath, srcList, deleteSource);
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(destPath))
+            using (var istream = _adlsClient.GetReadStream(destPath))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[5 * 1024 * 1024];
@@ -1196,21 +1196,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string srcFile1 = sourcePath + "/srcPath1.txt";
             string text1 = RandomString(1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string srcFile2 = sourcePath + "/srcPath2.txt";
             string text2 = RandomString(6 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte2, 0, textByte2.Length);
             }
             string srcFile3 = sourcePath + "/srcPath3.txt";
             string text3 = RandomString(300 * 1024);
             byte[] textByte3 = Encoding.UTF8.GetBytes(text3);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(srcFile3, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(srcFile3, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte3, 0, textByte3.Length);
             }
@@ -1219,7 +1219,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             srcList.Add(srcFile3);
             _adlsClient.ConcatenateFiles(destPath, srcList, deleteSource);
             string output = "";
-            using (AdlsInputStream istream = _adlsClient.GetReadStream(destPath))
+            using (var istream = _adlsClient.GetReadStream(destPath))
             {
                 int noOfBytes;
                 byte[] buffer = new byte[8 * 1024 * 1024];
@@ -1281,7 +1281,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string path = "/Test/dir1/ExpiryFolder/ExpiryFile1.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
@@ -1303,7 +1303,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string path = "/Test/dir1/ExpiryFolder/ExpiryFileAbsolute.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
@@ -1321,7 +1321,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestExpiryTimeRelativeCreation()
         {
             string path = "/Test/dir1/ExpiryFolder/ExpiryFileRelative.txt";
-            AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "");
+            var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "");
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
             DateTime create = diren.LastModifiedTime.Value;
             DateTime endTime = create.Add(new TimeSpan(0, 0, 0, 10));
@@ -1501,7 +1501,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string testFile = path + "/CheckAccessFile.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(testFile, IfExists.Overwrite, originalPermission))
+            using (var ostream = _adlsClient.CreateFile(testFile, IfExists.Overwrite, originalPermission))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
@@ -1509,7 +1509,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(nonOwner1.CheckAccess(path, "r--"));
             try
             {
-                using (AdlsInputStream istream = nonOwner1.GetReadStream(testFile))
+                using (var istream = nonOwner1.GetReadStream(testFile))
                 {
                     byte[] buff = new byte[25];
                     istream.Read(buff, 0, buff.Length);
@@ -1556,7 +1556,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, "770");
             string testFile = path + "/SetAcl.txt";
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(testFile, IfExists.Overwrite, "775"))
+            using (var ostream = _adlsClient.CreateFile(testFile, IfExists.Overwrite, "775"))
             {
                 byte[] buff = Encoding.UTF8.GetBytes("Hello test i am");
                 ostream.Write(buff, 0, buff.Length);
@@ -1579,7 +1579,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             try
             {
                 byte[] buff = new byte[25];
-                using (AdlsInputStream istream = nonOwner1.GetReadStream(testFile))
+                using (var istream = nonOwner1.GetReadStream(testFile))
                 {
                     istream.Read(buff, 0, buff.Length);
                 }
@@ -1607,7 +1607,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             try
             {
                 byte[] buff = new byte[25];
-                using (AdlsInputStream istream = nonOwner2.GetReadStream(testFile))
+                using (var istream = nonOwner2.GetReadStream(testFile))
                 {
                     istream.Read(buff, 0, buff.Length);
                 }
@@ -1646,7 +1646,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(nonOwner1.CheckAccess(path, "rw-"));
             try
             {
-                using (AdlsInputStream istream = nonOwner1.GetReadStream(path))
+                using (var istream = nonOwner1.GetReadStream(path))
                 {
                     byte[] buff = new byte[25];
                     istream.Read(buff, 0, buff.Length);
@@ -1655,7 +1655,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (IOException) { Assert.Fail("nonowner1 should have read permission so ReadStream should not raise an exception"); }
             try
             {
-                using (AdlsInputStream istream = nonOwner1.GetReadStream(path))
+                using (var istream = nonOwner1.GetReadStream(path))
                 {
                     byte[] buff = new byte[25];
                     istream.Read(buff, 0, buff.Length);
@@ -1708,7 +1708,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             try
             {
-                using (AdlsInputStream istream = nonOwner2.GetReadStream(path))
+                using (var istream = nonOwner2.GetReadStream(path))
                 {
                     byte[] buffer = new byte[25];
                     istream.Read(buffer, 0, buffer.Length);
@@ -1728,12 +1728,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             string path = "/Test/dir1/ModifyAclEntryOther.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
-            {}
+            { }
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
             try
             {
                 using (nonOwner2.GetAppendStream(path))
-                {}
+                { }
                 Assert.Fail("Nonowner2 should not have write permission so AppendStream should raise an exception");
             }
             catch (IOException)
@@ -1745,7 +1745,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             try
             {
                 using (nonOwner2.GetAppendStream(path))
-                {}
+                { }
             }
             catch (IOException)
             {
@@ -1753,7 +1753,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             try
             {
-                using (AdlsInputStream istream = nonOwner2.GetReadStream(path))
+                using (var istream = nonOwner2.GetReadStream(path))
                 {
                     byte[] buffer = new byte[25];
                     istream.Read(buffer, 0, buffer.Length);
@@ -1772,7 +1772,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestModifyAclMask()
         {
             string path = "/Test/dir1/ModifyAclEntryMask.txt";
-            using (AdlsOutputStream ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             {
                 byte[] buff = Encoding.UTF8.GetBytes("Hello");
                 ostream.Write(buff, 0, buff.Length);
@@ -1794,14 +1794,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             try
             {
                 using (nonOwner1.GetAppendStream(path))
-                {}
+                { }
                 Assert.Fail("Nonowner1 still should not have effective write permission so AppendStream should raise an exception");
             }
             catch (IOException)
-            {}
+            { }
             try
             {
-                using (AdlsInputStream istream = nonOwner1.GetReadStream(path))
+                using (var istream = nonOwner1.GetReadStream(path))
                 {
                     byte[] buffer = new byte[25];
                     istream.Read(buffer, 0, buffer.Length);
@@ -2165,7 +2165,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string subFile = path + "/subFileNew";
             _adlsClient.CreateDirectory(subDirec, "");
             using (_adlsClient.CreateFile(subFile, IfExists.Overwrite, ""))
-            {}
+            { }
             AdlsClient nonOwner1 = SetupNonOwnerClient1();
             Assert.IsFalse(nonOwner1.CheckAccess(subDirec, "-wx"));
             Assert.IsFalse(nonOwner1.CheckAccess(subFile, "-wx"));
@@ -2207,7 +2207,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             for (int i = 0; i < noFileEntries; i++)
             {
                 byte[] read = stringLength > 0 ? Encoding.UTF8.GetBytes(RandomString(stringLength)) : null;
-                using (AdlsOutputStream ostream = client.CreateFile(path + "/" + nextLevel + filePrefix + i + "File.txt", IfExists.Overwrite, ""))
+                using (var ostream = client.CreateFile(path + "/" + nextLevel + filePrefix + i + "File.txt", IfExists.Overwrite, ""))
                 {
                     if (read != null)
                     {
@@ -2267,7 +2267,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             int expectedFileCnt = (expectedDirCnt + 1) * oneLevelFileCnt;
             int expectedFileSize = expectedFileCnt * oneFileSize;
-            CreateDirRecursive(_adlsClient, path, 2, 3, 2, 100).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, recurseLevel, oneLevelDirecCnt, oneLevelFileCnt, oneLevelFileCnt, oneFileSize, oneFileSize);
             ContentSummary summary = _adlsClient.GetContentSummary(path);
             Assert.IsTrue(summary.DirectoryCount == expectedDirCnt);
             Assert.IsTrue(summary.FileCount == expectedFileCnt);
@@ -2285,10 +2285,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string filePrefix = "";
             int setListSize = 120;
             HashSet<string> hSet = new HashSet<string>();
-            CreateDirRecursive(_adlsClient, path, 0, 0, 0, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, 0, 0, 0, 0, false, filePrefix);
             TestGetFileStatus(path, 0, hSet, 0, setListSize);
             TestGetFileStatus(path, 1, hSet, 0, setListSize);
-            CreateDirRecursive(_adlsClient, path, 0, 0, totFiles, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
@@ -2297,7 +2297,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             TestGetFileStatus(path, 2, hSet, 1, setListSize);
             totFiles = 99;
             filePrefix = "A1";
-            CreateDirRecursive(_adlsClient, path, 0, 0, totFiles, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
@@ -2307,7 +2307,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             TestGetFileStatus(path, setListSize, hSet, 100, setListSize);
             totFiles = 20;
             filePrefix = "A2";
-            CreateDirRecursive(_adlsClient, path, 0, 0, totFiles, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
@@ -2317,7 +2317,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             TestGetFileStatus(path, setListSize + 1, hSet, setListSize, setListSize);
             totFiles = 80;
             filePrefix = "A3";
-            CreateDirRecursive(_adlsClient, path, 0, 0, totFiles, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
@@ -2328,7 +2328,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             TestGetFileStatus(path, 201, hSet, 200, setListSize);
             totFiles = 100;
             filePrefix = "A4";
-            CreateDirRecursive(_adlsClient, path, 0, 0, totFiles, 0, filePrefix).GetAwaiter().GetResult();
+            TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));

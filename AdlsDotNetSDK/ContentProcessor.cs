@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Microsoft.Azure.DataLake.Store.QueueTools;
+using System;
 using System.Net;
 using System.Threading;
-using Microsoft.Azure.DataLake.Store.QueueTools;
 
 namespace Microsoft.Azure.DataLake.Store
 {

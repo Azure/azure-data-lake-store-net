@@ -24,7 +24,9 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
         /// Wait time
         /// </summary>
         private int ExponentialInterval { get; set; }
-
+        /// <summary>
+        /// Default settings of Exponential retry policies
+        /// </summary>
         public ExponentialRetryPolicy()
         {
             NumberOfRetries = 0;
@@ -32,13 +34,34 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
             ExponentialFactor = 4;
             ExponentialInterval = 1000;
         }
-
+        /// <summary>
+        /// Exponential retry policies with specified maximum retries and interval
+        /// </summary>
+        /// <param name="maxRetries">Maximum retries</param>
+        /// <param name="interval">Exponential time interval</param>
         public ExponentialRetryPolicy(int maxRetries, int interval)
         {
             NumberOfRetries = 0;
             MaxRetries = maxRetries;
             ExponentialFactor = 4;
             ExponentialInterval = interval;
+        }
+
+        internal bool ShouldRetryBasedOnHttpOutput(int httpCode, Exception ex)
+        {
+            //HTTP CODE 1xx and 2xx are not errors and 3xx are redirection status which shouldnt be retied
+            //501 is not immplemented, 505 http version not supported
+            if ((httpCode >= 300 && httpCode < 500 && httpCode != 408 && httpCode != 429) ||
+                httpCode == 501 || httpCode == 505)
+            {
+                return false;
+            }
+            //For 408-timed out and 429-too many responses and 5xx server except the above ones we need retries
+            if (ex != null || httpCode >= 500 || httpCode == 408 || httpCode == 429 || httpCode == 401)
+            {
+                return true;
+            }
+            return false;
         }
         /// <summary>
         /// Determines whether to retry exponentially
@@ -48,16 +71,8 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
         /// <returns></returns>
         public override bool ShouldRetry(int httpCode, Exception ex)
         {
-            //HTTP CODE 1xx and 2xx are not errors and 3xx are redirection status which shouldnt be retied
-            //501 is not immplemented, 505 http version not supported
-            if ((httpCode >= 300 && httpCode < 500 && httpCode != 408 && httpCode != 429) ||
-                httpCode == 501 || httpCode == 505)
+            if (ShouldRetryBasedOnHttpOutput(httpCode,ex))
             {
-                return false;
-            }
-            if (ex != null || httpCode >= 500 || httpCode == 408 || httpCode == 429 || httpCode == 401)
-            {
-                //For 408-timed out and 429-too many responses and 5xx server except the above ones we need retries
                 if (NumberOfRetries < MaxRetries)
                 {
                     Thread.Sleep(ExponentialInterval);

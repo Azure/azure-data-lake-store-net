@@ -15,16 +15,16 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <summary>
         /// Threshold to determine this is a large file for which we may need chunking for download
         /// </summary>
-        private static long ChunkWeightThreshold = 5 * 1024 * 1024 * 1024L;
+        internal static long ChunkWeightThreshold = 5 * 1024 * 1024 * 1024L;
         /// <summary>
         /// If number of large files is less than this number then only we should chunk large files. Say we have 100 large files then we do not need to do chunking
         /// because anyways all 100 threads will be active during the download
         /// </summary>
-        private static long _numLargeFileThreshold = 20;
+        internal static long NumLargeFileThreshold = 20;
         /// <summary>
         /// Files with sizes less than this limit will never be chunked
         /// </summary>
-        private static long _skipChunkingWeightThreshold = 2 * 1024 * 1024 * 1024L;
+        internal static long SkipChunkingWeightThreshold = 1 * 1024 * 1024 * 1024L;
         // Number of large files to download- we know this after enumeration
         private int _numLargeFiles;
         // Capacity of the internal list that stores the enumerated files temporarily
@@ -40,23 +40,13 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         private QueueWrapper<DirectoryEntry> DownloaderProducerQueue { get; }
 
         private FileDownloader(string srcPath, string destPath, AdlsClient client, int numThreads,
-            IfExists doOverwrite, IProgress<TransferStatus> progressTracker,bool notRecurse, bool egressTest, int egressBufferCapacity, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker,notRecurse, egressTest, chunkSize)
+            IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, CancellationToken cancelToken, bool egressTest, int egressBufferCapacity, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker, notRecurse, resume, egressTest, chunkSize, Path.Combine(Path.GetTempPath(), ".adl", "Download", GetTransferLogFileName(srcPath, destPath, '/', Path.DirectorySeparatorChar)), cancelToken)
         {
-            if (!egressTest && string.IsNullOrWhiteSpace(DestPath))
-            {
-                throw new ArgumentException(nameof(DestPath));
-            }
+            
             EgressBufferCapacity = egressBufferCapacity;
-            if (SourcePath.EndsWith("/"))
-            {
-                SourcePath = SourcePath.Substring(0, SourcePath.Length - 1);
-            }
-            if (DestPath.EndsWith("\\"))
-            {
-                DestPath = DestPath.Substring(0, DestPath.Length - 1);
-            }
+            
             // If not recurse then we will have one thread and ProducerFirstPass logic loop will run only once
-            NumProducerThreads = notRecurse?1:NumProducerThreadsFirstPass;
+            NumProducerThreads = notRecurse ? 1 : NumProducerThreadsFirstPass;
             DownloaderProducerQueue = new QueueWrapper<DirectoryEntry>(NumProducerThreads);
             DownloaderList = new List<DirectoryEntry>(DownloaderListCapacity);
             if (FileTransferLog.IsDebugEnabled)
@@ -64,6 +54,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 FileTransferLog.Debug($"FileTransfer.Downloader, Src: {SourcePath}, Dest: {DestPath}, Threads: {NumConsumerThreads}, TrackingProgress: {ProgressTracker != null}, OverwriteIfExist: {DoOverwrite == IfExists.Overwrite}");
             }
         }
+
+        
         /// <summary>
         /// Verifies whether input is a directory or a file. If it is a file then there is no need to start the producer
         /// </summary>
@@ -73,8 +65,9 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             DirectoryEntry dir = Client.GetDirectoryEntry(SourcePath);
             if (dir.Type == DirectoryEntryType.FILE)
             {
-                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, dir.Length < ChunkWeightThreshold);
-                StatusUpdate(1, chunks == 0 ? 1 : 0, chunks, dir.Length, 0);
+                long fileSizeToTransfer;
+                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, dir.Length > SkipChunkingWeightThreshold, out fileSizeToTransfer);
+                StatusUpdate(1, dir.Length <= SkipChunkingWeightThreshold ? 1 : 0, chunks, fileSizeToTransfer, 0);
                 return false;
             }
             if (!IngressOrEgressTest && File.Exists(DestPath))
@@ -88,9 +81,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             DownloaderProducerQueue.Add(dir);
             return true;
         }
-
+        #region UnitTestMethods
+        // Testing purpose
         internal static TransferStatus Download(string srcPath, string destPath, AdlsClient client, bool forceChunking, bool forceNotChunking, int numThreads = -1,
-            IProgress<TransferStatus> progressTracker = null, IfExists shouldOverwrite = IfExists.Overwrite,bool notRecurse=false, bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
+            IProgress<TransferStatus> progressTracker = null, IfExists shouldOverwrite = IfExists.Overwrite, bool notRecurse = false, bool resume = false, bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
         {
             if (forceChunking && forceNotChunking)
             {
@@ -98,15 +92,16 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             }
             if (forceChunking)
             {
-                _skipChunkingWeightThreshold = ChunkSizeDefault;
-                _numLargeFileThreshold = Int64.MaxValue;
+                SkipChunkingWeightThreshold = ChunkSizeDefault;
+                NumLargeFileThreshold = Int64.MaxValue;
             }
             else if (forceNotChunking)
             {
-                _skipChunkingWeightThreshold = Int64.MaxValue;
+                SkipChunkingWeightThreshold = Int64.MaxValue;
             }
-            return new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker,notRecurse, egressTest, egressBufferCapacity, chunkSize).RunTransfer();
+            return new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, default(CancellationToken), egressTest, egressBufferCapacity, chunkSize).RunTransfer();
         }
+        #endregion
         /// <summary>
         /// Download directory or file from remote server to local
         /// </summary>
@@ -117,13 +112,29 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination </param>
         /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
         /// <param name="notRecurse">If true then does enumeration till one level only, else will do recursive enumeration</param>
+        /// <param name="resume">If true we are resuming a previously interrupted upload process</param>
+        /// <param name="cancelToken">Cancellation Token</param>
         /// <param name="egressTest">Egress test when we do not write file to local file system</param>
         /// <param name="egressBufferCapacity">Egress buffer size - Size of the read reuest from server</param>
         /// <param name="chunkSize">Chunk Size used for chunking</param>
         /// <returns>Transfer status of the download</returns>
-        internal static TransferStatus Download(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null,bool notRecurse=false,  bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
+        internal static TransferStatus Download(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, CancellationToken cancelToken=default(CancellationToken), bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
         {
-            return new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, egressTest, egressBufferCapacity, chunkSize).RunTransfer();
+            if (!egressTest && string.IsNullOrWhiteSpace(destPath))
+            {
+                throw new ArgumentException(nameof(DestPath));
+            }
+            if (srcPath.EndsWith("/"))
+            {
+                srcPath = srcPath.Substring(0, srcPath.Length - 1);
+            }
+            if (destPath.EndsWith($"{Path.DirectorySeparatorChar}"))
+            {
+                destPath = destPath.Substring(0, destPath.Length - 1);
+            }
+            var downloader = new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker,
+                notRecurse, resume, cancelToken, egressTest, egressBufferCapacity, chunkSize);
+            return downloader.RunTransfer();
         }
         /// <summary>
         /// Replaces the remote directory separator in the input path by the directory separator for local file system
@@ -145,14 +156,16 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <summary>
         /// Adds the concat jobs for downloader
         /// </summary>
+        /// <param name="source">Source file path</param>
         /// <param name="chunkSegmentFolder">Temporary destination file name</param>
         /// <param name="dest">Destination file</param>
         /// <param name="totSize">Total size of the file- needed for verification of the copy</param>
         /// <param name="totalChunks">Total number of chunks</param>
-        internal override void AddConcatJobToQueue(string chunkSegmentFolder, string dest, long totSize,
-            long totalChunks)
+        /// <param name="doUploadRenameOnly"></param>
+        internal override void AddConcatJobToQueue(string source, string chunkSegmentFolder, string dest, long totSize,
+            long totalChunks, bool doUploadRenameOnly=false)
         {
-            ConsumerQueue.Add(new ConcatenateJob(chunkSegmentFolder, dest, Client, totSize, totalChunks, false));
+            ConsumerQueue.Add(new ConcatenateJob(source, chunkSegmentFolder, dest, Client, totSize, totalChunks, false));
         }
 
         /// <summary>
@@ -178,6 +191,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             do
             {
+                if (CancelToken.IsCancellationRequested)
+                {
+                    return;
+                }
                 var der = DownloaderProducerQueue.Poll();
                 if (der == null) //Means end of Producer
                 {
@@ -186,15 +203,19 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 }
                 try
                 {
-                    long numDirs = 0, numFiles = 0, totChunks = 0, unchunkedFiles = 0, totSize = 0;
+                    long numDirs = 0, numFiles = 0, totChunks = 0, unchunkedFiles = 0, totSize = 0, isEmpty =0;
                     var fop = Client.EnumerateDirectory(der.FullName);
                     foreach (var dir in fop)
                     {
+                        isEmpty = 1;
                         if (dir.Type == DirectoryEntryType.DIRECTORY)
                         {
                             if (NotRecurse)//Directly add the directories to be created since we won't go in recursively
                             {
-                                AddDirectoryToConsumerQueue(dir.FullName, false);
+                                if (!AddDirectoryToConsumerQueue(dir.FullName, false))
+                                {
+                                    continue;
+                                }
                             }
                             else
                             {
@@ -204,18 +225,25 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                         }
                         else
                         {
-                            numFiles++;
-                            totSize += dir.Length;
-                            // If the length is less than skip chunkimg weight threshold then we will add them directly to job queue as non-chunked jobs
-                            if (dir.Length <= _skipChunkingWeightThreshold)
+                            if (RecordedMetadata.EntryTransferredSuccessfulLastTime(dir.FullName))
                             {
-                                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, false);
-                                totChunks += chunks;
-                                if (chunks == 0)
-                                {
-                                    unchunkedFiles++;
-                                }
+                                continue;
                             }
+                            // We calculate the total files here only even though some files are chunked or non-chunked in the final producer pass
+                            numFiles++;
+                            long fileSizeToTransfer = 0;
+                            // If we are resuming and last time we chunked this file and it is incomplete so we want to chunk it this time also
+                            if (RecordedMetadata.EntryTransferredIncompleteLastTime(dir.FullName))
+                            {
+                                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, true, out fileSizeToTransfer);
+                                totChunks += chunks;
+                            }
+                            // If the length is less than skip chunking weight threshold then we will add them directly to job queue as non-chunked jobs
+                            else if (dir.Length <= SkipChunkingWeightThreshold)
+                            {
+                                AddFileToConsumerQueue(dir.FullName, dir.Length, false, out fileSizeToTransfer);
+                                unchunkedFiles++;
+                            }// We will only update the totSize based on number of chunks or unchunked files that will get transfered this turn
                             else // We are not sure, so we will store them in internal list
                             {
                                 if (dir.Length > ChunkWeightThreshold)
@@ -224,19 +252,21 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                                 }
                                 AddDirectoryEntryToList(dir);
                             }
+                            totSize += fileSizeToTransfer;
                         }
                     }
-                    if (numDirs + numFiles == 0)
+                    bool isDirectoryEmptyAndNotDownloadedYet = false;
+                    if (isEmpty == 0)
                     {
-                        AddDirectoryToConsumerQueue(der.FullName, false);
+                        isDirectoryEmptyAndNotDownloadedYet= AddDirectoryToConsumerQueue(der.FullName, false);
+                        
                     }
                     // If there are any sub directories and it is not recurse update the number of directories
-                    StatusUpdate(numFiles, unchunkedFiles, totChunks, totSize, (numDirs + numFiles) > 0 ? (NotRecurse
-                        ? numDirs : 0) : 1);
+                    StatusUpdate(numFiles, unchunkedFiles, totChunks, totSize, NotRecurse ? numDirs : (isDirectoryEmptyAndNotDownloadedYet ? 1 : 0));
                 }
                 catch (AdlsException ex)
                 {
-                    Status.EntriesFailed.Add(new SingleEntryTransferStatus(der.FullName, ex.Message,
+                    Status.EntriesFailed.Add(new SingleEntryTransferStatus(der.FullName, null, ex.Message,
                         EntryType.Directory, SingleChunkStatus.Failed));
                 }
             } while (!NotRecurse);
@@ -246,24 +276,29 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// </summary>
         protected override void FinalPassProducerRun()
         {
-            bool isToBeChunked = _numLargeFiles < _numLargeFileThreshold;
-            long totChunks = 0, unchunkedFiles = 0;
+            bool isToBeChunked = _numLargeFiles < NumLargeFileThreshold;
+            long totChunks = 0, unchunkedFiles = 0, totSize = 0;
             foreach (var dir in DownloaderList)
             {
-                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, isToBeChunked);
+                if (CancelToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                long fileSizeToTransfer;
+                long chunks = AddFileToConsumerQueue(dir.FullName, dir.Length, isToBeChunked, out fileSizeToTransfer);
                 totChunks += chunks;
-                if (chunks == 0)
+                totSize += fileSizeToTransfer;
+                if (!isToBeChunked)
                 {
                     unchunkedFiles++;
                 }
             }
-            StatusUpdate(0, unchunkedFiles, totChunks, 0, 0);
+            StatusUpdate(0, unchunkedFiles, totChunks, totSize, 0);
         }
-        // Creates MetaData for downloader
-        internal override FileMetaData AssignMetaData(string fileFullName, string chunkSegmentFolder, string destPath,
-            long fileLength, long numChunks)
+        // Creates MetaData for downloader, alreadyChunksTransferred will be greater than -1 only if a chunked file is being resumed after it is incomplete last time
+        internal override FileMetaData AssignMetaData(string fileFullName, string chunkSegmentFolder, string destPath, long fileLength, long numChunks, long alreadyChunksTransfered = -1)
         {
-            return new FileMetaData(fileFullName, chunkSegmentFolder, destPath, fileLength, this, numChunks, false, IngressOrEgressTest, EgressBufferCapacity);
+            return new FileMetaData(fileFullName, chunkSegmentFolder, destPath, fileLength, this, numChunks, alreadyChunksTransfered, IngressOrEgressTest, EgressBufferCapacity);
         }
     }
 }

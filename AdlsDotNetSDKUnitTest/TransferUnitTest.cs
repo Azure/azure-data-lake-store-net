@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TestDataCreator;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
+using Microsoft.Azure.DataLake.Store.FileTransfer.Jobs;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -17,31 +18,40 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static string remotePath = "/Test1/Uploader";
         private static string remotePathDownload = "/Test1/Downloader/A";
         private static string localPathDownload = "C:\\Data\\A";
+        private static int TransferChunkSize = 240 * 1024;
+        private static int LowFileSize = 100 * 1024;
+        private static int HighFileSize = 500 * 1024;
+        private static int DataCreatorBuffSize = 2 * 1024; // At this offset there will be new lines while writing, this should be less than ADlsOutputStream.Buffercapacity.
+        private static int CopyBufferSize = 4 * 1024; // Buffer size for FileCopy and ADlsOutputStream, not necessary at all just kept to catch corner cases
+        private static int ReadBufferForwardSize = 8; // For nonbinary we read forward, this is the size we should read forward
         [ClassInitialize]
         public static void SetupClient(TestContext context)
         {
             _adlsClient = SdkUnitTest.SetupSuperClient();
-            
+
             _adlsClient.DeleteRecursive("/Test1");
             _adlsClient.CreateDirectory(remotePath, "775");
             if (!Directory.Exists(localPath))
             {
                 Directory.CreateDirectory(localPath);
             }
-            DataCreator.CreateDirRecursiveLocal(localPath + "\\B", 1, 3, 4, 4, 50, 500);
-            DataCreator.CreateDirRecursiveRemote(_adlsClient,remotePathDownload,1,3,2,2,200,500);
+            DataCreator.CreateDirRecursiveRemote(_adlsClient, remotePathDownload, 2, 3, 3, 4, LowFileSize, HighFileSize, true);
+            DataCreator.BuffSize = DataCreatorBuffSize;
+            CopyFileJob.ReadForwardBuffSize = ReadBufferForwardSize;
+            AdlsOutputStream.BufferCapacity = CopyBufferSize;
+            // Below are the settings that forces download to be chunked for sizes greater than chunk size
+            FileDownloader.SkipChunkingWeightThreshold = TransferChunkSize;
+            FileDownloader.NumLargeFileThreshold = Int64.MaxValue;
+
+            DataCreator.CreateDirRecursiveLocal(localPath + "\\B", 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
+            DataCreator.CreateDirRecursiveLocal(localPath + "\\C", 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
+
         }
-        
+
         [TestMethod]
-        public void TestUpload()
+        public void TestUploadNonBinary()
         {
-            TransferStatus status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10);
-            Console.WriteLine("BytesTransferred: " + status.SizeTransfered);
-            Console.WriteLine("FilesTransferred: " + status.FilesTransfered);
-            Console.WriteLine("ChunksTransfered: " + status.ChunksTransfered);
-            Console.WriteLine("NonChunksTransfered: " + status.NonChunkedFileTransferred);
-            Console.WriteLine("DirectoriesTransfered: " + status.DirectoriesTransferred);
-            Console.WriteLine("SkiipedEntries: " + status.EntriesSkipped.Count);
+            TransferStatus status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
@@ -50,20 +60,28 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             localQueue.Enqueue(new DirectoryInfo(localPath + "\\B"));
             remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePath));
             Verify(localQueue, remoteQueue);
-            status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10,IfExists.Fail,null);
-            Console.WriteLine(origSuccess);
-            Console.WriteLine(status.EntriesSkipped.Count);
-            Assert.IsTrue(origSuccess==status.EntriesSkipped.Count);
+            status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Fail, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
+            Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
-        
+        [TestMethod]
+        public void TestUploadBinary()
+        {
+            TransferStatus status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Overwrite, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            Assert.IsTrue(status.EntriesFailed.Count == 0);
+            Assert.IsTrue(status.EntriesSkipped.Count == 0);
+            long origSuccess = status.FilesTransfered;
+            Queue<DirectoryInfo> localQueue = new Queue<DirectoryInfo>();
+            Queue<DirectoryEntry> remoteQueue = new Queue<DirectoryEntry>();
+            localQueue.Enqueue(new DirectoryInfo(localPath + "\\B"));
+            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePath));
+            Verify(localQueue, remoteQueue);
+            status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Fail, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
+        }
         [TestMethod]
         public void TestDownload()
         {
-            TransferStatus status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 10);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
-            Console.WriteLine("BytesTransferred: " + status.SizeTransfered);
-            Console.WriteLine("FilesTransferred: " + status.FilesTransfered);
-            Console.WriteLine("ChunksTransfered: " + status.ChunksTransfered);
-            Console.WriteLine("DirectoriesTransfered: " + status.DirectoriesTransferred);
+            TransferStatus status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 25, IfExists.Overwrite, null, false, false, default(CancellationToken), false, 4194304, TransferChunkSize);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
@@ -72,8 +90,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             localQueue.Enqueue(new DirectoryInfo(localPathDownload));
             remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePathDownload));
             Verify(localQueue, remoteQueue);
-            status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 10,IfExists.Fail,null);
-            Assert.IsTrue(origSuccess==status.EntriesSkipped.Count);
+            status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 10, IfExists.Fail, null);
+            Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
         private int Read(Stream stream, byte[] arr)
         {
@@ -94,7 +112,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private bool ByteArrayComparer(byte[] localBuff, byte[] remoteBuff)
         {
-            return StructuralComparisons.StructuralEqualityComparer.Equals(localBuff, remoteBuff);
+            //bool flag = true;
+            int lastnotEqual = 0;
+            for (int i = 0; i < localBuff.Length; i++)
+            {
+                if (localBuff[i] != remoteBuff[i])
+                {
+                    return false;
+                }
+            }
+            return true;
+            //return StructuralComparisons.StructuralEqualityComparer.Equals(localBuff, remoteBuff);
         }
         private void Verify(Queue<DirectoryInfo> localQueue, Queue<DirectoryEntry> remoteQueue)
         {
@@ -111,6 +139,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 IEnumerable<FileInfo> enumFiles = localDir.EnumerateFiles();
                 foreach (var file in enumFiles)
                 {
+                    if (file.Name.EndsWith("-transfer.dat"))
+                    {
+                        continue;
+                    }
                     localDict.Add(file.Name, file);
                 }
                 int remoteEntries = 0;

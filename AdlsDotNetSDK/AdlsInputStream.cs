@@ -74,14 +74,19 @@ namespace Microsoft.Azure.DataLake.Store
         /// Whether the stream can write data
         /// </summary>
         public override bool CanWrite => false;
+
         /// <summary>
         /// total Length of the file
         /// </summary>
-        public override long Length => Entry.Length;
+        public override long Length =>Entry.Length;
+
         /// <summary>
         /// Position of the stream from begining
         /// </summary>
-        public override long Position { get => FilePointer; set => Seek(value, SeekOrigin.Begin); }
+        public override long Position {
+            get => FilePointer;
+            set => Seek(value, SeekOrigin.Begin);
+        }
         /// <summary>
         /// Not supported
         /// </summary>
@@ -90,6 +95,9 @@ namespace Microsoft.Azure.DataLake.Store
             throw new NotSupportedException();
         }
 
+        internal AdlsInputStream()
+        {
+        }
         internal AdlsInputStream(string filename, AdlsClient client, DirectoryEntry der,int bufferCapacity=DefaultBufferCapacity)
         {
             Filename = filename;

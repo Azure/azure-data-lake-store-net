@@ -6,12 +6,14 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
     /// <summary>
     /// Job to create empty directory
     /// </summary>
-    internal class MakeDirJob : Job
+    internal class MakeDirJob : BaseJob
     {
+        private string SourceDirectoryNm { get; }
+
         /// <summary>
         /// Directory name
         /// </summary>
-        private string DirectoryNm { get; }
+        private string DestDirectoryNm { get; }
         /// <summary>
         /// Adls client
         /// </summary>
@@ -21,41 +23,42 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
         /// </summary>
         private bool IsUpload { get; }
 
-        internal MakeDirJob(string dirNm,AdlsClient client,bool isUpload) : base(0)
+        internal MakeDirJob(string sourceDir,string dirNm,AdlsClient client,bool isUpload) : base(0)
         {
-            DirectoryNm = dirNm;
+            SourceDirectoryNm = sourceDir;
+            DestDirectoryNm = dirNm;
             Client = client;
             IsUpload = isUpload;
         }
 
-        protected override SingleEntryTransferStatus DoJob()
+        protected override object DoJob()
         {
             try
             {
                 if (IsUpload)
                 {
-                    Client.CreateDirectory(DirectoryNm);
+                    Client.CreateDirectory(DestDirectoryNm);
                 }
                 else
                 {
-                    Directory.CreateDirectory(DirectoryNm);
+                    Directory.CreateDirectory(DestDirectoryNm);
                 }
-                return new SingleEntryTransferStatus(DirectoryNm, "", EntryType.Directory, SingleChunkStatus.Successful);
+                return new SingleEntryTransferStatus(SourceDirectoryNm,DestDirectoryNm, "",EntryType.Directory, SingleChunkStatus.Successful);
             }
             catch(Exception e)
             {
-                return new SingleEntryTransferStatus(DirectoryNm, e.Message, EntryType.Directory, SingleChunkStatus.Failed);
+                return new SingleEntryTransferStatus(SourceDirectoryNm,DestDirectoryNm, e.Message, EntryType.Directory, SingleChunkStatus.Failed);
             }
         }
 
         protected override string JobType()
         {
-            return "MakeDirJob";
+            return "FileTransfer.MakeDirJob";
         }
 
         protected override string JobDetails()
         {
-            return $"Directory: {DirectoryNm}";
+            return $"Directory: {DestDirectoryNm}";
         }
     }
 }

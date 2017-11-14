@@ -5,16 +5,16 @@ using System.Text;
 namespace Microsoft.Azure.DataLake.Store
 {
     /// <summary>
-    /*  Single entry, comma separated:
-      1. Client Request ID
-      2. latency in milliseconds
-      3. error code(if request failed)
-      4. Operation
-      5. Request+response body Size(if available, zero otherwise)
-      6. Instance of ADLStoreClient(a unique number per instance in this VM)
-
-     Multiple entries can be on a single request.Entries will be separated by semicolons
-     Limit max entries on a single request to three, to limit increase in HTTP request size.*/
+    /// Single entry, comma separated:
+    ///      1. Client Request ID
+    ///      2. latency in milliseconds
+    ///      3. error code(if request failed)
+    ///      4. Operation
+    ///      5. Request+response body Size(if available, zero otherwise)
+    ///      6. Instance of ADLStoreClient(a unique number per instance in this VM)
+    ///
+    ///     Multiple entries can be on a single request.Entries will be separated by semicolons
+    ///     Limit max entries on a single request to three, to limit increase in HTTP request size.
     /// </summary>
     public class LatencyTracker
     {

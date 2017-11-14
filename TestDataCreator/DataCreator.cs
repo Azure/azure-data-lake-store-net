@@ -1,16 +1,18 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Text;
 using Microsoft.Azure.DataLake.Store;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
-
+[assembly: InternalsVisibleTo("Microsoft.Azure.DataLake.Store.UnitTest")]
 namespace TestDataCreator
 {
-    public class DataCreator
+    internal class DataCreator
     {
         private static readonly Random Random = new Random();
-        private const long BuffSize = 4 * 1024 * 1024;
-        public static void CreateDirRecursiveLocal(string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, string filePrefix = "")
+        internal static long BuffSize = 4 * 1024 * 1024;
+        internal static void CreateDirRecursiveLocal(string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, string filePrefix = "", bool writeInNewLines = false)
         {
             Directory.CreateDirectory(path);
             if (recursLevel == 0)
@@ -22,8 +24,8 @@ namespace TestDataCreator
             int noFileEntries = Random.Next(lowFileEntries, highFileEntries);
             for (int i = 0; i < noFileEntries; i++)
             {
-                int stringLength = (Random.Next(lowStringLength, highStringLength)) * 1024 * 1024;
-                using (Stream ostream = File.OpenWrite(path + "\\" + nextLevel + filePrefix + i + "File.txt"))
+                int stringLength = (Random.Next(lowStringLength, highStringLength));
+                using (var ostream = new StreamWriter(new FileStream(path + "\\" + nextLevel + filePrefix + i + "File.txt", FileMode.Create, FileAccess.Write), Encoding.UTF8))
                 {
                     if (stringLength > 0)
                     {
@@ -38,13 +40,19 @@ namespace TestDataCreator
                                 // Break when the end of the file is reached.
                                 if (bytesRead > 0)
                                 {
-                                    ostream.Write(readBytes, 0, bytesRead);
+                                    if (writeInNewLines)
+                                    {
+                                        ostream.WriteLine(Encoding.UTF8.GetString(readBytes, 0, bytesRead));
+                                    }
+                                    else
+                                    {
+                                        ostream.Write(Encoding.UTF8.GetString(readBytes, 0, bytesRead));
+                                    }
                                 }
                                 else
                                 {
                                     break;
                                 }
-
                                 lengthToRead -= bytesRead;
                             }
                         }
@@ -56,13 +64,13 @@ namespace TestDataCreator
             string newPath = path + "\\";
             for (int i = 0; i < noDirEntries; i++)
             {
-                CreateDirRecursiveLocal(newPath + nextLevel + i, recursLevel - 1, noDirEntries, lowFileEntries, highFileEntries, lowStringLength, highStringLength);
+                CreateDirRecursiveLocal(newPath + nextLevel + i, recursLevel - 1, noDirEntries, lowFileEntries, highFileEntries, lowStringLength, highStringLength, filePrefix, writeInNewLines);
             }
         }
-        public static void CreateDirRecursiveRemote(AdlsClient client,string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, string filePrefix = "")
+        internal static void CreateDirRecursiveRemote(AdlsClient client, string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, bool keepBottomLevelFolderEmpty = false, string filePrefix = "")
         {
             client.CreateDirectory(path);
-            if (recursLevel == 0)
+            if (recursLevel == 0 && keepBottomLevelFolderEmpty)
             {
                 return;
             }
@@ -71,9 +79,8 @@ namespace TestDataCreator
             int noFileEntries = Random.Next(lowFileEntries, highFileEntries);
             for (int i = 0; i < noFileEntries; i++)
             {
-                long stringLength = (Random.Next(lowStringLength, highStringLength)) * 1024 * 1024L;
-                //int offset;
-                using (Stream ostream = client.CreateFile(path + "/" + nextLevel + filePrefix + i + "File.txt",IfExists.Overwrite))
+                long stringLength = (Random.Next(lowStringLength, highStringLength));
+                using (var ostream = client.CreateFile(path + "/" + nextLevel + filePrefix + i + "File.txt", IfExists.Overwrite))
                 {
                     if (stringLength > 0)
                     {
@@ -102,11 +109,15 @@ namespace TestDataCreator
                     }
                 }
             }
+            if (recursLevel == 0)
+            {
+                return;
+            }
             nextLevel++;
             string newPath = path + "/";
             for (int i = 0; i < noDirEntries; i++)
             {
-                CreateDirRecursiveRemote(client,newPath + nextLevel + i, recursLevel - 1, noDirEntries, lowFileEntries, highFileEntries, lowStringLength, highStringLength);
+                CreateDirRecursiveRemote(client, newPath + nextLevel + i, recursLevel - 1, noDirEntries, lowFileEntries, highFileEntries, lowStringLength, highStringLength, keepBottomLevelFolderEmpty, filePrefix);
             }
         }
 
@@ -128,7 +139,7 @@ namespace TestDataCreator
         }
         static void Main(string[] args)
         {
-            CreateDirRecursiveLocal("D:\\Data\\rdutta\\B", 3, 4,3, 5, 128,680);
+            CreateDirRecursiveLocal("D:\\Data\\rdutta\\B", 3, 4, 3, 5, 128, 680);
         }
     }
 }

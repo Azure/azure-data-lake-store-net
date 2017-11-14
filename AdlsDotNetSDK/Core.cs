@@ -769,12 +769,13 @@ namespace Microsoft.Azure.DataLake.Store
                                 String permission = "";
                                 bool aclBit = true;
                                 long expiryTime = -1;
+                                string suffixedPath = path.EndsWith("/") ? path : path + "/";
                                 do
                                 {
                                     jsonReader.Read();
                                     if (jsonReader.TokenType.Equals(JsonToken.EndObject))
                                     {
-                                        string fullName = string.IsNullOrEmpty(name) ? path : path + "/" + name;
+                                        string fullName = string.IsNullOrEmpty(name) ? path : suffixedPath + name;
                                         DirectoryEntry dir =
                                             new DirectoryEntry(name, fullName, length, group, user, lastAccessTime,
                                                 lastModifiedTime, type, permission,

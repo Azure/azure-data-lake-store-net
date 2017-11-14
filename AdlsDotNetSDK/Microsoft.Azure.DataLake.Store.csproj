@@ -5,15 +5,16 @@
 	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
 	  <FileVersion>$(Version)</FileVersion>
-	  <Version>1.0.0</Version>
+	  <Version>1.0.1</Version>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>Introduced bulk uploader and downloader</PackageReleaseNotes>
+    <PackageReleaseNotes>Added resume feature for upload and download, non-binary upload and added tools for recursive acl change, acl dump and disk usage dump. Added Mock unit test framework.</PackageReleaseNotes>
     <Copyright>Copyright © Microsoft Corporation.</Copyright>
     <PackageProjectUrl>https://github.com/azure/azure-data-lake-store-net</PackageProjectUrl>
     <PackageTags>adls sdk datalake azure</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

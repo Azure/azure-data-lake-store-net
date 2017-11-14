@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.0.1
+- Added feature resume in upload and download, non-binary uploads, recursive acl processor, diskusage, acl dump. Added Mock client for unit test. Fixed doc generation.
 ### Version 1.0.0
 - Add bulk upload and bulk download
 ### Version 0.1.3-beta

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Microsoft.Azure.DataLake.Store.Acl
 {
@@ -10,19 +11,19 @@ namespace Microsoft.Azure.DataLake.Store.Acl
         /// <summary>
         /// ACL entries of the file
         /// </summary>
-        public List<AclEntry> Entries { get; }
+        public List<AclEntry> Entries { get; internal set; }
         /// <summary>
         /// Owner of the file
         /// </summary>
-        public string Owner { get; }
+        public string Owner { get; internal set; }
         /// <summary>
         /// Group ID that owns the file
         /// </summary>
-        public string Group { get; }
+        public string Group { get; internal set; }
         /// <summary>
         /// Octal permission
         /// </summary>
-        public string Permission { get; }
+        public string Permission { get; internal set; }
         /// <summary>
         /// Sticky Bit
         /// </summary>
@@ -42,6 +43,15 @@ namespace Microsoft.Azure.DataLake.Store.Acl
             Group = group;
             Permission = permission;
             StickyBit = stickyBit;
+        }
+
+        internal AclStatus(AclStatus status)
+        {
+            Entries=new List<AclEntry>(status.Entries);
+            Owner = new string(status.Owner.ToCharArray());
+            Group=new string(status.Group.ToCharArray());
+            Permission = new string(status.Permission.ToCharArray());
+            StickyBit = status.StickyBit;
         }
     }
 }

@@ -35,9 +35,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         private byte[] Buffer { get; set; }
         /// <summary>
-        /// Capacity of the internal buffer
+        /// Capacity of the internal buffer. Check CopyFileJob.cs before changing this threshold.
         /// </summary>
-        private const int BufferCapacity = 4 * 1024 * 1024;
+        internal static int BufferCapacity = 4 * 1024 * 1024;
         /// <summary>
         /// Pointer in the buffer till which data is written
         /// </summary>
@@ -55,7 +55,6 @@ namespace Microsoft.Azure.DataLake.Store
         /// Whether the stream is disposed
         /// </summary>
         private bool _isDisposed;
-
         /// <summary>
         /// Stream cannot read data
         /// </summary>
@@ -75,7 +74,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Set is not supported. Gets the position where next data will be written
         /// </summary>
-        public override long Position { get => FilePointer + BufferSize; set => throw new NotSupportedException(); }
+        public override long Position {
+            get => FilePointer + BufferSize;
+            set => throw new NotSupportedException();
+        }
         private AdlsOutputStream(string filename, AdlsClient client, string leaseId)
         {
             Filename = filename;
@@ -85,6 +87,10 @@ namespace Microsoft.Azure.DataLake.Store
             Buffer = new byte[BufferCapacity];
         }
 
+        internal AdlsOutputStream()
+        {
+            
+        }
         internal static async Task<AdlsOutputStream> GetAdlsOutputStreamAsync(string filename, AdlsClient client, bool isNew, string leaseId)
         {
             var adlsOpStream = new AdlsOutputStream(filename, client, leaseId);
