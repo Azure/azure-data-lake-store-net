@@ -435,7 +435,7 @@ namespace Microsoft.Azure.DataLake.Store
             urlString.Append(op.Namespace);
             try
             {
-                urlString.Append(Uri.EscapeUriString(path));
+                urlString.Append(Uri.EscapeDataString(path));
             }
             catch (UriFormatException ex)
             {

@@ -96,13 +96,13 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="length">Size of file</param>
         /// <param name="group">Group owner</param>
         /// <param name="user">User owner</param>
-        /// <param name="lastAccessTime">Last access time</param>
-        /// <param name="lastModifiedTime">Last modified time</param>
+        /// <param name="lastAccessTime">Last access time obtained as milliseconds from 1/1/1970</param>
+        /// <param name="lastModifiedTime">Last modified time obtained as milliseconds from 1/1/1970</param>
         /// <param name="type">File or directory</param>
         /// <param name="permission">Unix style permission</param>
         /// <param name="hasAcl">Whether ACLs are set</param>
-        /// <param name="expiryTime">Time when file would expire</param>
-        internal DirectoryEntry(String name, String fullName, long length, String group, String user, long lastAccessTime, long lastModifiedTime, string type, String permission, bool hasAcl, long expiryTime)
+        /// <param name="expiryTime">Time when file would expire obtained as milliseconds from 1/1/1970</param>
+        public DirectoryEntry(String name, String fullName, long length, String group, String user, long lastAccessTime, long lastModifiedTime, string type, String permission, bool hasAcl, long expiryTime)
         {
             Name = name;
             FullName = fullName;

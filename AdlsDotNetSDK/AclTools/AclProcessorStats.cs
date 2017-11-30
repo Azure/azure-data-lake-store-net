@@ -23,7 +23,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// </summary>
         public int DirectoryProcessed { get; internal set; }
 
-        internal AclProcessorStats(int fileProcessed, int dirProcessed)
+        public AclProcessorStats(int fileProcessed, int dirProcessed)
         {
             FilesProcessed = fileProcessed;
             DirectoryProcessed = dirProcessed;

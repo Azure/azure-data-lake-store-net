@@ -112,8 +112,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private bool ByteArrayComparer(byte[] localBuff, byte[] remoteBuff)
         {
-            //bool flag = true;
-            int lastnotEqual = 0;
             for (int i = 0; i < localBuff.Length; i++)
             {
                 if (localBuff[i] != remoteBuff[i])
@@ -122,7 +120,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 }
             }
             return true;
-            //return StructuralComparisons.StructuralEqualityComparer.Equals(localBuff, remoteBuff);
         }
         private void Verify(Queue<DirectoryInfo> localQueue, Queue<DirectoryEntry> remoteQueue)
         {

@@ -64,9 +64,6 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
                     }
                     return null;
                 }
-                // If this node has no sub-directories then only we will update the parent node' size
-                // Update the parent job's size- It will return true if the parent tree nodes size has been updated
-                // by final sub directory
 
             }
             UpdateParentProperty(_currentNode, true);
@@ -76,7 +73,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
         // Updates the parent properties- size or acl or both. If all required properties have been updated for the parent then recursively move up the tree and keep doing the same 
         private void UpdateParentProperty(PropertyTreeNode currentNode, bool firstTurn)
         {
-            if (currentNode.CheckAndUpdatePropertiesProperties(_manager.GetAclProperty, _manager.GetSizeProperty, firstTurn))
+            if (currentNode.CheckAndUpdateParentProperties(_manager.GetAclProperty, _manager.GetSizeProperty, firstTurn))
             {
                 if (PropertyManager.PropertyJobLog.IsDebugEnabled)
                 {

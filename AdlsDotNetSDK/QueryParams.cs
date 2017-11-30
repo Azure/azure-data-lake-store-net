@@ -18,7 +18,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// This is the value of one parameter "api-version" that is passed along every request
         /// </summary>
-        private const string ApiVersion = "2016-11-01";
+        private const string ApiVersion = "2017-08-01";
         internal QueryParams()
         {
             Param = new Dictionary<string, string>();

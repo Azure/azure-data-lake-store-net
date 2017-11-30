@@ -87,7 +87,7 @@ namespace Microsoft.Azure.DataLake.Store
             Buffer = new byte[BufferCapacity];
         }
 
-        internal AdlsOutputStream()
+        protected AdlsOutputStream()
         {
             
         }

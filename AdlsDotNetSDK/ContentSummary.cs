@@ -21,8 +21,14 @@
         /// Total space consumed
         /// </summary>
         public long SpaceConsumed { get; internal set; }
-
-        internal ContentSummary(long directoryCnt, long fileCnt, long length, long spaceConsumed)
+        /// <summary>
+        /// Creates instance of contentsummary
+        /// </summary>
+        /// <param name="directoryCnt">Directory count</param>
+        /// <param name="fileCnt">File count</param>
+        /// <param name="length">Size</param>
+        /// <param name="spaceConsumed">Total size</param>
+        public ContentSummary(long directoryCnt, long fileCnt, long length, long spaceConsumed)
         {
             DirectoryCount = directoryCnt;
             FileCount = fileCnt;

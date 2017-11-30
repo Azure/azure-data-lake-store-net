@@ -17,7 +17,12 @@ using NLog;
 #if NET452
 using System.Management;
 #endif
-[assembly: InternalsVisibleTo("Microsoft.Azure.DataLake.Store.UnitTest")]
+[assembly: InternalsVisibleTo("Microsoft.Azure.DataLake.Store.UnitTest, PublicKey=" +
+                              "0024000004800000940000000602000000240000525341310004000001000100b5fc90e7027f67" +
+                              "871e773a8fde8938c81dd402ba65b9201d60593e96c492651e889cc13f1415ebb53fac1131ae0b" +
+                              "d333c5ee6021672d9718ea31a8aebd0da0072f25d87dba6fc90ffd598ed4da35e44c398c454307" +
+                              "e8e33b8426143daec9f596836f97c8f74750e5975c64e2189f45def46b2a2b1247adc3652bf5c3" +
+                              "08055da9")]
 namespace Microsoft.Azure.DataLake.Store
 {
     /// <summary>
@@ -134,8 +139,9 @@ namespace Microsoft.Azure.DataLake.Store
             UserAgent = "AdlsDotNetSDK;" + SdkVersion + "/" + osInfo + ";" + dotNetVersion;
         }
 
-        internal AdlsClient()
+        protected AdlsClient()
         {
+            
         }
         private AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
         {
@@ -288,7 +294,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="octalPermission">Octal permission</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>true if it creates the directory else false</returns>
-        public async Task<bool> CreateDirectoryAsync(string dirName, string octalPermission = null, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<bool> CreateDirectoryAsync(string dirName, string octalPermission = null, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(dirName))
             {
@@ -324,7 +330,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="filename">File name</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Input stream</returns>
-        public async Task<AdlsInputStream> GetReadStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<AdlsInputStream> GetReadStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
             return await GetReadStreamAsync(filename, AdlsInputStream.DefaultBufferCapacity, cancelToken);
         }
@@ -345,7 +351,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <param name="bufferCapacity"> Buffer Capacity</param>
         /// <returns>Input stream</returns>
-        public async Task<AdlsInputStream> GetReadStreamAsync(string filename, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<AdlsInputStream> GetReadStreamAsync(string filename, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(filename))
             {
@@ -382,7 +388,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="filename">File name</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Output stream</returns>
-        public async Task<AdlsOutputStream> GetAppendStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<AdlsOutputStream> GetAppendStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(filename))
             {
@@ -422,7 +428,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="createParent">If true creates any non-existing parent directories</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Output stream</returns>
-        public async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, string octalPermission = null, bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, string octalPermission = null, bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(filename))
             {
@@ -505,7 +511,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of file or directory</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if the path is deleted successfully else false</returns>
-        public async Task<bool> DeleteAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<bool> DeleteAsync(string path, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -540,7 +546,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of file or directory</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if the path is deleted successfully else false</returns>
-        public async Task<bool> DeleteRecursiveAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<bool> DeleteRecursiveAsync(string path, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -578,7 +584,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="overwrite">For file: If true then overwrites the destination file if it exists. Rename of folders cannot result in an overwrite of the target.</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if the path is renamed successfully else false</returns>
-        public async Task<bool> RenameAsync(string path, string destination, bool overwrite = false, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<bool> RenameAsync(string path, string destination, bool overwrite = false, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -632,7 +638,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="uid">Way the user or group object will be represented</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Returns the metadata of the file or directory</returns>
-        public async Task<DirectoryEntry> GetDirectoryEntryAsync(string path, UserGroupRepresentation uid = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<DirectoryEntry> GetDirectoryEntryAsync(string path, UserGroupRepresentation uid = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -665,7 +671,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="concatFiles">List containing paths of the source files</param>
         /// <param name="deleteSource">If true then deletes the source directory if all the files under it are concatenated</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task ConcatenateFilesAsync(string destination, List<string> concatFiles, bool deleteSource = false, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task ConcatenateFilesAsync(string destination, List<string> concatFiles, bool deleteSource = false, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(destination))
             {
@@ -728,7 +734,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="eopt">Different type of expiry method for example: never expire, relative to now, etc that defines how to evaluate expiryTime</param>
         /// <param name="expiryTime">Expiry time value. It's interpretation depends on what ExpiryOption user passes</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task SetExpiryTimeAsync(string path, ExpiryOption eopt, long expiryTime, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task SetExpiryTimeAsync(string path, ExpiryOption eopt, long expiryTime, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -762,7 +768,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="rwx">Permission to check in "rwx" string form. For example if the user wants to see if it has read, execute permission, the string would be r-x </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if client has access to the path else false</returns>
-        public async Task<bool> CheckAccessAsync(string path, string rwx, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<bool> CheckAccessAsync(string path, string rwx, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -787,7 +793,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="rwx">Permission to check in "rwx" string form. For example if the user wants to see if it has read, execute permission, the string would be r-x </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>True if client has access to the path else false</returns>
-        public bool CheckAccess(string path, string rwx,
+        public virtual bool CheckAccess(string path, string rwx,
             CancellationToken cancelToken = default(CancellationToken))
         {
             return CheckAccessAsync(path, rwx, cancelToken).GetAwaiter().GetResult();
@@ -799,7 +805,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="permission">Permission to check in unix octal form. For example if the user wants to see if owner has read, write execute permission, all groups has read write
         ///                          permission and others has read permission the string would be 741 </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task SetPermissionAsync(string path, string permission, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task SetPermissionAsync(string path, string permission, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -831,7 +837,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of the file or directory</param>
         /// <param name="aclSpec">List of Acl Entries to modify</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task ModifyAclEntriesAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task ModifyAclEntriesAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -862,7 +868,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of the file or directory</param>
         /// <param name="aclSpec">List of Acl Entries to set </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task SetAclAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task SetAclAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -905,7 +911,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="owner">Owner ID</param>
         /// <param name="group">Group ID</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task SetOwnerAsync(string path, string owner, string group, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task SetOwnerAsync(string path, string owner, string group, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -925,7 +931,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of the file or directory</param>
         /// <param name="aclSpec">List of Acl Entries to remove</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task RemoveAclEntriesAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task RemoveAclEntriesAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -955,7 +961,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task RemoveAllAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task RemoveAllAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -983,7 +989,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task RemoveDefaultAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task RemoveDefaultAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -1012,7 +1018,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of the file or directory</param>
         /// <param name="userIdFormat">way to represent the user/group object</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
+        public virtual async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -1043,7 +1049,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path of the directory or file</param>
         /// <param name="numThreads">Number of threads</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public ContentSummary GetContentSummary(string path, int numThreads = -1, CancellationToken cancelToken = default(CancellationToken))
+        public virtual ContentSummary GetContentSummary(string path, int numThreads = -1, CancellationToken cancelToken = default(CancellationToken))
         {
             return ContentProcessor.GetContentSummary(this, path, numThreads, cancelToken);
         }
@@ -1057,7 +1063,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="offset">Offset in the byte array</param>
         /// <param name="length">Number of bytes to write from the offset</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public async Task ConcurrentAppendAsync(string path, bool autoCreate, byte[] dataBytes, int offset,
+        public virtual async Task ConcurrentAppendAsync(string path, bool autoCreate, byte[] dataBytes, int offset,
             int length, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
@@ -1080,7 +1086,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="dataBytes">Array of bytes to write to the file</param>
         /// <param name="offset">Offset in the byte array</param>
         /// <param name="length">Number of bytes to write from the offset</param>
-        public void ConcurrentAppend(string path, bool autoCreate, byte[] dataBytes, int offset, int length)
+        public virtual void ConcurrentAppend(string path, bool autoCreate, byte[] dataBytes, int offset, int length)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -1098,7 +1104,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="path">Path name</param>
         /// <returns>True if the path exists else false</returns>
-        public bool CheckExists(string path)
+        public virtual bool CheckExists(string path)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -1161,7 +1167,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="type">Type of modification <see cref="RequestedAclType"/></param>
         /// <param name="threadCount">Number of threads to use</param>
         /// <returns>Stats- total number of files and directories processed</returns>
-        public AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1)
+        public virtual AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1)
         {
             return AclProcessor.RunAclProcessor(path, this, aclEntries, type, threadCount);
         }
@@ -1175,16 +1181,16 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="saveToLocal">True if we want to save to local file else save to ADL</param>
         /// <param name="numThreads">Number of threads</param>
         /// <param name="displayFiles">True if we want to display properties of files. By default we show properties of directories</param>
-        /// <param name="displayConsistentAcl">if True then we wont dump the acl property of a directory/file if it's parent directory has same acl for all of its descendants. For ex: If 
+        /// <param name="hideConsistentAcl">if True then we wont dump the acl property of a directory/file if it's parent directory has same acl for all of its descendants. For ex: If 
         ///                                     the root ("/") has same Acl for all it's descendants, then we will show the Acl for the root only. If this flag is false, then we show the Acl for all directories or files</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
-        public void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool displayConsistentAcl = true, long maxDepth = Int64.MaxValue)
+        public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = true, long maxDepth = Int64.MaxValue)
         {
             if (!(getAclUsage || getDiskUsage))
             {
                 throw new ArgumentException("At least one option of getAclUsage and getDiskUsage need to be set as true.");
             }
-            PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, displayConsistentAcl, maxDepth);
+            PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth);
         }
 
         #endregion

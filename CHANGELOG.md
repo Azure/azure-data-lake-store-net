@@ -1,4 +1,11 @@
 # Changes to the SDK
+### Version 1.0.2
+- Fix path encoding
+- Changed Api version
+- Strongly name and sign the assemblies
+- Fix the implict reference problem
+- Remove the reference to NLog.config
+- Make the async methods virtual and make some contructors public or protected to make unit testing with Moq like tools easier.
 ### Version 1.0.1
 - Added feature resume in upload and download, non-binary uploads, recursive acl processor, diskusage, acl dump. Added Mock client for unit test. Fixed doc generation.
 ### Version 1.0.0

@@ -439,7 +439,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestCreateUnicodeFileName()
         {
             string dir = "/Test/dir1/UnicodeDir";
-            string unicodeFilename = dir + "/ch+ ch.官話.官话.עברית.हिंदी.español.txt";
+            string unicodeFilename = dir + "/ch+ ch.官話.官话.עברית.हिंदी.español.~`!@#$%^&*()_.+=-{}[]|;',.<>?.txt";
             string text1 = RandomString(9 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(unicodeFilename, IfExists.Overwrite))

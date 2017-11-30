@@ -178,7 +178,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         /// <param name="getSizeProperty">whether we are </param>
         /// <param name="isFirstTurn">Whether we should look at the base case: base case for getAcl is when current node has no children, for getSize when the node should be directory and has no children</param>
         /// <returns>True if all necessary properties are updated by all the childs else false</returns>
-        internal bool CheckAndUpdatePropertiesProperties(bool getAclProperty, bool getSizeProperty, bool isFirstTurn)
+        internal bool CheckAndUpdateParentProperties(bool getAclProperty, bool getSizeProperty, bool isFirstTurn)
         {
             return ParentNode.CheckAndUpdateProperties(getAclProperty, getSizeProperty, this, isFirstTurn);
         }

@@ -94,8 +94,10 @@ namespace Microsoft.Azure.DataLake.Store
         {
             throw new NotSupportedException();
         }
-
-        internal AdlsInputStream()
+        /// <summary>
+        /// Only for Mocking purpose. For mocking purpose you can inherit from this class and override your methods
+        /// </summary>
+        protected AdlsInputStream()
         {
         }
         internal AdlsInputStream(string filename, AdlsClient client, DirectoryEntry der,int bufferCapacity=DefaultBufferCapacity)

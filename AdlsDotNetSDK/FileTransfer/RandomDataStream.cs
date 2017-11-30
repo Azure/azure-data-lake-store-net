@@ -22,12 +22,12 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             Buffer.BlockCopy(random, 0, internalBuffer, size, size);
         }
 
-        public RandomDataStream()
+        internal RandomDataStream()
             : this(-1)
         {
         }
 
-        public RandomDataStream(long length)
+        internal RandomDataStream(long length)
         {
             streamLength = length;
         }
