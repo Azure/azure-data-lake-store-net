@@ -80,6 +80,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Tenant Id
         /// </summary>
         private static string _domain;
+
+        private const string unitTestDir = "/Test/dir1";
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -127,7 +129,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             _adlsClient = SetupSuperClient();
             _adlsClient.DeleteRecursive("/Test");
-            _adlsClient.CreateDirectory("/Test/dir1", "775");
+            _adlsClient.CreateDirectory("/Test/dir1");
+            var nonOwnerAclSpec = new List<AclEntry>
+            {
+                new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.group, _group1Id, AclScope.Access, AclAction.ExecuteOnly)
+            };
+            _adlsClient.ModifyAclEntries("/",nonOwnerAclSpec);
+            _adlsClient.ModifyAclEntries("/Test", nonOwnerAclSpec);
+            _adlsClient.ModifyAclEntries("/Test/dir1", nonOwnerAclSpec);
         }
         /// <summary>
         /// Setup client from the super owner of the account
@@ -188,9 +200,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCreateMakeDir()
         {
-            string path = "/Test/dir1/testDir";
+            string path = $"{unitTestDir}/testDir";
             string permission = "733";
-            bool result = _adlsClient.CreateDirectory("/Test/dir1/testDir", permission);
+            bool result = _adlsClient.CreateDirectory(path, permission);
             Assert.IsTrue(result);
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
             Assert.IsTrue(diren.Type == DirectoryEntryType.DIRECTORY);
@@ -206,7 +218,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionCreateParent()
         {
-            string path = "/Test/dir1/dir2/testCreateParentException.txt";
+            string path = $"{unitTestDir}/dir2/testCreateParentException.txt";
             _adlsClient.CreateFile(path, IfExists.Fail, null, false);
             Assert.Fail("Parent folder does not exist so create should throw an exception");
         }
@@ -219,7 +231,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionOverwrite()
         {
-            string path = "/Test/dir1/testCreateOverwriteException.txt";
+            string path = $"{unitTestDir}/testCreateOverwriteException.txt";
             using (_adlsClient.CreateFile(path, IfExists.Fail))
             { }
             using (_adlsClient.CreateFile(path, IfExists.Fail))
@@ -234,7 +246,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionPermission()
         {
-            string path = "/Test/dir1/testCreatePermissionException.txt";
+            string path = $"{unitTestDir}/testCreatePermissionException.txt";
             using (_adlsClient.CreateFile(path, IfExists.Fail, "3-12"))
             {
             }
@@ -246,7 +258,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCreate()
         {
-            string path = "/Test/dir1/testCreate.txt";
+            string path = $"{unitTestDir}/testCreate.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "732"))
             {
             }
@@ -263,7 +275,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCreateAppend()
         {
-            string path = "/Test/dir1/testCreateAppend2.txt";
+            string path = $"{unitTestDir}/testCreateAppend2.txt";
             string text1 = "I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.\n";
             string text2 = "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.";
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -293,7 +305,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestAppendExceptionFile()
         {
-            string path = "/Test/dir1/testAppendNotExist.txt";
+            string path = $"{unitTestDir}/testAppendNotExist.txt";
             string text1 = RandomString(300);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.GetAppendStream(path))
@@ -309,7 +321,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendDifferentLengthsMultipleTimes()
         {
-            string path = "/Test/dir1/testAppendDifferentLengthMultipleTimes.txt";
+            string path = $"{unitTestDir}/testAppendDifferentLengthMultipleTimes.txt";
             int totLength = 22 * 1024 * 1024;
             string text1 = RandomString(totLength);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -345,7 +357,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendDifferentLengthsMultipleTimes1()
         {
-            string path = "/Test/dir1/testAppendDifferentLengthMultipleTimes1.txt";
+            string path = $"{unitTestDir}/testAppendDifferentLengthMultipleTimes1.txt";
             int totLength = 16 * 1024 * 1024;
             string text1 = RandomString(totLength);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -381,7 +393,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendEmptyFile()
         {
-            string path = "/Test/dir1/testAppendEmptyFile.txt";
+            string path = $"{unitTestDir}/testAppendEmptyFile.txt";
             string text1 = RandomString(9 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -410,8 +422,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendEmptyFileAsync()
         {
-            string path = "/Test/dir1/testAppendEmptyFileAsync.txt";
-            string text1 = RandomString(9 * 1024 * 1024);
+            string path = $"{unitTestDir}/testAppendEmptyFileAsync.txt";
+            string text1 = RandomString(6 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (_adlsClient.CreateFileAsync(path, IfExists.Overwrite, "").GetAwaiter().GetResult())
             { }
@@ -438,9 +450,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCreateUnicodeFileName()
         {
-            string dir = "/Test/dir1/UnicodeDir";
+            string dir = $"{unitTestDir}/UnicodeDir";
             string unicodeFilename = dir + "/ch+ ch.官話.官话.עברית.हिंदी.español.~`!@#$%^&*()_.+=-{}[]|;',.<>?.txt";
-            string text1 = RandomString(9 * 1024 * 1024);
+            string text1 = RandomString(1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(unicodeFilename, IfExists.Overwrite))
             {
@@ -485,7 +497,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendNotEmptyFile()
         {
-            string path = "/Test/dir1/testAppend2.txt";
+            string path = $"{unitTestDir}/testAppend2.txt";
             string text1 = RandomString(27 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -528,7 +540,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestSeekCurrent()
         {
 
-            string path = "/Test/dir1/testSeekCurrent.txt";
+            string path = $"{unitTestDir}/testSeekCurrent.txt";
             int strLength = 24 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int lengthToReadBeforeSeek = strLength / 8;
@@ -596,8 +608,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekBegin()
         {
-            string path = "/Test/dir1/testSeekBegin.txt";
-            int strLength = 24 * 1024 * 1024;
+            string path = $"{unitTestDir}/testSeekBegin.txt";
+            int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -672,8 +684,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekCurrentBack()
         {
-            string path = "/Test/dir1/testSeekCurrentBack.txt";
-            int strLength = 24 * 1024 * 1024;
+            string path = $"{unitTestDir}/testSeekCurrentBack.txt";
+            int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -732,8 +744,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekEnd()
         {
-            string path = "/Test/dir1/testSeekEnd.txt";
-            int strLength = 24 * 1024 * 1024;
+            string path = $"{unitTestDir}/testSeekEnd.txt";
+            int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -807,8 +819,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExistsSubDirec(bool overwrite)
         {
-            string srcpath = "/Test/dir1/testRenameSource1" + overwrite;
-            string destPath = "/Test/dir1/testRenameDestination1" + overwrite;
+            string srcpath = $"{unitTestDir}/testRenameSource1" + overwrite;
+            string destPath = $"{unitTestDir}/testRenameDestination1" + overwrite;
             string subDestpath = destPath + "/testRenameSource1" + overwrite;
             bool result = _adlsClient.CreateDirectory(srcpath, "");
             Assert.IsTrue(result);
@@ -818,7 +830,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsFalse(result);
         }
         /// <summary>
-        /// Unit test to rename a directory where the destination exists
+        /// Unit test to rename a directory where the destination does not exist
         /// </summary>
         /// <param name="overwrite">Whether to overwrite the existing destination if it exists</param>
         [TestMethod]
@@ -826,8 +838,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(false)]
         public void TestRenameDirectoryDestinationNotExist(bool overwrite)
         {
-            string srcDirPath = "/Test/dir1/testRenameSource2" + overwrite;
-            string destDirPath = "/Test/dir1/testRenameDest2" + overwrite;
+            string srcDirPath = $"{unitTestDir}/testRenameSource2" + overwrite;
+            string destDirPath = $"{unitTestDir}/testRenameDest2" + overwrite;
             bool result = _adlsClient.CreateDirectory(srcDirPath, "");
             Assert.IsTrue(result);
             result = _adlsClient.Rename(srcDirPath, destDirPath, overwrite);
@@ -851,8 +863,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExist(bool overwrite)
         {
-            string srcDirPath = "/Test/dir1/testRenameSource3" + overwrite;
-            string destDirPath = "/Test/dir1/testRenameDest3" + overwrite;
+            string srcDirPath = $"{unitTestDir}/testRenameSource3" + overwrite;
+            string destDirPath = $"{unitTestDir}/testRenameDest3" + overwrite;
             string expectedDestPath = destDirPath + "/testRenameSource3" + overwrite;
             Assert.IsTrue(_adlsClient.CreateDirectory(srcDirPath, ""));
             Assert.IsTrue(_adlsClient.CreateDirectory(destDirPath, ""));
@@ -876,8 +888,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(false)]
         public void TestRenameDirectoryDestinationExistNonEmpty(bool overwrite)
         {
-            string srcDirPath = "/Test/dir1/testRenameSource4" + overwrite;
-            string destDirPath = "/Test/dir1/testRenameDest4" + overwrite;
+            string srcDirPath = $"{unitTestDir}/testRenameSource4" + overwrite;
+            string destDirPath = $"{unitTestDir}/testRenameDest4" + overwrite;
             string destDirFilePath = destDirPath + "/File.txt";
             string expectedDestPath = destDirPath + "/testRenameSource4" + overwrite;
             Assert.IsTrue(_adlsClient.CreateDirectory(srcDirPath, ""));
@@ -904,8 +916,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameFileDestinationNotExist(bool overwrite)
         {
-            string srcFilePath = "/Test/dir1/testRenameSource5" + overwrite + ".txt";
-            string destFilePath = "/Test/dir1/testRenameDest5" + overwrite + ".txt";
+            string srcFilePath = $"{unitTestDir}/testRenameSource5" + overwrite + ".txt";
+            string destFilePath = $"{unitTestDir}/testRenameDest5" + overwrite + ".txt";
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
@@ -948,8 +960,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameFileDestinationExist(bool overwrite)
         {
-            string srcFilePath = "/Test/dir1/testRenameSource6" + overwrite + ".txt";
-            string destFilePath = "/Test/dir1/testRenameDest6" + overwrite + ".txt";
+            string srcFilePath = $"{unitTestDir}/testRenameSource6" + overwrite + ".txt";
+            string destFilePath = $"{unitTestDir}/testRenameDest6" + overwrite + ".txt";
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
@@ -1007,9 +1019,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestDeleteException()
         {
-            string deletePath = "/Test/dir1/testDelete/testDelete1";
+            string deletePath = $"{unitTestDir}/testDelete/testDelete1";
             _adlsClient.CreateDirectory(deletePath, "");
-            _adlsClient.Delete("/Test/dir1/testDelete");
+            _adlsClient.Delete($"{unitTestDir}/testDelete");
             Assert.Fail("Trying to delete an non-empty directory so it should throw an exception");
         }
         /// <summary>
@@ -1018,7 +1030,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestDeleteNonRecursive()
         {
-            string deletePath = "/Test/dir1/testDelete/testDelete2";
+            string deletePath = $"{unitTestDir}/testDelete1";
             _adlsClient.CreateDirectory(deletePath, "");
             bool result = _adlsClient.Delete(deletePath);
             Assert.IsTrue(result);
@@ -1037,13 +1049,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestDeleteRecursive()
         {
-            string deletePath = "/Test/dir1/testDelete/testDelete3/testDeleteInternal";
+            string deletePath = $"{unitTestDir}/testDelete2/testDelete3/testDeleteInternal";
             _adlsClient.CreateDirectory(deletePath, "");
-            bool result = _adlsClient.DeleteRecursive("/Test/dir1/testDelete");
+            bool result = _adlsClient.DeleteRecursive($"{unitTestDir}/testDelete2");
             Assert.IsTrue(result);
             try
             {
-                _adlsClient.GetDirectoryEntry("/Test/dir1/testDelete");
+                _adlsClient.GetDirectoryEntry($"{unitTestDir}/testDelete2");
                 Assert.Fail("The directory should have been deleted so GetFileStatus should throw an exception");
             }
             catch (IOException) { }
@@ -1056,9 +1068,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException1()
         {
-            string destPath = "/Test/dir1/destPath.txt";
+            string destPath = $"{unitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = "/Test/dir1/Source/srcPath1.txt";
+            string srcFile1 = $"{unitTestDir}/Source/srcPath1.txt";
             srcList.Add(srcFile1);
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
@@ -1071,9 +1083,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException2()
         {
-            string destPath = "/Test/dir1/destPath.txt";
+            string destPath = $"{unitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = "/Test/dir1/Source/srcPath2.txt";
+            string srcFile1 = $"{unitTestDir}/Source/srcPath2.txt";
             srcList.Add(destPath);
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
@@ -1086,9 +1098,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException3()
         {
-            string destPath = "/Test/dir1/destPath.txt";
+            string destPath = $"{unitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = "/Test/dir1/Source/srcPath3.txt";
+            string srcFile1 = $"{unitTestDir}/Source/srcPath3.txt";
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
             Assert.Fail("Trying to concat one file should throw an exception");
@@ -1100,11 +1112,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException((typeof(AdlsException)))]
         public void TestConcatException4()
         {
-            string destPath = "/Test/dir1/destPath4";
+            string destPath = $"{unitTestDir}/destPath1";
             List<string> srcList = new List<string>()
             {
-                "/Test/dir1/Source4/SrcFile1.txt",
-                "/Test/dir1/Source4/SrcFile2.txt"
+                $"{unitTestDir}/Source4/SrcFile1.txt",
+                $"{unitTestDir}/Source4/SrcFile2.txt"
             };
             byte[] textByte1 = Encoding.UTF8.GetBytes("Hello World");
             _adlsClient.CreateDirectory(destPath);
@@ -1125,13 +1137,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
         [DataTestMethod]
-        [DataRow(false, "/Test/dir1/destPath2.txt", "/Test/dir1/Source")]
-        [DataRow(true, "/Test/dir1/destPath3.txt", "/Test/dir1/Source1")]
+        [DataRow(false, unitTestDir+"/destPath2.txt", unitTestDir+"/Source")]
+        [DataRow(true, unitTestDir+"/destPath3.txt", unitTestDir+"/Source1")]
         public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath)
         {
             List<string> srcList = new List<string>();
             string srcFile1 = sourcePath + "/srcPath4.txt";
-            string text1 = RandomString(10 * 1024 * 1024);
+            string text1 = RandomString(2 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
@@ -1188,20 +1200,20 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
         [DataTestMethod]
-        [DataRow(false, "/Test/dir1/destPath4.txt", "/Test/dir1/Source2")]
-        [DataRow(true, "/Test/dir1/destPath5.txt", "/Test/dir1/Source3")]
+        [DataRow(false, unitTestDir+"/destPath4.txt", unitTestDir+"/Source2")]
+        [DataRow(true, unitTestDir+"/destPath5.txt", unitTestDir+"/Source3")]
         public void TestConcatThreeFile(bool deleteSource, string destPath, string sourcePath)
         {
             List<string> srcList = new List<string>();
             string srcFile1 = sourcePath + "/srcPath1.txt";
-            string text1 = RandomString(1024 * 1024);
+            string text1 = RandomString(1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
             string srcFile2 = sourcePath + "/srcPath2.txt";
-            string text2 = RandomString(6 * 1024 * 1024);
+            string text2 = RandomString(5 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
             {
@@ -1254,7 +1266,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             {
                 try
                 {
-                    _adlsClient.GetDirectoryEntry("/Test/dir1/Source");
+                    _adlsClient.GetDirectoryEntry($"{unitTestDir}/Source");
                     Assert.Fail("The directory should have been deleted so GetFileStatus should throw an exception");
                 }
                 catch (IOException) { }
@@ -1267,7 +1279,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestExpiryFailDirectory()
         {
-            string path = "/Test/dir1/ExpiryFolder";
+            string path = $"{unitTestDir}/ExpiryFolder";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetExpiryTime(path, ExpiryOption.NeverExpire, 0);
             Assert.Fail("SetExpiry should have raised an exception as expiry cannot be set for folders");
@@ -1278,7 +1290,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeNever()
         {
-            string path = "/Test/dir1/ExpiryFolder/ExpiryFile1.txt";
+            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFile1.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -1300,7 +1312,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeAbsolute()
         {
-            string path = "/Test/dir1/ExpiryFolder/ExpiryFileAbsolute.txt";
+            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFileAbsolute.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -1320,7 +1332,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeRelativeCreation()
         {
-            string path = "/Test/dir1/ExpiryFolder/ExpiryFileRelative.txt";
+            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFileRelative.txt";
             var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "");
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
             DateTime create = diren.LastModifiedTime.Value;
@@ -1337,7 +1349,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeRelativeNow()
         {
-            string path = "/Test/dir1/ExpiryFolder/ExpiryFile3.txt";
+            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFile3.txt";
             long time = 5000;//In milliseconds: 5 seconds
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             { }
@@ -1360,7 +1372,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestSetPermissionException()
         {
-            string path = "/Test/dir1/SetPermission";
+            string path = $"{unitTestDir}/SetPermission";
             string permission = "77777";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, permission);
@@ -1372,7 +1384,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFolder()
         {
-            string path = "/Test/dir1/SetPermissionFolder";
+            string path = $"{unitTestDir}/SetPermissionFolder";
             string originalPermission = "771";
             string permission = "772";
             _adlsClient.CreateDirectory(path, originalPermission);
@@ -1428,7 +1440,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFile()
         {
-            string path = "/Test/dir1/SetPermission.txt";
+            string path = $"{unitTestDir}/SetPermission.txt";
             string originalPermission = "770";
             string permission = "772";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, originalPermission))
@@ -1470,7 +1482,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCheckNoAccess()
         {
-            string path = "/Test/dir1/CheckNoAccess";
+            string path = $"{unitTestDir}/CheckNoAccess";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, "775");
             AdlsClient nonOwner1 = SetupNonOwnerClient1();
@@ -1493,7 +1505,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCheckAccess()
         {
-            string path = "/Test/dir1/CheckAccess";
+            string path = $"{unitTestDir}/CheckAccess";
             string originalPermission = "774";
             string changedPermission = "775";
             _adlsClient.CreateDirectory(path, "");
@@ -1540,7 +1552,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestSetAclException()
         {
-            string path = "/Test/dir1/SetAclEntriesException";
+            string path = $"{unitTestDir}/SetAclEntriesException";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() { new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite) };//Non owner client 1
             _adlsClient.SetAcl(path, aclList);
@@ -1552,7 +1564,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetAcl()
         {
-            string path = "/Test/dir1/SetAclEntries";
+            string path = $"{unitTestDir}/SetAclEntries";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, "770");
             string testFile = path + "/SetAcl.txt";
@@ -1623,16 +1635,15 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="path">Destination path</param>
         [TestMethod]
-        [DataRow("/Test/dir1/ModifyAclEntries.txt")]
+        [DataRow(unitTestDir+"/ModifyAclEntries.txt")]
         public void TestModifyAcl(string path)
         {
-            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, "770"))
             { }
-            _adlsClient.SetPermission(path, "770");
             AdlsClient nonOwner1 = SetupNonOwnerClient1();
-            Assert.IsFalse(nonOwner1.CheckAccess(path, "r--"));
+            Assert.IsFalse(nonOwner1.CheckAccess(path, "rw-"));
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
-            Assert.IsFalse(nonOwner2.CheckAccess(path, "r--"));
+            Assert.IsFalse(nonOwner2.CheckAccess(path, "r-x"));
 
             //Setup Acl Entries
             List<AclEntry> aclList = new List<AclEntry>()
@@ -1674,7 +1685,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclGroup()
         {
-            string path = "/Test/dir1/ModifyAclEntryGroup.txt";
+            string path = $"{unitTestDir}/ModifyAclEntryGroup.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             {
 
@@ -1726,7 +1737,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclOther()
         {
-            string path = "/Test/dir1/ModifyAclEntryOther.txt";
+            string path = $"{unitTestDir}/ModifyAclEntryOther.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             { }
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
@@ -1771,7 +1782,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclMask()
         {
-            string path = "/Test/dir1/ModifyAclEntryMask.txt";
+            string path = $"{unitTestDir}/ModifyAclEntryMask.txt";
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             {
                 byte[] buff = Encoding.UTF8.GetBytes("Hello");
@@ -1819,7 +1830,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclMaskGroup()
         {
-            string path = "/Test/dir1/TestAclMaskGroup";
+            string path = $"{unitTestDir}/TestAclMaskGroup";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1851,7 +1862,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetOwnerGroupMask()
         {
-            string path = "/Test/dir1/TestGroupMask";
+            string path = $"{unitTestDir}/TestGroupMask";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1886,7 +1897,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetOwner()
         {
-            string path = "/Test/dir1/TestOwner";
+            string path = $"{unitTestDir}/TestOwner";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1921,7 +1932,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetGroup()
         {
-            string path = "/Test/dir1/TestGroup";
+            string path = $"{unitTestDir}/TestGroup";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>()
             {
@@ -1952,7 +1963,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclExtended()
         {
-            string path = "/Test/dir1/TestAclExtended";
+            string path = $"{unitTestDir}/TestAclExtended";
             _adlsClient.CreateDirectory(path, "750");
             List<AclEntry> aclList = new List<AclEntry>()
             {
@@ -2006,7 +2017,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="path"></param>
         [TestMethod]
-        [DataRow("/Test/dir1/DefaultAclEntries")]
+        [DataRow(unitTestDir+"/DefaultAclEntries")]
         public void TestAclDefault(string path)
         {
             _adlsClient.CreateDirectory(path, "700");
@@ -2046,7 +2057,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultMode()
         {
-            string path = "/Test/dir1/TestAclDefaultMode";
+            string path = $"{unitTestDir}/TestAclDefaultMode";
             _adlsClient.CreateDirectory(path, "730");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.WriteExecute),
@@ -2091,7 +2102,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultGroup()
         {
-            string path = "/Test/dir1/TestAclDefaultGroup";
+            string path = $"{unitTestDir}/TestAclDefaultGroup";
             _adlsClient.CreateDirectory(path, "740");
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
             string subDirec = path + "/subdirec";
@@ -2138,7 +2149,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveAcl()
         {
-            string path = "/Test/dir1/TestRemoveAcl.txt";
+            string path = $"{unitTestDir}/TestRemoveAcl.txt";
             TestModifyAcl(path);
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite)
@@ -2158,7 +2169,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveDefaultAcl()
         {
-            string path = "/Test/dir1/TestRemoveDefault";
+            string path = $"{unitTestDir}/TestRemoveDefault";
             TestAclDefault(path);
             _adlsClient.RemoveDefaultAcls(path);
             string subDirec = path + "/subdirecNew";
@@ -2176,7 +2187,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveAllAcl()
         {
-            string path = "/Test/dir1/TesRemoveAcl";
+            string path = $"{unitTestDir}/TesRemoveAcl";
             TestModifyAcl(path);
             _adlsClient.RemoveAllAcls(path);
             AdlsClient nonOwnerCLient1 = SetupNonOwnerClient1();
@@ -2191,40 +2202,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestGetAclStatus()
         {
-            string path = "/Test/dir1/TestGetAclStatus";
+            string path = $"{unitTestDir}/TestGetAclStatus";
             TestModifyAcl(path);
             AclStatus status = _adlsClient.GetAclStatus(path);
             Assert.IsTrue(status.Owner.Equals(_ownerObjectId));
             Assert.IsTrue(status.Permission.Equals("770"));
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite)));
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ReadExecute)));
-        }
-        private static async Task CreateDirRecursive(AdlsClient client, string path, int recursLevel, int noDirEntries, int noFileEntries, int stringLength, string filePrefix = "")
-        {
-            client.CreateDirectory(path, "");
-            string[] str = path.Split('/');
-            char nextLevel = str[str.Length - 1][0];
-            for (int i = 0; i < noFileEntries; i++)
-            {
-                byte[] read = stringLength > 0 ? Encoding.UTF8.GetBytes(RandomString(stringLength)) : null;
-                using (var ostream = client.CreateFile(path + "/" + nextLevel + filePrefix + i + "File.txt", IfExists.Overwrite, ""))
-                {
-                    if (read != null)
-                    {
-                        ostream.Write(read, 0, read.Length);
-                    }
-                }
-            }
-            if (recursLevel == 0)
-            {
-                return;
-            }
-            nextLevel++;
-            string newPath = path + "/";
-            for (int i = 0; i < noDirEntries; i++)
-            {
-                await CreateDirRecursive(client, newPath + nextLevel + i, recursLevel - 1, noDirEntries, noFileEntries, stringLength);
-            }
         }
 
         private bool VerifyGuid(string objectId)
@@ -2237,7 +2221,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestUserRepresentation()
         {
-            string filename = "/Test/dir1/UserRepresentation.txt";
+            string filename = $"{unitTestDir}/UserRepresentation.txt";
             using (var ostream = new StreamWriter(_adlsClient.CreateFile(filename, IfExists.Overwrite)))
             {
                 ostream.Write("Hello This is a user representation test");
@@ -2253,7 +2237,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestGetContentSummary()
         {
-            string path = "/Test/dir1/CntSum";
+            string path = $"{unitTestDir}/CntSum";
             int oneLevelDirecCnt = 3;
             int oneLevelFileCnt = 2;
             int recurseLevel = 2;
@@ -2280,7 +2264,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestGetFileListStatus()
         {
             char prefix = 'F';
-            string path = "/Test/dir1/" + prefix;
+            string path = $"{unitTestDir}/{prefix}";
             int totFiles = 1;
             string filePrefix = "";
             int setListSize = 120;
@@ -2367,6 +2351,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public static void CleanTests()
         {
             _adlsClient.DeleteRecursive("/Test");
+            var nonOwnerAclSpec = new List<AclEntry>
+            {
+                new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.group, _group1Id, AclScope.Access, AclAction.ExecuteOnly)
+            };
+            _adlsClient.RemoveAclEntries("/", nonOwnerAclSpec);
         }
     }
 }

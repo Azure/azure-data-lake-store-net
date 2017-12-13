@@ -138,7 +138,9 @@ namespace Microsoft.Azure.DataLake.Store
             }
             UserAgent = "AdlsDotNetSDK;" + SdkVersion + "/" + osInfo + ";" + dotNetVersion;
         }
-
+        /// <summary>
+        /// Protected constructor for moq tests
+        /// </summary>
         protected AdlsClient()
         {
             
@@ -148,7 +150,7 @@ namespace Microsoft.Azure.DataLake.Store
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
             {
-                throw new ArgumentException("Account name is invalid");
+                throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
             }
             ClientId = clientId;
             AccessToken = token;
@@ -163,14 +165,14 @@ namespace Microsoft.Azure.DataLake.Store
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
             {
-                throw new ArgumentException("Account name is invalid");
+                throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
             }
             ClientId = clientId;
             AccessProvider = creds;
         }
         private bool IsValidAccount(string accnt)
         {
-            return Regex.IsMatch(accnt, @"^[a-zA-Z0-9]+\.azuredatalakestore\.net$");
+            return Regex.IsMatch(accnt, @"^[a-zA-Z0-9]+\.[a-zA-Z0-9\-][a-zA-Z0-9.\-]*$");
         }
         #endregion
 
@@ -383,7 +385,10 @@ namespace Microsoft.Azure.DataLake.Store
             return GetReadStreamAsync(filename, bufferCapacity, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
-        /// Asynchronous API that returns the stream to write data to a file in ADLS
+        /// Asynchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open. 
+        /// 
+        /// Threading: The returned stream is not thread-safe.
         /// </summary>
         /// <param name="filename">File name</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
@@ -410,7 +415,10 @@ namespace Microsoft.Azure.DataLake.Store
             return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId);
         }
         /// <summary>
-        /// Synchronous API that returns the stream to write data to a file in ADLS
+        /// Synchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open.  
+        /// 
+        /// Threading: The returned stream is not thread-safe.
         /// </summary>
         /// <param name="filename">File name</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
@@ -420,7 +428,10 @@ namespace Microsoft.Azure.DataLake.Store
             return GetAppendStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
-        /// Asynchronous API that creates a file and returns the stream to write data to that file in ADLS
+        /// Asynchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open. 
+        /// 
+        /// Threading: The returned stream is not thread-safe.
         /// </summary>
         /// <param name="filename">File name</param>
         /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
@@ -464,7 +475,10 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         /// <summary>
-        /// Synchronous API that creates a file and returns the stream to write data to that file in ADLS
+        /// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open.  
+        /// 
+        /// Threading: The returned stream is not thread-safe.
         /// </summary>
         /// <param name="filename">File name</param>
         /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>

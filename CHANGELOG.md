@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.0.3
+- Fix account validation
 ### Version 1.0.2
 - Fix path encoding
 - Changed Api version

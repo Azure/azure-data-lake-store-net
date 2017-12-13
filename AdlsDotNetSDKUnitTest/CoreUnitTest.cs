@@ -51,7 +51,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(ArgumentException))]
         public void TestInvalidAccnt1()
         {
-            AdlsClient.CreateClient("contoso.com", "Test");
+            AdlsClient.CreateClient("contoso.com_yt;", "Test");
         }
         /// <summary>
         /// Unit test to create an invalid account
@@ -60,7 +60,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(ArgumentException))]
         public void TestInvalidAccnt2()
         {
-            AdlsClient.CreateClient("contoso.azuredatalakestore.com", "Test");
+            AdlsClient.CreateClient("contoso..com", "Test");
         }
         /// <summary>
         /// Unit test to create an invalid account
@@ -69,7 +69,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(ArgumentException))]
         public void TestInvalidAccnt3()
         {
-            AdlsClient.CreateClient("contoso.datalakestore.net", "Test");
+            AdlsClient.CreateClient("contoso_datalakestore.net", "Test");
+        }
+        [TestMethod]
+        public void TestValidAccnt()
+        {
+            AdlsClient.CreateClient("contoso.cabostore.net", "Test");
+            AdlsClient.CreateClient("contoso.dogfood.com.net", "Test");
         }
         /// <summary>
         /// Unit test to test the exponential retry mechanism - 4 retries

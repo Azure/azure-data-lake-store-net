@@ -30,7 +30,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient = SdkUnitTest.SetupSuperClient();
 
             _adlsClient.DeleteRecursive("/Test1");
-            _adlsClient.CreateDirectory(remotePath, "775");
+            _adlsClient.CreateDirectory(remotePath);
             if (!Directory.Exists(localPath))
             {
                 Directory.CreateDirectory(localPath);
