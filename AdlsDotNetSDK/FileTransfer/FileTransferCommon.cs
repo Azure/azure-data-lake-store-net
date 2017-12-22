@@ -1,8 +1,9 @@
 ﻿using System;
-using System.IO;
 using System.Net;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using NLog;
 using Microsoft.Azure.DataLake.Store.FileTransfer.Jobs;
@@ -39,6 +40,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// Default chunk size
         /// </summary>
         internal const long ChunkSizeDefault = 240 * 1024 * 1024L;
+
+        internal const int HashStringBuilderLength = 40;
         /// <summary>
         /// Chunk size either default or set by user
         /// </summary>
@@ -120,14 +123,26 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             CancelToken = cancelToken;
         }
         // Gets the metadata path where the metadata is stored for transfer to resume. For upload, it will be the source path appended with the destination directory or file.
-        // For download it will be the destination path appended with source directory or file.
+        // For download it will be the destination path appended with source directory or file. Hash the filename so that it does not cross MAX_CHAR limit
         internal static string GetTransferLogFileName(string sourcePath, string destPath, char sourceSeparator, char destSeparator)
         {
             string separator = Regex.Escape($"{sourceSeparator}{destSeparator}");
             var regex = new Regex($"[:{separator}]");
-            return $"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat";
+            return Sha1HashString($"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat");
         }
-
+        // Uses SHA1 to hash the filename
+        private static string Sha1HashString(string fileName)
+        {
+            var sha1 = SHA1.Create();
+            byte[] hashBytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(fileName));
+            var sb = new StringBuilder(HashStringBuilderLength);
+            foreach (byte b in hashBytes)
+            {
+                var hex = b.ToString("x2");
+                sb.Append(hex);
+            }
+            return sb.ToString();
+        }
         /// Adds jobs for concat
         internal abstract void AddConcatJobToQueue(string source, string chunkSegmentFolder, string dest, long totSize, long totalChunks, bool doUploadRenameOnly = false);
         /// <summary>

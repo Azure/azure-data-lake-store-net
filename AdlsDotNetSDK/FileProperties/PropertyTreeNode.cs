@@ -104,19 +104,27 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             {
                 return true;
             }
-            HashSet<string> hset = new HashSet<string>();
-            foreach (var aclsEntry in Acls.Entries)
-            {
-                hset.Add(aclsEntry.ToString());
-            }
             bool isAclSame = true;
-            foreach (var aclsEntry in acls)
+            if (Acls.Entries.Count == acls.Count)
             {
-                if (!hset.Contains(aclsEntry.ToString()))
+                HashSet<string> hset = new HashSet<string>();
+                foreach (var aclsEntry in Acls.Entries)
                 {
-                    isAclSame = false;
-                    break;
+                    hset.Add(aclsEntry.ToString());
                 }
+
+                foreach (var aclsEntry in acls)
+                {
+                    if (!hset.Contains(aclsEntry.ToString()))
+                    {
+                        isAclSame = false;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                isAclSame = false;
             }
             AllChildSameAcl = isAclSame && AllChildSameAcl && childAclSame;
             return UpdateNumChildAclProcessed();

@@ -88,9 +88,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         static AdlsClient()
         {
+            string adlsSdkName = "AdlsDotNetSDK";
             try
             {
                 Assembly assembly = typeof(AdlsClient).GetTypeInfo().Assembly;
+                adlsSdkName = assembly.GetName().Name;
                 AssemblyFileVersionAttribute fvAttribute = assembly.GetCustomAttribute(typeof(AssemblyFileVersionAttribute)) as AssemblyFileVersionAttribute;
                 string sdkVersion = fvAttribute?.Version;
                 SdkVersion = string.IsNullOrEmpty(sdkVersion) ? "SDKVersionNotKnown" : sdkVersion;
@@ -136,7 +138,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 osInfo = "OSNotKnown";
             }
-            UserAgent = "AdlsDotNetSDK;" + SdkVersion + "/" + osInfo + ";" + dotNetVersion;
+            UserAgent = $"{adlsSdkName};{SdkVersion}/{osInfo}/{dotNetVersion}";
         }
         /// <summary>
         /// Protected constructor for moq tests

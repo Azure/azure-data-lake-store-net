@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.0.4
+- Fix FileVersion in csproj
+- Fix transfer metadata file name length so that it is less than 260
+- Fix the Acl consistency check for FileProperties
 ### Version 1.0.3
 - Fix account validation
 ### Version 1.0.2

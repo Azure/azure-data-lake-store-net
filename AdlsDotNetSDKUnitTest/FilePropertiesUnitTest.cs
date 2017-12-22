@@ -127,7 +127,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             return new List<AclEntry>()
             {
                 new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadOnly),
-                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Default, AclAction.ExecuteOnly)
+                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly)
             };
         }
         /// <summary>
@@ -217,7 +217,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 new AclEntry(AclType.user, _group1Id, AclScope.Default, AclAction.WriteExecute)
             };
             _adlsClient.ModifyAclEntries(remotePath + "/B1/C0/D0", entry);
-            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile", true, 25, true);
+            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile1", true, 25, true);
             Assert.IsFalse(node.AllChildSameAcl);
         }
 

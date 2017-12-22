@@ -173,9 +173,9 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         // Unit test purpose
         internal static PropertyTreeNode TestGetProperty(string path, AdlsClient client, bool getDiskUsage,
             bool getAclProperty, string dumpFileName, bool saveToLocal, int numThreads = -1, bool displayFiles = false,
-            bool displayConsistentAcl = true, long maxDepth = Int64.MaxValue)
+            bool hideConsistentAcl = true, long maxDepth = Int64.MaxValue)
         {
-            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, displayConsistentAcl, maxDepth).RunTestGetProperty(path);
+            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth).RunTestGetProperty(path);
         }
         /// <summary>
         /// Dumps file property to a local or adl file
@@ -188,11 +188,11 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         /// <param name="saveToLocal">True if we want to save to local file</param>
         /// <param name="numThreads">Number of threads</param>
         /// <param name="displayFiles">True if we want to display properties of files</param>
-        /// <param name="displayConsistentAcl">True if we want to view consistent acl property only</param>
+        /// <param name="hideConsistentAcl">True if we want to view consistent acl property only</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
-        internal static PropertyTreeNode GetFileProperty(string path, AdlsClient client, bool getAclProperty, bool getDiskUsage, string dumpFileName, bool saveToLocal, int numThreads = -1, bool displayFiles = false, bool displayConsistentAcl = true, long maxDepth = Int64.MaxValue)
+        internal static PropertyTreeNode GetFileProperty(string path, AdlsClient client, bool getAclProperty, bool getDiskUsage, string dumpFileName, bool saveToLocal, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = true, long maxDepth = Int64.MaxValue)
         {
-            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, displayConsistentAcl, maxDepth).RunGetProperty(path);
+            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth).RunGetProperty(path);
         }
         private void ConsumerRun()
         {
