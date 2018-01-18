@@ -32,7 +32,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="cancelToken">Cancellation token</param>
         public override async Task FlushAsync(CancellationToken cancelToken)
         {
-            await _internalStream.FlushAsync(cancelToken);
+            await _internalStream.FlushAsync(cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Synchronously flushes data from buffer to underlying stream and updates the metadata
@@ -51,7 +51,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="cancelToken">Cancellation token</param>
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancelToken)
         {
-            await _internalStream.WriteAsync(buffer, offset, count, cancelToken);
+            await _internalStream.WriteAsync(buffer, offset, count, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Writes data to internal buffer. If the buffer fills up then writes to the underlying stream.

@@ -71,7 +71,7 @@ namespace Microsoft.Azure.DataLake.Store
                 req.RequestId = uuid + "." + numRetries;
                 resp.Retries = numRetries;
                 Stopwatch watch = Stopwatch.StartNew();
-                retVal = await MakeSingleCallAsync(opCode, path, requestData, responseData, quer, client, req, resp, cancelToken);
+                retVal = await MakeSingleCallAsync(opCode, path, requestData, responseData, quer, client, req, resp, cancelToken).ConfigureAwait(false);
                 watch.Stop();
                 resp.LastCallLatency = watch.ElapsedMilliseconds;
                 HandleMakeSingleCallResponse(opCode, path, resp, retVal?.Item2 ?? 0, requestData.Count, req.RequestId, client.ClientId, quer.Serialize(opCode), ref numRetries);
@@ -249,7 +249,7 @@ namespace Microsoft.Azure.DataLake.Store
                 //This point onwards if operation is cancelled http request is aborted
                 cancelToken.Register(OnCancel, webReq);
                 Stopwatch watch = Stopwatch.StartNew();
-                token = await client.GetTokenAsync(cancelToken);
+                token = await client.GetTokenAsync(cancelToken).ConfigureAwait(false);
                 watch.Stop();
                 resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
                 if (string.IsNullOrEmpty(token))
@@ -263,10 +263,10 @@ namespace Microsoft.Azure.DataLake.Store
                     if (op.RequiresBody && requestData.Data != null)
                     {
                         SetWebRequestContentLength(webReq, requestData.Count); 
-                        using (Stream ipStream = await webReq.GetRequestStreamAsync())
+                        using (Stream ipStream = await webReq.GetRequestStreamAsync().ConfigureAwait(false))
                         {
                             await ipStream.WriteAsync(requestData.Data, requestData.Offset, requestData.Count,
-                                cancelToken);
+                                cancelToken).ConfigureAwait(false);
                         }
                     }
                     else
@@ -274,7 +274,7 @@ namespace Microsoft.Azure.DataLake.Store
                         SetWebRequestContentLength(webReq, 0);
                     }
                 }
-                using (var webResponse = (HttpWebResponse)await webReq.GetResponseAsync())
+                using (var webResponse = (HttpWebResponse)await webReq.GetResponseAsync().ConfigureAwait(false))
                 {
                     resp.HttpStatus = webResponse.StatusCode;
                     resp.HttpMessage = webResponse.StatusDescription;
@@ -295,7 +295,7 @@ namespace Microsoft.Azure.DataLake.Store
                             //Read the required amount of data. In case of chunked it is what users requested, else it is amount of data sent
                             do
                             {
-                                noBytes = await opStream.ReadAsync(responseData.Data, responseData.Offset, totalLengthToRead, cancelToken);
+                                noBytes = await opStream.ReadAsync(responseData.Data, responseData.Offset, totalLengthToRead, cancelToken).ConfigureAwait(false);
                                 totalBytes += noBytes;
                                 responseData.Offset += noBytes;
                                 totalLengthToRead -= noBytes;

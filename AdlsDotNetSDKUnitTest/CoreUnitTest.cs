@@ -76,6 +76,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             AdlsClient.CreateClient("contoso.cabostore.net", "Test");
             AdlsClient.CreateClient("contoso.dogfood.com.net", "Test");
+            AdlsClient.CreateClient("contoso-test.azure-data.net", "test");
         }
         /// <summary>
         /// Unit test to test the exponential retry mechanism - 4 retries

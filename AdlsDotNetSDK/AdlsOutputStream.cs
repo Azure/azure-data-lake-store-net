@@ -94,7 +94,7 @@ namespace Microsoft.Azure.DataLake.Store
         internal static async Task<AdlsOutputStream> GetAdlsOutputStreamAsync(string filename, AdlsClient client, bool isNew, string leaseId)
         {
             var adlsOpStream = new AdlsOutputStream(filename, client, leaseId);
-            await adlsOpStream.InitializeFileSizeAsync(isNew);
+            await adlsOpStream.InitializeFileSizeAsync(isNew).ConfigureAwait(false);
             if (OutStreamLog.IsTraceEnabled)
             {
                 OutStreamLog.Trace($"ADLFileOutputStream, Created for client {client.ClientId} for file {filename}, create={isNew}");
@@ -117,7 +117,7 @@ namespace Microsoft.Azure.DataLake.Store
                 OperationResponse resp = new OperationResponse();
                 //Initialize the filepointer to the current length of file
                 DirectoryEntry diren = await Core.GetFileStatusAsync(Filename, UserGroupRepresentation.ObjectID, Client,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
                 if (diren == null)
                 {
                     throw Client.GetExceptionFromResponse(resp, "Error in getting metadata while creating InputStream for file " + Filename + ".");
@@ -135,7 +135,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw new ObjectDisposedException("Stream is closed");
             }
-            await WriteServiceAsync(SyncFlag.METADATA, cancelToken);
+            await WriteServiceAsync(SyncFlag.METADATA, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Synchronously flushes data from buffer to server and updates the metadata
@@ -231,7 +231,7 @@ namespace Microsoft.Azure.DataLake.Store
                 //If data size is less than 4MB then we should gurantee that the write to be atomic
                 if (count <= BufferCapacity)
                 {
-                    await WriteServiceAsync(SyncFlag.DATA, cancelToken);
+                    await WriteServiceAsync(SyncFlag.DATA, cancelToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -242,7 +242,7 @@ namespace Microsoft.Azure.DataLake.Store
                         AddDataToBuffer(buffer, offset, toCopy);//Adds data to buffer to write to server
                         count -= toCopy;
                         offset += toCopy;
-                        await WriteServiceAsync(SyncFlag.DATA, cancelToken);//Writes the buffer to server
+                        await WriteServiceAsync(SyncFlag.DATA, cancelToken).ConfigureAwait(false);//Writes the buffer to server
                     }
                 }
             }
@@ -335,7 +335,7 @@ namespace Microsoft.Azure.DataLake.Store
                 OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, (int)FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, (int)FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 // if this was a retry and we get bad offset, then this might be because we got a transient
@@ -348,7 +348,7 @@ namespace Microsoft.Azure.DataLake.Store
                 if (resp.Retries > 0 && resp.HttpStatus == HttpStatusCode.BadRequest &&
                     resp.RemoteExceptionName.Equals("BadOffsetException"))
                 {
-                    bool zeroAppendIsSuccesful = await PerformZeroLengthAppendAsync(FilePointer + BufferSize, cancelToken);
+                    bool zeroAppendIsSuccesful = await PerformZeroLengthAppendAsync(FilePointer + BufferSize, cancelToken).ConfigureAwait(false);
                     if (zeroAppendIsSuccesful)
                     {
                         if (OutStreamLog.IsDebugEnabled)
@@ -435,7 +435,7 @@ namespace Microsoft.Azure.DataLake.Store
         private async Task<bool> PerformZeroLengthAppendAsync(long offsetFile, CancellationToken cancelToken)
         {
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, SyncFlag.DATA, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, SyncFlag.DATA, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             return resp.IsSuccessful;
         }
         /// <summary>

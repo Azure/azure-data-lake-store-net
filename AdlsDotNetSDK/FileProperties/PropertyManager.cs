@@ -79,9 +79,6 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             }
             PropertyDumpWriter = new StreamWriter(underLyingStream);
             WriteHeader();
-#if NET452
-            ServicePointManager.DefaultConnectionLimit = _numThreads;
-#endif
         }
 
         private void WriteHeader()

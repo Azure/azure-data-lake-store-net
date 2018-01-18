@@ -53,7 +53,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns>Number of bytes read</returns>
         public override async Task<int> ReadAsync(byte[] output, int offset, int count, CancellationToken cancelToken)
         {
-            return await _internalStream.ReadAsync(output, offset, count, cancelToken);
+            return await _internalStream.ReadAsync(output, offset, count, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Updates the position of the underlying stream based on SeekOrigin

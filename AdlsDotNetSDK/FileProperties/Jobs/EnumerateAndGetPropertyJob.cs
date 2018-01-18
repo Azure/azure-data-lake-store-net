@@ -1,5 +1,4 @@
-﻿
-namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
+﻿namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
 {
     internal class EnumerateAndGetPropertyJob : BaseJob
     {
@@ -78,7 +77,8 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
                 if (PropertyManager.PropertyJobLog.IsDebugEnabled)
                 {
                     var pn = currentNode.ParentNode;
-                    PropertyManager.PropertyJobLog.Debug($"{JobType()}, JobEntryName: {_currentNode.FullPath}, AllChildPropertiesUpdated, ParentNode: {pn.FullPath}{(_manager.GetSizeProperty ? $", TotFiles: {pn.TotChildFiles}, TotDirecs: {pn.TotChildDirec}, Totsizes: {pn.TotChildSize}" : string.Empty)}{(_manager.GetAclProperty ? $", IsAclSameForAllChilds: {pn.AllChildSameAcl}" : string.Empty)}");
+                    PropertyManager.PropertyJobLog.Debug(
+                        $"{JobType()}.UpdateParentPorperty, JobEntryName: {_currentNode.FullPath}, ParentNode: {pn.FullPath}, AllChildPropertiesUpdated{(_manager.GetSizeProperty ? $", TotFiles: {pn.TotChildFiles}, TotDirecs: {pn.TotChildDirec}, Totsizes: {pn.TotChildSize}" : string.Empty)}{(_manager.GetAclProperty ? $", IsAclSameForAllChilds: {pn.AllChildSameAcl}" : string.Empty)}");
                 }
                 // Everything below currentNode.ParentNode is done- now put job for dumping
                 EnqueueWritingJobForAllChilds(currentNode.ParentNode);
@@ -89,6 +89,15 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
                 else
                 {
                     UpdateParentProperty(currentNode.ParentNode, false);
+                }
+            }
+            else
+            {
+                if (PropertyManager.PropertyJobLog.IsDebugEnabled)
+                {
+                    var pn = currentNode.ParentNode;
+                    PropertyManager.PropertyJobLog.Debug(
+                        $"{JobType()}.UpdateParentPorperty, JobEntryNode: {_currentNode.FullPath}, ParentNode: {pn.FullPath}{(_manager.GetSizeProperty ? $", TotChildSizeDone: {pn.GetNumChildDirectoryProcessed()}/{pn.ChildDirectoryNodes.Count}, TotFiles: {pn.TotChildFiles}, TotDirecs: {pn.TotChildDirec}, Totsizes: {pn.TotChildSize}" : string.Empty)}{(_manager.GetAclProperty ? $", TotChildSizeDone: {pn.GetNumChildsAclProcessed()}/{pn.ChildDirectoryNodes.Count + pn.ChildFileNodes.Count}, IsAclSameForAllChilds: {pn.AllChildSameAcl}" : string.Empty)}");
                 }
             }
         }

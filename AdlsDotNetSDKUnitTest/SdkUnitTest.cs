@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Configuration;
+using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Azure.DataLake.Store.Acl;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -119,6 +120,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _nonOwner3ClientSecret = ReadSetting("NonOwner3ClientSecret");
             _group1Id = ReadSetting("Group1Id");
             _domain = ReadSetting("Domain");
+            ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
         }
         /// <summary>
         /// Setup the client, empties the test directory
@@ -810,6 +812,31 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(actualOp.Equals(expectedOp));
         }
+
+        [TestMethod]
+        public void TestGetFileStatus()
+        {
+            string fileName = $"{unitTestDir}/testGetDirectoryEntryFile";
+            string folderName= $"{unitTestDir}/testGetDirectoryEntryFolder";
+            string text = "Hello World";
+            using (var writer = new StreamWriter(_adlsClient.CreateFile(fileName, IfExists.Overwrite, "761")))
+            {
+                writer.Write(text);
+            }
+            Assert.IsTrue(_adlsClient.CreateDirectory(folderName, "732"));
+            var fileEntry = _adlsClient.GetDirectoryEntry(fileName);
+            Assert.IsTrue(fileEntry.FullName.Equals(fileName));
+            Assert.IsTrue(fileEntry.Name.Equals("testGetDirectoryEntryFile"));
+            Assert.IsTrue(fileEntry.Length==text.Length);
+            Assert.IsTrue(fileEntry.ExpiryTime==null);
+            Assert.IsTrue(fileEntry.Permission.Equals("761"));
+            var folderEntry = _adlsClient.GetDirectoryEntry(folderName);
+            Assert.IsTrue(folderEntry.FullName.Equals(folderName));
+            Assert.IsTrue(folderEntry.Name.Equals("testGetDirectoryEntryFolder"));
+            Assert.IsTrue(folderEntry.Length == 0);
+            Assert.IsTrue(folderEntry.ExpiryTime == null);
+            Assert.IsTrue(folderEntry.Permission.Equals("732"));
+        }
         /// <summary>
         /// Unit test to rename a directory where the source directory exists as a subdirectory in the destination path
         /// </summary>
@@ -1270,6 +1297,38 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                     Assert.Fail("The directory should have been deleted so GetFileStatus should throw an exception");
                 }
                 catch (IOException) { }
+            }
+        }
+
+        [TestMethod]
+        public void TestConcatExisting()
+        {
+            string sourcePath = unitTestDir + "/TestConcatExisting";
+            List<string> srcList = new List<string>();
+            string destPath = sourcePath + "/destPath.txt";
+            string text1 = RandomString(1024);
+            using (var writer = new StreamWriter(_adlsClient.CreateFile(destPath, IfExists.Overwrite, "")))
+            {
+                writer.Write(text1);
+            }
+            string srcFile1 = sourcePath + "/srcPath1.txt";
+            string text2 = RandomString( 1024);
+            using (var ostream = new StreamWriter(_adlsClient.CreateFile(srcFile1, IfExists.Overwrite, "")))
+            {
+                ostream.Write(text2);
+            }
+            string srcFile2 = sourcePath + "/srcPath2.txt";
+            string text3 = RandomString(1024);
+            using (var ostream = new StreamWriter(_adlsClient.CreateFile(srcFile2, IfExists.Overwrite, "")))
+            {
+                ostream.Write(text3);
+            }
+            srcList.Add(srcFile1);
+            srcList.Add(srcFile2);
+            _adlsClient.ConcatenateFiles(destPath, srcList);
+            using (var istream = new StreamReader(_adlsClient.GetReadStream(destPath)))
+            {
+                Assert.IsTrue(istream.ReadToEnd().Equals(text1+text2+text3));
             }
         }
         /// <summary>

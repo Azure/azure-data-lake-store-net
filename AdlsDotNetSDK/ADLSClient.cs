@@ -77,8 +77,13 @@ namespace Microsoft.Azure.DataLake.Store
         /// SDK version- AssemblyFileVersion
         /// </summary>
         private static readonly string SdkVersion;
-        // Default number of threads used by tools using the SDK
-        internal static int DefaultNumThreads;
+        /// <summary>
+        /// Default number of threads used by tools like uploader/downloader, recursive acl change and other multi-threaded tools using the SDK.
+        /// Can be used to set ServicePointManager.DefaultConnectionLimit if you want the SDK to decide number of threads it uses for multi-threaded tools.
+        /// </summary>
+        public static int DefaultNumThreads { get; internal set;  }
+
+        internal const int DefaultThreadsCalculationFactor = 8;
         #endregion
 
         #region Constructors
@@ -119,12 +124,11 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     coreCount += int.Parse(item["NumberOfCores"].ToString());
                 }
-                DefaultNumThreads = 8 * coreCount;
-                ServicePointManager.DefaultConnectionLimit = DefaultNumThreads;
-                ServicePointManager.Expect100Continue = false;
-                ServicePointManager.UseNagleAlgorithm = false;
+                DefaultNumThreads = DefaultThreadsCalculationFactor * coreCount;
 #else
-                DefaultNumThreads = 128;
+                // The below calculation is wrong since Environment.ProcessorCount gives the count of logical processors not cores. 
+                // Currently there is no way to calculate that for .net standard
+                DefaultNumThreads = DefaultThreadsCalculationFactor * Environment.ProcessorCount;
                 osInfo = System.Runtime.InteropServices.RuntimeInformation.OSDescription + " " +
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
 #if NETSTANDARD1_4
@@ -174,7 +178,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
         private bool IsValidAccount(string accnt)
         {
-            return Regex.IsMatch(accnt, @"^[a-zA-Z0-9]+\.[a-zA-Z0-9\-][a-zA-Z0-9.\-]*$");
+            return Regex.IsMatch(accnt, @"^[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-][a-zA-Z0-9.\-]*$");
         }
         #endregion
 
@@ -190,7 +194,8 @@ namespace Microsoft.Azure.DataLake.Store
             return new AdlsClient(accnt, Interlocked.Increment(ref _atomicClientId), token, true);
         }
         /// <summary>
-        /// Factory method that returns a AdlsClient
+        /// Factory method that creates an instance AdlsClient using the token key. If an application wants to perform multi-threaded operations using this SDK
+        /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// </summary>
         /// <param name="accountFqdn">Azure data lake store account name including full domain name (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="token">Full authorization Token e.g. Bearing: abcddsfere.....</param>
@@ -200,7 +205,8 @@ namespace Microsoft.Azure.DataLake.Store
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), token);
         }
         /// <summary>
-        /// Factory method that returns a AdlsClient
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// </summary>
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
@@ -269,7 +275,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (AccessProvider != null)
             {
                 HttpRequestMessage request = new HttpRequestMessage();
-                await AccessProvider.ProcessHttpRequestAsync(request, cancelToken);
+                await AccessProvider.ProcessHttpRequestAsync(request, cancelToken).ConfigureAwait(false);
                 return request.Headers.Authorization.ToString();
             }
             lock (_thisLock)
@@ -310,7 +316,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             bool result = await Core.MkdirsAsync(dirName, octalPermission, this,
-                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in creating Directory {dirName}.");
@@ -336,7 +342,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Input stream</returns>
         public virtual async Task<AdlsInputStream> GetReadStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
-            return await GetReadStreamAsync(filename, AdlsInputStream.DefaultBufferCapacity, cancelToken);
+            return await GetReadStreamAsync(filename, AdlsInputStream.DefaultBufferCapacity, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Synchronous API that returns the stream to read data from file in ADLS
@@ -368,7 +374,7 @@ namespace Microsoft.Azure.DataLake.Store
             OperationResponse resp = new OperationResponse();
             DirectoryEntry diren = await Core
                 .GetFileStatusAsync(filename, UserGroupRepresentation.ObjectID, this,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error opening a Read Stream for file {filename}.");
@@ -409,12 +415,12 @@ namespace Microsoft.Azure.DataLake.Store
             OperationResponse resp = new OperationResponse();
             //This is necessary to do to obtain the lease on the file
             await Core.AppendAsync(filename, leaseId, leaseId, SyncFlag.DATA, 0, null, -1, 0, this,
-                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error trying to append to file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId).ConfigureAwait(false);
         }
         /// <summary>
         /// Synchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
@@ -468,12 +474,12 @@ namespace Microsoft.Azure.DataLake.Store
                 policy = new NoRetryPolicy();
             }
             OperationResponse resp = new OperationResponse();
-            await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken);
+            await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -539,7 +545,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             bool isSucceded = await Core.DeleteAsync(path, false, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+                resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in deleting entry {path}.");
@@ -574,7 +580,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             bool isSucceded = await Core.DeleteAsync(path, true, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+                resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in deleting recursively for path {path}.");
@@ -616,7 +622,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (path.Equals(destination))
             {
-                DirectoryEntry diren = await GetDirectoryEntryAsync(path, UserGroupRepresentation.ObjectID, cancelToken);
+                DirectoryEntry diren = await GetDirectoryEntryAsync(path, UserGroupRepresentation.ObjectID, cancelToken).ConfigureAwait(false);
                 if (diren.Type != DirectoryEntryType.FILE)
                 {
                     throw new ArgumentException("Cannot rename directories same name");
@@ -624,7 +630,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             bool isSucceeded = await Core.RenameAsync(path, destination, overwrite, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+                resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in renaming path {path} to {destination}.");
@@ -662,7 +668,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             DirectoryEntry diren = await Core.GetFileStatusAsync(path, uid, this,
-                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (diren == null)
             {
                 throw GetExceptionFromResponse(resp, $"Error in getting metadata for path {path}.");
@@ -695,7 +701,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             await Core.ConcatAsync(destination, concatFiles, deleteSource, this,
-                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+                new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in concating files {String.Join(",", concatFiles)} to destination {destination}");
@@ -758,7 +764,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             await Core.SetExpiryTimeAsync(path, eopt, expiryTime, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+                resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in setting expiry time for path {path}.");
@@ -774,8 +780,7 @@ namespace Microsoft.Azure.DataLake.Store
         public virtual void SetExpiryTime(string path, ExpiryOption eopt, long expiryTime,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            SetExpiryTimeAsync(path, eopt, expiryTime,
-                 cancelToken).GetAwaiter().GetResult();
+            SetExpiryTimeAsync(path, eopt, expiryTime, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Asynchronously checks if the user/group has specified access of the given path
@@ -791,7 +796,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.CheckAccessSync(path, rwx, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+            await Core.CheckAccessSync(path, rwx, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 if (resp.HttpStatus == HttpStatusCode.Forbidden || resp.HttpStatus == HttpStatusCode.Unauthorized)
@@ -828,8 +833,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.SetPermissionAsync(path, permission, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.SetPermissionAsync(path, permission, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in setting permission for path {path}.");
@@ -860,8 +864,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.ModifyAclEntriesAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.ModifyAclEntriesAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, false)} for path {path}.");
@@ -891,8 +894,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.SetAclAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.SetAclAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, false)} for path {path}.");
@@ -934,7 +936,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.SetOwnerAsync(path, owner, group, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken);
+            await Core.SetOwnerAsync(path, owner, group, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in setting owner or group for path {path}.");
@@ -954,8 +956,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.RemoveAclEntriesAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.RemoveAclEntriesAsync(path, aclSpec, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, true)} for path {path}.");
@@ -984,8 +985,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.RemoveAclAsync(path, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.RemoveAclAsync(path, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in removing all ACL entries for path {path}.");
@@ -1012,8 +1012,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.RemoveDefaultAclAsync(path, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            await Core.RemoveDefaultAclAsync(path, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in removing all default ACL entries for path {path}.");
@@ -1041,8 +1040,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null");
             }
             OperationResponse resp = new OperationResponse();
-            AclStatus status = await Core.GetAclStatusAsync(path, userIdFormat, this, new RequestOptions(new ExponentialRetryPolicy()),
-                resp, cancelToken);
+            AclStatus status = await Core.GetAclStatusAsync(path, userIdFormat, this, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in getting ACL entries for path {path}.");
@@ -1087,8 +1085,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("Path is null or empty");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.ConcurrentAppendAsync(path, autoCreate, dataBytes, offset, length, this, new RequestOptions(),
-                resp, cancelToken);
+            await Core.ConcurrentAppendAsync(path, autoCreate, dataBytes, offset, length, this, new RequestOptions(), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in concurrent append for file {path}.");
@@ -1140,6 +1137,8 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return true;
         }
+        #endregion
+        #region SDKTools
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
@@ -1208,8 +1207,8 @@ namespace Microsoft.Azure.DataLake.Store
             }
             PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth);
         }
-
         #endregion
+
         /// <summary>
         /// Returns a ADLS Exception based on response from the server
         /// </summary>

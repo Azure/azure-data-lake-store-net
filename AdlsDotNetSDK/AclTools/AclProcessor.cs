@@ -112,9 +112,6 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             {
                 AclLog.Debug($"AclProcessor, Name: {_inputPath}, Threads: {NumThreads}, AclChangeType: {Type}, InputAcl: {string.Join(":",AclEntries)}{(_isVerify?", RunInVerifyMode":string.Empty)}");
             }
-#if NET452
-            ServicePointManager.DefaultConnectionLimit = NumThreads;
-#endif
         }
         /// <summary>
         /// Atomically sets the client exception

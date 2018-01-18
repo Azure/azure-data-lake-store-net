@@ -115,9 +115,6 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             NotRecurse = notRecurse;
             metaDataInfo = string.IsNullOrEmpty(metaDataInfo) ? ChunkSize.ToString() : metaDataInfo + $",ChunkSize:{chunkSize},{(NotRecurse ? "NotRecurse" : "Recurse")}";
             RecordedMetadata = new TransferLog(resume, metaDataPath, metaDataInfo);
-#if NET452
-            ServicePointManager.DefaultConnectionLimit = NumConsumerThreads;
-#endif
             Status = new TransferStatus();
             ConsumerQueue = new PriorityQueueWrapper<BaseJob>();
             CancelToken = cancelToken;

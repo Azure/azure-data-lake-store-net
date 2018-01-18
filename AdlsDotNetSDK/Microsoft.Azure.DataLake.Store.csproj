@@ -4,13 +4,13 @@
     <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
 	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>1.0.4</Version>
+	  <Version>1.0.5</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>Fix FileVersion in csproj, transfer metdata file length, fix FileProperties Acl consistency checking </PackageReleaseNotes>
+    <PackageReleaseNotes>Fix disk usage bug for bottom root directories, remove setting of ServicePointManager global properties in SDK, Allow '-' in account names, Fix property Name in DirectoryEntry for GetFileStatus, Use ConfigureAwait(false) for async methods</PackageReleaseNotes>
     <Copyright>Copyright © Microsoft Corporation.</Copyright>
     <PackageProjectUrl>https://github.com/azure/azure-data-lake-store-net</PackageProjectUrl>
     <PackageTags>adls sdk datalake azure</PackageTags>

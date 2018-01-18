@@ -1,4 +1,10 @@
 # Changes to the SDK
+### Version 1.0.5
+- Fix the condition for going up the tree while calculating disk usage.
+- Remove setting of ServicePointManager global properties in SDK.
+- Allow '-' in account names
+- Fix property Name in DirectoryEntry for GetFileStatus
+- Use ConfigureAwait(false) for async methods
 ### Version 1.0.4
 - Fix FileVersion in csproj
 - Fix transfer metadata file name length so that it is less than 260

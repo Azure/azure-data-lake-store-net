@@ -70,25 +70,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _recurseLevel = 3;
             _oneFileSize = 100;
 
-            DataCreator.CreateDirRecursiveRemote(_adlsClient, remotePath, _recurseLevel, _oneLevelDirCount, _oneLevelFileCnt, _oneLevelFileCnt, _oneFileSize, _oneFileSize, true);
+            DataCreator.CreateDirRecursiveRemote(_adlsClient, remotePath, _recurseLevel, _oneLevelDirCount, _oneLevelFileCnt, _oneLevelFileCnt, _oneFileSize, _oneFileSize);
         }
 
         private static void GetExpectedOutput(int oneLevelDirecCnt, int oneLevelFileCnt, int recurseLevel,
             int oneFileSize, out int expectedFileCount, out int expectedDirCount, out int expectedFileSize)
         {
-            expectedDirCount = expectedFileCount = expectedFileSize = 0;
-            if (recurseLevel == 0)
-            {
-                return;
-            }
+            expectedDirCount = 0;
             int power = 1;
             for (int i = 1; i <= recurseLevel; i++)
             {
                 power *= oneLevelDirecCnt;
                 expectedDirCount += power;
             }
-            // last level directory doesnot have files
-            expectedFileCount = (expectedDirCount - power + 1) * oneLevelFileCnt;
+            // last level directory does have files
+            expectedFileCount = (expectedDirCount+1) * oneLevelFileCnt;
             expectedFileSize = expectedFileCount * oneFileSize;
         }
         /// <summary>
@@ -209,7 +205,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestFileProperties()
         {
             TestSetAcl();
-            var node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile", true, 25, true);
+            var node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, false, localPath + @"\logFile", true, 25, true);
+            TestTreeNode(node, _recurseLevel - 1);
+            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, false, true, localPath + @"\logFile1", true, 25, true);
+            Assert.IsTrue(node.AllChildSameAcl);
+            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile2", true, 25, true);
             TestTreeNode(node, _recurseLevel - 1);
             Assert.IsTrue(node.AllChildSameAcl);
             var entry = new List<AclEntry>()
@@ -217,7 +217,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 new AclEntry(AclType.user, _group1Id, AclScope.Default, AclAction.WriteExecute)
             };
             _adlsClient.ModifyAclEntries(remotePath + "/B1/C0/D0", entry);
-            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile1", true, 25, true);
+            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, false, true, localPath + @"\logFile3", true, 25, true);
             Assert.IsFalse(node.AllChildSameAcl);
         }
 
