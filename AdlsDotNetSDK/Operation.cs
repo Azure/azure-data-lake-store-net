@@ -5,89 +5,64 @@ namespace Microsoft.Azure.DataLake.Store
     /// <summary>
     /// Lists a dictionary of all available Operations for a Http request
     /// </summary>
-    public sealed class Operation
+    internal sealed class Operation
     {
         /// <summary>
         /// HTTP method the operation uses like GET/PUT/POST
         /// </summary>
-        public string Method { get; }
+        internal string Method { get; }
         /// <summary>
         /// Whether the http request for this operation requires request body (data)
         /// </summary>
-        public bool RequiresBody { get; }
+        internal bool RequiresBody { get; }
         /// <summary>
         /// Whether the http response for this operation returns response body (data)
         /// </summary>
-        public bool ReturnsBody { get; }
+        internal bool ReturnsBody { get; }
         /// <summary>
         /// What handler it uses WebHdfs or WebHdfsExt
         /// </summary>
-        public string Namespace { get; }
-        private Operation(string mthd, bool reqBody, bool retBody, string nmSpc)
+        internal string Namespace { get; }
+
+        internal Operation(string mthd, bool reqBody, bool retBody, string nmSpc)
         {
             Method = mthd;
             RequiresBody = reqBody;
             ReturnsBody = retBody;
             Namespace = nmSpc;
         }
+
         /// <summary>
         /// Dictionary containing the Operations
         /// </summary>
-        public static Dictionary<OperationCodes, Operation> Operations = new Dictionary<OperationCodes, Operation>()
+        internal static Dictionary<string, Operation> Operations = new Dictionary<string, Operation>()
         {
-            {OperationCodes.OPEN,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.CREATE,new Operation("PUT", Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.MKDIRS,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.APPEND,new Operation("POST",Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.CONCURRENTAPPEND,new Operation("POST", Constants.RequiresBodyTrue, Constants.ReturnsBodyTrue, Constants.WebHdfsExt)},
-            {OperationCodes.DELETE,new Operation("DELETE", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.RENAME,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.SETEXPIRY,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfsExt)},
-            {OperationCodes.MSCONCAT,new Operation("POST", Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.GETFILESTATUS,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.LISTSTATUS,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.SETTIMES,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.CHECKACCESS,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.SETPERMISSION,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.MODIFYACLENTRIES,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.SETACL,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.SETOWNER,new Operation("PUT",Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.REMOVEACLENTRIES,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.REMOVEACL,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.REMOVEDEFAULTACL,new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
-            {OperationCodes.GETACLSTATUS,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
-            {OperationCodes.GETCONTENTSUMMARY,new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue,  Constants.WebHdfs)}
+            {"OPEN",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"CREATE",new Operation("PUT", Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"MKDIRS",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"APPEND",new Operation("POST",Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"CONCURRENTAPPEND",new Operation("POST", Constants.RequiresBodyTrue, Constants.ReturnsBodyTrue, Constants.WebHdfsExt)},
+            {"DELETE",new Operation("DELETE", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"RENAME",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"SETEXPIRY",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfsExt)},
+            {"MSCONCAT",new Operation("POST", Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"GETFILESTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"LISTSTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"SETTIMES",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"CHECKACCESS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"SETPERMISSION",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"MODIFYACLENTRIES",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"SETACL",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"SETOWNER",new Operation("PUT",Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"REMOVEACLENTRIES",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"REMOVEACL",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"REMOVEDEFAULTACL",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
+            {"GETACLSTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"GETCONTENTSUMMARY",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
         };
-
+        
     }
-    /// <summary>
-    /// Operation Codes of all the operation available as a part of the SDK
-    /// </summary>
-    public enum OperationCodes
-    {
-        OPEN,
-        CREATE,
-        MKDIRS,
-        APPEND,
-        CONCURRENTAPPEND,
-        DELETE,
-        RENAME,
-        SETEXPIRY,
-        MSCONCAT,
-        GETFILESTATUS,
-        LISTSTATUS,
-        SETTIMES,
-        CHECKACCESS,
-        SETPERMISSION,
-        MODIFYACLENTRIES,
-        SETACL,
-        SETOWNER,
-        REMOVEACLENTRIES,
-        REMOVEACL,
-        REMOVEDEFAULTACL,
-        GETACLSTATUS,
-        GETCONTENTSUMMARY
-    }
+    
     /// <summary>
     /// Constants that describes properties of HttpWeb request
     /// </summary>

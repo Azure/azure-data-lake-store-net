@@ -58,7 +58,7 @@ namespace Microsoft.Azure.DataLake.Store
                 }
                 qp.Add("permission", Convert.ToString(octalPermission));
             }
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.MKDIRS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("MKDIRS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return false;
             bool readerValue = false;
             if (responseTuple != null)
@@ -125,7 +125,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-            await WebTransport.MakeCallAsync(OperationCodes.CREATE, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("CREATE", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Create a new file. This is a synchronous operation.
@@ -153,7 +153,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-            WebTransport.MakeCall(OperationCodes.CREATE, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            WebTransport.MakeCall("CREATE", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
         }
         /// <summary>
         /// Sets the queryparams for create operation.
@@ -221,7 +221,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-            await WebTransport.MakeCallAsync(OperationCodes.APPEND, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("APPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Append data to file. This is a synchronous operation.
@@ -247,7 +247,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-            WebTransport.MakeCall(OperationCodes.APPEND, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            WebTransport.MakeCall("APPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
         }
         /// <summary>
         /// Sets the queryparams for create operation.
@@ -304,7 +304,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("appendMode", "autocreate");
             }
-            await WebTransport.MakeCallAsync(OperationCodes.CONCURRENTAPPEND, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("CONCURRENTAPPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Performs concurrent append synchronously at server. The offset at which append will occur is determined by server
@@ -324,7 +324,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("appendMode", "autocreate");
             }
-            WebTransport.MakeCall(OperationCodes.CONCURRENTAPPEND, path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            WebTransport.MakeCall("CONCURRENTAPPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
         }
         /// <summary>
         /// Reads a file from server. This is an asynchronous operation.
@@ -347,7 +347,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return 0;
             }
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.OPEN, path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("OPEN", path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             return responseTuple?.Item2 ?? 0;
         }
         /// <summary>
@@ -370,7 +370,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return 0;
             }
-            var responseTuple = WebTransport.MakeCall(OperationCodes.OPEN, path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp);
+            var responseTuple = WebTransport.MakeCall("OPEN", path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp);
             return responseTuple?.Item2 ?? 0;
         }
         /// <summary>
@@ -421,7 +421,7 @@ namespace Microsoft.Azure.DataLake.Store
             bool isSuccessful = false;
             QueryParams qp = new QueryParams();
             qp.Add("recursive", Convert.ToString(recursive));
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.DELETE, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("DELETE", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return false;
 
             if (responseTuple != null)
@@ -456,7 +456,7 @@ namespace Microsoft.Azure.DataLake.Store
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is expected";
+                resp.Error = "Output is not expected";
                 return false;
             }
 
@@ -489,7 +489,7 @@ namespace Microsoft.Azure.DataLake.Store
             QueryParams qp = new QueryParams();
             qp.Add("destination", destination);
             if (overwrite) qp.Add("renameoptions", "overwrite");
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.RENAME, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("RENAME", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return false;
             if (responseTuple != null)
             {
@@ -523,7 +523,7 @@ namespace Microsoft.Azure.DataLake.Store
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is expected";
+                resp.Error = "Output is not expected";
                 return false;
             }
             return isSuccessful;
@@ -599,7 +599,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("deleteSourceDirectory", "true");
             }
-            await WebTransport.MakeCallAsync(OperationCodes.MSCONCAT, path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
@@ -610,14 +610,16 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <param name="getConsistentFileLength"> True if we want to get consistent and updated length</param>
         /// <returns>Returns the metadata of the file or directory</returns>
-        public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken), bool getConsistentFileLength=false)
         {
             QueryParams qp = new QueryParams();
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
+            qp.Add("getconsistentlength", Convert.ToString(getConsistentFileLength));
             DirectoryEntry der;
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.GETFILESTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("GETFILESTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {
@@ -707,7 +709,7 @@ namespace Microsoft.Azure.DataLake.Store
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is expected";
+                resp.Error = "Output is not expected";
                 return null;
             }
             return der;
@@ -761,7 +763,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.LISTSTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("LISTSTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {
@@ -863,7 +865,7 @@ namespace Microsoft.Azure.DataLake.Store
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is expected";
+                resp.Error = "Output is not expected";
             }
             return null;
         }
@@ -883,7 +885,7 @@ namespace Microsoft.Azure.DataLake.Store
             QueryParams qp = new QueryParams();
             qp.Add("expireTime", Convert.ToString(expiryTime));
             qp.Add("expiryOption", Enum.GetName(typeof(ExpiryOption), opt));
-            await WebTransport.MakeCallAsync(OperationCodes.SETEXPIRY, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("SETEXPIRY", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -912,7 +914,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             QueryParams qp = new QueryParams();
             qp.Add("fsaction", rwx);
-            await WebTransport.MakeCallAsync(OperationCodes.CHECKACCESS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("CHECKACCESS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Sets the permission of the specified path
@@ -941,7 +943,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             QueryParams qp = new QueryParams();
             qp.Add("permission", permission);
-            await WebTransport.MakeCallAsync(OperationCodes.SETPERMISSION, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("SETPERMISSION", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Sets the owner or/and group of the path
@@ -974,7 +976,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("group", group);
             }
-            await WebTransport.MakeCallAsync(OperationCodes.SETOWNER, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("SETOWNER", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Verifies whether the permission string is in rwx form
@@ -1005,7 +1007,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             QueryParams qp = new QueryParams();
             qp.Add("aclspec", aclSpec);
-            await WebTransport.MakeCallAsync(OperationCodes.MODIFYACLENTRIES, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("MODIFYACLENTRIES", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
 
         }
         /// <summary>
@@ -1049,7 +1051,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             QueryParams qp = new QueryParams();
             qp.Add("aclspec", aclSpec);
-            await WebTransport.MakeCallAsync(OperationCodes.SETACL, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("SETACL", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Sets Acl Entries for a file or directory. It wipes out the existing Acl entries for the path.
@@ -1091,7 +1093,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             QueryParams qp = new QueryParams();
             qp.Add("aclspec", aclSpec);
-            await WebTransport.MakeCallAsync(OperationCodes.REMOVEACLENTRIES, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("REMOVEACLENTRIES", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -1125,7 +1127,7 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task RemoveDefaultAclAsync(string path, AdlsClient client, RequestOptions req,
             OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
-            await WebTransport.MakeCallAsync(OperationCodes.REMOVEDEFAULTACL, path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("REMOVEDEFAULTACL", path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Removes all Acl Entries for a file or directory.
@@ -1138,7 +1140,7 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task RemoveAclAsync(string path, AdlsClient client, RequestOptions req,
             OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
-            await WebTransport.MakeCallAsync(OperationCodes.REMOVEACL, path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
+            await WebTransport.MakeCallAsync("REMOVEACL", path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
         /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
@@ -1157,7 +1159,7 @@ namespace Microsoft.Azure.DataLake.Store
             QueryParams qp = new QueryParams();
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.GETACLSTATUS, path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("GETACLSTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {
@@ -1249,7 +1251,7 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task<ContentSummary> GetContentSummaryAsync(string path, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             ContentSummary summary;
-            var responseTuple = await WebTransport.MakeCallAsync(OperationCodes.GETCONTENTSUMMARY, path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
+            var responseTuple = await WebTransport.MakeCallAsync("GETCONTENTSUMMARY", path, default(ByteBuffer), default(ByteBuffer), new QueryParams(), client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {

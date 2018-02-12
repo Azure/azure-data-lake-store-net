@@ -18,7 +18,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// This is the value of one parameter "api-version" that is passed along every request
         /// </summary>
-        private const string ApiVersion = "2017-08-01";
+        internal static string ApiVersion = "2017-08-01";
         internal QueryParams()
         {
             Param = new Dictionary<string, string>();
@@ -41,11 +41,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="opCodes">Operation Code which is the value of parameter "op"</param>
         /// <returns>Serialized parameter:value string for the request</returns>
-        internal string Serialize(OperationCodes opCodes)
+        internal string Serialize(string opCodes)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("op=");
-            sb.Append(Enum.GetName(typeof(OperationCodes), opCodes));
+            sb.Append(opCodes);
             if (Param.Count > 0)
             {
                 foreach (string nm in Param.Keys)

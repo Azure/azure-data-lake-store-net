@@ -41,6 +41,7 @@ namespace Microsoft.Azure.DataLake.Store
             HttpWebRequest webRequest = state as HttpWebRequest;
             webRequest?.Abort();
         }
+
         /// <summary>
         /// Calls the API that makes the HTTP request to the server. Retries the HTTP request in certain cases. This is a asynchronous call.
         /// </summary>
@@ -55,7 +56,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="cancelToken">CAncellationToken to cancel the operation</param>
         /// <returns>Tuple of Byte array containing the bytes returned from the server and number of bytes read from server</returns>
 
-        internal static async Task<Tuple<byte[], int>> MakeCallAsync(OperationCodes opCode, string path,
+        internal static async Task<Tuple<byte[], int>> MakeCallAsync(string opCode, string path,
             ByteBuffer requestData, ByteBuffer responseData, QueryParams quer, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken)
         {
             if (!VerifyMakeCallArguments(opCode, path, requestData, quer, client, req, resp))
@@ -80,7 +81,7 @@ namespace Microsoft.Azure.DataLake.Store
                     break;
                 }
             } while (!resp.IsSuccessful && req.RetryOption.ShouldRetry((int)resp.HttpStatus, resp.Ex));
-            resp.OpCode = Enum.GetName(typeof(OperationCodes), opCode);
+            resp.OpCode = opCode;
             return retVal;
         }
         /// <summary>
@@ -96,7 +97,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Contains the response message </param>
         /// <returns>Tuple of Byte array containing the bytes returned from the server and number of bytes read from server</returns>
 
-        internal static Tuple<byte[], int> MakeCall(OperationCodes opCode, string path, ByteBuffer requestData, ByteBuffer responseData, QueryParams quer, AdlsClient client, RequestOptions req, OperationResponse resp)
+        internal static Tuple<byte[], int> MakeCall(string opCode, string path, ByteBuffer requestData, ByteBuffer responseData, QueryParams quer, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
             if (!VerifyMakeCallArguments(opCode, path, requestData, quer, client, req, resp))
             {
@@ -116,7 +117,7 @@ namespace Microsoft.Azure.DataLake.Store
                 resp.LastCallLatency = watch.ElapsedMilliseconds;
                 HandleMakeSingleCallResponse(opCode, path, resp, retVal?.Item2 ?? 0, requestData.Count, req.RequestId, client.ClientId, quer.Serialize(opCode), ref numRetries);
             } while (!resp.IsSuccessful && req.RetryOption.ShouldRetry((int)resp.HttpStatus, resp.Ex));
-            resp.OpCode = Enum.GetName(typeof(OperationCodes), opCode);
+            resp.OpCode = opCode;
             return retVal;
         }
         /// <summary>
@@ -130,7 +131,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="req">Request options containing RetryOption, timout and requestid </param>
         /// <param name="resp">Contains the response message </param>
         /// <returns>False if there is any errors with arguments else true</returns>
-        private static bool VerifyMakeCallArguments(OperationCodes opCode, string path, ByteBuffer requestData, QueryParams quer, AdlsClient client, RequestOptions req, OperationResponse resp)
+        private static bool VerifyMakeCallArguments(string opCode, string path, ByteBuffer requestData, QueryParams quer, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
             //Check all type of errors and exceptions
             if (resp == null) throw new ArgumentNullException(nameof(resp)); //Check if resp is not null
@@ -174,7 +175,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="clientId">Client Id of the application</param>
         /// <param name="querParams">Serialized query parameter of the Http request</param>
         /// <param name="numRetries">Number of retries</param>
-        private static void HandleMakeSingleCallResponse(OperationCodes opCode, string path, OperationResponse resp, int responseLength, int requestLength, string requestId, long clientId, string querParams, ref int numRetries)
+        private static void HandleMakeSingleCallResponse(string opCode, string path, OperationResponse resp, int responseLength, int requestLength, string requestId, long clientId, string querParams, ref int numRetries)
         {
             DetermineIsSuccessful(resp);//After recieving the response from server determine whether the response is successful
             string error = "";
@@ -231,7 +232,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Contains the response message </param>
         /// <param name="cancelToken">CancellationToken to cancel the operation</param>
         /// <returns>Tuple of Byte array containing the bytes returned from the server and number of bytes read from server</returns>
-        private static async Task<Tuple<byte[], int>> MakeSingleCallAsync(OperationCodes opCode, string path,
+        private static async Task<Tuple<byte[], int>> MakeSingleCallAsync(string opCode, string path,
             ByteBuffer requestData, ByteBuffer responseData, QueryParams qp, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken)
         {
             string token = null;
@@ -329,7 +330,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="req">Request options containing RetryOption, timout and requestid </param>
         /// <param name="resp">Contains the response message </param>
         /// <returns>Tuple of Byte array containing the bytes returned from the server and number of bytes read from server</returns>
-        private static Tuple<byte[], int> MakeSingleCall(OperationCodes opCode, string path, ByteBuffer requestData, ByteBuffer responseData, QueryParams qp, AdlsClient client, RequestOptions req, OperationResponse resp)
+        private static Tuple<byte[], int> MakeSingleCall(string opCode, string path, ByteBuffer requestData, ByteBuffer responseData, QueryParams qp, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
             string token = null;
             Operation op = Operation.Operations[opCode];
@@ -559,17 +560,21 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 try
                 {
-                    var errorResponse = (HttpWebResponse)e.Response;
-                    resp.HttpStatus = errorResponse.StatusCode;
-                    if (resp.HttpStatus == HttpStatusCode.Unauthorized && TokenLog.IsDebugEnabled)
+                    using (var errorResponse = (HttpWebResponse) e.Response)
                     {
-                        string tokenLogLine = $"HTTPRequest,HTTP401,cReqId:{requestId},sReqId:{resp.RequestId},path:{path},token:{token}";
-                        TokenLog.Debug(tokenLogLine);
-                    }
-                    resp.HttpMessage = errorResponse.StatusDescription;
-                    using (Stream errorStream = errorResponse.GetResponseStream())
-                    {
-                        ParseRemoteError(errorStream, resp);
+                        resp.HttpStatus = errorResponse.StatusCode;
+                        resp.RequestId = errorResponse.Headers["x-ms-request-id"];
+                        if (resp.HttpStatus == HttpStatusCode.Unauthorized && TokenLog.IsDebugEnabled)
+                        {
+                            string tokenLogLine =
+                                $"HTTPRequest,HTTP401,cReqId:{requestId},sReqId:{resp.RequestId},path:{path},token:{token}";
+                            TokenLog.Debug(tokenLogLine);
+                        }
+                        resp.HttpMessage = errorResponse.StatusDescription;
+                        using (Stream errorStream = errorResponse.GetResponseStream())
+                        {
+                            ParseRemoteError(errorStream, resp);
+                        }
                     }
                 }
                 catch (Exception)

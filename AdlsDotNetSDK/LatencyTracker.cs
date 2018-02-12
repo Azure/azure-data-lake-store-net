@@ -85,10 +85,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="opCode">OpCode of the Http request</param>
         /// <param name="length">Data length+Response length</param>
         /// <param name="clientId">ADLS Client Id</param>
-        internal static void AddLatency(string clientRequestId, int retry, long latency, string error, OperationCodes opCode, long length, long clientId)
+        internal static void AddLatency(string clientRequestId, int retry, long latency, string error, string opCode, long length, long clientId)
         {
             if (_disabled) return;
-            Add(clientRequestId + "." + retry + "," + latency + "," + (string.IsNullOrEmpty(error) ? "" : error) + "," + Enum.GetName(typeof(OperationCodes), opCode) + "," + length + "," + clientId);
+            Add(clientRequestId + "." + retry + "," + latency + "," + (string.IsNullOrEmpty(error) ? "" : error) + "," + opCode + "," + length + "," + clientId);
         }
         /// <summary>
         /// Retrieves the latency/error entries for upto maximum last 3 requests

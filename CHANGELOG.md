@@ -1,4 +1,10 @@
 # Changes to the SDK
+### Version 1.1.0
+- Add query parameter getConsistentLength to getfilestatus to get consistent length and pass it for open and append
+- Fix retrieving x-ms-requestid for remote exception
+- [Internal Only] In Core pass opcode as string to webtransport instead of enum
+- Fix the accessibility of Operation class 
+- For FileProperties add entry type column
 ### Version 1.0.5
 - Fix the condition for going up the tree while calculating disk usage.
 - Remove setting of ServicePointManager global properties in SDK.

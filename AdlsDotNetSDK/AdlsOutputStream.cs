@@ -116,8 +116,9 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 OperationResponse resp = new OperationResponse();
                 //Initialize the filepointer to the current length of file
+                // Pass getConsistentlength so that we get the updated length of stream
                 DirectoryEntry diren = await Core.GetFileStatusAsync(Filename, UserGroupRepresentation.ObjectID, Client,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp, default(CancellationToken), true).ConfigureAwait(false);
                 if (diren == null)
                 {
                     throw Client.GetExceptionFromResponse(resp, "Error in getting metadata while creating InputStream for file " + Filename + ".");

@@ -12,6 +12,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Microsoft.Rest.Azure.Authentication;
 using Microsoft.Rest;
+using System.Threading;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -82,7 +83,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         private static string _domain;
 
-        private const string unitTestDir = "/Test/dir1";
+        private const string UnitTestDir = "/Test/dir1";
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -143,6 +144,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.ModifyAclEntries("/Test", nonOwnerAclSpec);
             _adlsClient.ModifyAclEntries("/Test/dir1", nonOwnerAclSpec);
         }
+        #region Setup
         /// <summary>
         /// Setup client from the super owner of the account
         /// </summary>
@@ -196,13 +198,32 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             ServiceClientCredentials clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds).GetAwaiter().GetResult();
             return AdlsClient.CreateClient(clientAccountPath, clientCreds);
         }
+        #endregion
+
+        [TestMethod]
+        public void TestRequestIdException()
+        {
+            string path = $"{UnitTestDir}/testBadOffsetException.txt";
+            string text1 = "I am the first line";
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            var response=new OperationResponse();
+            Core.Append(path,"","",SyncFlag.DATA,0,textByte1,0,textByte1.Length,_adlsClient,new RequestOptions(),response );
+            Assert.IsTrue(!response.IsSuccessful);
+            Assert.IsTrue(response.RequestId != null);
+        }
+
+        #region TestCreate
         /// <summary>
         /// Unit test for creating a directory using ADL SDK
         /// </summary>
         [TestMethod]
         public void TestCreateMakeDir()
         {
-            string path = $"{unitTestDir}/testDir";
+            string path = $"{UnitTestDir}/testDir";
             string permission = "733";
             bool result = _adlsClient.CreateDirectory(path, permission);
             Assert.IsTrue(result);
@@ -220,7 +241,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionCreateParent()
         {
-            string path = $"{unitTestDir}/dir2/testCreateParentException.txt";
+            string path = $"{UnitTestDir}/dir2/testCreateParentException.txt";
             _adlsClient.CreateFile(path, IfExists.Fail, null, false);
             Assert.Fail("Parent folder does not exist so create should throw an exception");
         }
@@ -233,7 +254,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionOverwrite()
         {
-            string path = $"{unitTestDir}/testCreateOverwriteException.txt";
+            string path = $"{UnitTestDir}/testCreateOverwriteException.txt";
             using (_adlsClient.CreateFile(path, IfExists.Fail))
             { }
             using (_adlsClient.CreateFile(path, IfExists.Fail))
@@ -248,7 +269,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestCreateFileExceptionPermission()
         {
-            string path = $"{unitTestDir}/testCreatePermissionException.txt";
+            string path = $"{UnitTestDir}/testCreatePermissionException.txt";
             using (_adlsClient.CreateFile(path, IfExists.Fail, "3-12"))
             {
             }
@@ -260,7 +281,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCreate()
         {
-            string path = $"{unitTestDir}/testCreate.txt";
+            string path = $"{UnitTestDir}/testCreate.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "732"))
             {
             }
@@ -272,187 +293,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(diren.Permission.Equals("732"));
         }
         /// <summary>
-        /// Unit test for creating and riting in a file. Verifying it by reading the file.
-        /// </summary>
-        [TestMethod]
-        public void TestCreateAppend()
-        {
-            string path = $"{unitTestDir}/testCreateAppend2.txt";
-            string text1 = "I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.\n";
-            string text2 = "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.";
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
-            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
-            {
-                ostream.Write(textByte1, 0, textByte1.Length);
-                ostream.Write(textByte2, 0, textByte2.Length);
-            }
-            string output = "";
-            using (Stream istream = _adlsClient.GetReadStream(path))
-            {
-                int noOfBytes;
-                byte[] buffer = new byte[25];
-                do
-                {
-                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
-                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
-                } while (noOfBytes > 0);
-            }
-            Assert.IsTrue(output.Equals(text1 + text2));
-        }
-        /// <summary>
-        /// Unit test in trying to append to a non existing file
-        /// </summary>
-        [TestMethod]
-        [ExpectedException(typeof(AdlsException))]
-        public void TestAppendExceptionFile()
-        {
-            string path = $"{unitTestDir}/testAppendNotExist.txt";
-            string text1 = RandomString(300);
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (var ostream = _adlsClient.GetAppendStream(path))
-            {
-                ostream.Write(textByte1, 0, textByte1.Length);
-            }
-            Assert.Fail("Append for a non-existant file should throw an exception");
-        }
-        /// <summary>
-        /// Unit test to append multiple times of varying length and perform Flushes
-        /// Verify by reading the file
-        /// </summary>
-        [TestMethod]
-        public void TestAppendDifferentLengthsMultipleTimes()
-        {
-            string path = $"{unitTestDir}/testAppendDifferentLengthMultipleTimes.txt";
-            int totLength = 22 * 1024 * 1024;
-            string text1 = RandomString(totLength);
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
-            { }
-            using (var ostream = _adlsClient.GetAppendStream(path))
-            {
-                ostream.Write(textByte1, 0, 3 * 1024 * 1024);
-                ostream.Write(textByte1, 3 * 1024 * 1024, 2 * 1024 * 1024);
-                ostream.Write(textByte1, 5 * 1024 * 1024, 5 * 1024 * 1024);
-                ostream.Flush();
-                ostream.Write(textByte1, 10 * 1024 * 1024, 4 * 1024 * 1024);
-                ostream.Flush();
-                ostream.Write(textByte1, 14 * 1024 * 1024, 8 * 1024 * 1024);
-            }
-            string output = "";
-            using (var istream = _adlsClient.GetReadStream(path))
-            {
-                int noOfBytes;
-                byte[] buffer = new byte[1024 * 1024];
-                do
-                {
-                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
-                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
-                } while (noOfBytes > 0);
-            }
-            Assert.IsTrue(output.Equals(text1));
-        }
-        /// <summary>
-        /// Unit test to append multiple times of varying length
-        /// Verify by reading the file
-        /// </summary>
-        [TestMethod]
-        public void TestAppendDifferentLengthsMultipleTimes1()
-        {
-            string path = $"{unitTestDir}/testAppendDifferentLengthMultipleTimes1.txt";
-            int totLength = 16 * 1024 * 1024;
-            string text1 = RandomString(totLength);
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
-            { }
-            using (var ostream = _adlsClient.GetAppendStream(path))
-            {
-                ostream.Write(textByte1, 0, 2 * 1024 * 1024);
-                ostream.Write(textByte1, 2 * 1024 * 1024, 1 * 1024 * 1024);
-                ostream.Write(textByte1, 3 * 1024 * 1024, 1 * 1024 * 1024);
-                ostream.Write(textByte1, 4 * 1024 * 1024, 3 * 1024 * 1024);
-                ostream.Write(textByte1, 7 * 1024 * 1024, 2 * 1024 * 1024);
-                ostream.Write(textByte1, 9 * 1024 * 1024, 5 * 1024 * 1024);
-                ostream.Write(textByte1, 14 * 1024 * 1024, 2 * 1024 * 1024);
-            }
-            string output = "";
-            using (var istream = _adlsClient.GetReadStream(path))
-            {
-                int noOfBytes;
-                byte[] buffer = new byte[1024 * 1024];
-                do
-                {
-                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
-                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
-                } while (noOfBytes > 0);
-            }
-            Assert.IsTrue(output.Equals(text1));
-        }
-        /// <summary>
-        /// Unit test to create a file and open a appendstream and make one append to empty file.
-        /// Verify by reading.
-        /// </summary>
-        [TestMethod]
-        public void TestAppendEmptyFile()
-        {
-            string path = $"{unitTestDir}/testAppendEmptyFile.txt";
-            string text1 = RandomString(9 * 1024 * 1024);
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
-            { }
-            using (var ostream = _adlsClient.GetAppendStream(path))
-            {
-                ostream.Write(textByte1, 0, textByte1.Length);
-            }
-            string output = "";
-            using (var istream = _adlsClient.GetReadStream(path))
-            {
-                int noOfBytes;
-                byte[] buffer = new byte[1024 * 1024];
-                do
-                {
-                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
-                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
-                } while (noOfBytes > 0);
-            }
-            Assert.IsTrue(output.Equals(text1));
-        }
-        /// <summary>
-        /// Unit test to create a file and open a appendstream and make one append to empty file.
-        /// Verify by reading. This is calling the async API.
-        /// </summary>
-        [TestMethod]
-        public void TestAppendEmptyFileAsync()
-        {
-            string path = $"{unitTestDir}/testAppendEmptyFileAsync.txt";
-            string text1 = RandomString(6 * 1024 * 1024);
-            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
-            using (_adlsClient.CreateFileAsync(path, IfExists.Overwrite, "").GetAwaiter().GetResult())
-            { }
-            using (var ostream = _adlsClient.GetAppendStream(path))
-            {
-                ostream.WriteAsync(textByte1, 0, textByte1.Length).GetAwaiter().GetResult();
-            }
-            string output = "";
-            using (var istream = _adlsClient.GetReadStream(path))
-            {
-                int noOfBytes;
-                byte[] buffer = new byte[1024 * 1024];
-                do
-                {
-                    noOfBytes = istream.ReadAsync(buffer, 0, buffer.Length).GetAwaiter().GetResult();
-                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
-                } while (noOfBytes > 0);
-            }
-            Assert.IsTrue(output.Equals(text1));
-        }
-        /// <summary>
         /// Unit test in creating a file with unicode name. Verify by reading the file.
         /// </summary>
         [TestMethod]
         public void TestCreateUnicodeFileName()
         {
-            string dir = $"{unitTestDir}/UnicodeDir";
+            string dir = $"{UnitTestDir}/UnicodeDir";
             string unicodeFilename = dir + "/ch+ ch.官話.官话.עברית.हिंदी.español.~`!@#$%^&*()_.+=-{}[]|;',.<>?.txt";
             string text1 = RandomString(1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -492,6 +338,185 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(isFound);
         }
+        #endregion
+
+        #region Append
+        /// <summary>
+        /// Unit test for creating and riting in a file. Verifying it by reading the file.
+        /// </summary>
+        [TestMethod]
+        public void TestCreateAppend()
+        {
+            string path = $"{UnitTestDir}/testCreateAppend2.txt";
+            string text1 = "I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.\n";
+            string text2 = "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.";
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
+            using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+                ostream.Write(textByte2, 0, textByte2.Length);
+            }
+            string output = "";
+            using (Stream istream = _adlsClient.GetReadStream(path))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[25];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1 + text2));
+        }
+        /// <summary>
+        /// Unit test in trying to append to a non existing file
+        /// </summary>
+        [TestMethod]
+        [ExpectedException(typeof(AdlsException))]
+        public void TestAppendExceptionFile()
+        {
+            string path = $"{UnitTestDir}/testAppendNotExist.txt";
+            string text1 = RandomString(300);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (var ostream = _adlsClient.GetAppendStream(path))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            Assert.Fail("Append for a non-existant file should throw an exception");
+        }
+        /// <summary>
+        /// Unit test to append multiple times of varying length and perform Flushes
+        /// Verify by reading the file
+        /// </summary>
+        [TestMethod]
+        public void TestAppendDifferentLengthsMultipleTimes()
+        {
+            string path = $"{UnitTestDir}/testAppendDifferentLengthMultipleTimes.txt";
+            int totLength = 22 * 1024 * 1024;
+            string text1 = RandomString(totLength);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            { }
+            using (var ostream = _adlsClient.GetAppendStream(path))
+            {
+                ostream.Write(textByte1, 0, 3 * 1024 * 1024);
+                ostream.Write(textByte1, 3 * 1024 * 1024, 2 * 1024 * 1024);
+                ostream.Write(textByte1, 5 * 1024 * 1024, 5 * 1024 * 1024);
+                ostream.Flush();
+                ostream.Write(textByte1, 10 * 1024 * 1024, 4 * 1024 * 1024);
+                ostream.Flush();
+                ostream.Write(textByte1, 14 * 1024 * 1024, 8 * 1024 * 1024);
+            }
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(path))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[1024 * 1024];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+        }
+        /// <summary>
+        /// Unit test to append multiple times of varying length
+        /// Verify by reading the file
+        /// </summary>
+        [TestMethod]
+        public void TestAppendDifferentLengthsMultipleTimes1()
+        {
+            string path = $"{UnitTestDir}/testAppendDifferentLengthMultipleTimes1.txt";
+            int totLength = 16 * 1024 * 1024;
+            string text1 = RandomString(totLength);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            { }
+            using (var ostream = _adlsClient.GetAppendStream(path))
+            {
+                ostream.Write(textByte1, 0, 2 * 1024 * 1024);
+                ostream.Write(textByte1, 2 * 1024 * 1024, 1 * 1024 * 1024);
+                ostream.Write(textByte1, 3 * 1024 * 1024, 1 * 1024 * 1024);
+                ostream.Write(textByte1, 4 * 1024 * 1024, 3 * 1024 * 1024);
+                ostream.Write(textByte1, 7 * 1024 * 1024, 2 * 1024 * 1024);
+                ostream.Write(textByte1, 9 * 1024 * 1024, 5 * 1024 * 1024);
+                ostream.Write(textByte1, 14 * 1024 * 1024, 2 * 1024 * 1024);
+            }
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(path))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[1024 * 1024];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+        }
+        /// <summary>
+        /// Unit test to create a file and open a appendstream and make one append to empty file.
+        /// Verify by reading.
+        /// </summary>
+        [TestMethod]
+        public void TestAppendEmptyFile()
+        {
+            string path = $"{UnitTestDir}/testAppendEmptyFile.txt";
+            string text1 = RandomString(9 * 1024 * 1024);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
+            { }
+            using (var ostream = _adlsClient.GetAppendStream(path))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(path))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[1024 * 1024];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+        }
+        /// <summary>
+        /// Unit test to create a file and open a appendstream and make one append to empty file.
+        /// Verify by reading. This is calling the async API.
+        /// </summary>
+        [TestMethod]
+        public void TestAppendEmptyFileAsync()
+        {
+            string path = $"{UnitTestDir}/testAppendEmptyFileAsync.txt";
+            string text1 = RandomString(6 * 1024 * 1024);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (_adlsClient.CreateFileAsync(path, IfExists.Overwrite, "").GetAwaiter().GetResult())
+            { }
+            using (var ostream = _adlsClient.GetAppendStream(path))
+            {
+                ostream.WriteAsync(textByte1, 0, textByte1.Length).GetAwaiter().GetResult();
+            }
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(path))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[1024 * 1024];
+                do
+                {
+                    noOfBytes = istream.ReadAsync(buffer, 0, buffer.Length).GetAwaiter().GetResult();
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+        }
+        
         /// <summary>
         /// Unit test to append toa  non empty file. Create a file and append. Close and reopen a append stream and then append to a non-empty file.
         /// Verify by reading
@@ -499,7 +524,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAppendNotEmptyFile()
         {
-            string path = $"{unitTestDir}/testAppend2.txt";
+            string path = $"{UnitTestDir}/testAppend2.txt";
             string text1 = RandomString(27 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -529,6 +554,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(output.Equals(text2 + text3));
         }
+        #endregion
+
+        #region TestSeek
         /// <summary>
         /// Unit test to seek a file from current. 
         ///   Read till 1/8th of total size
@@ -542,7 +570,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestSeekCurrent()
         {
 
-            string path = $"{unitTestDir}/testSeekCurrent.txt";
+            string path = $"{UnitTestDir}/testSeekCurrent.txt";
             int strLength = 24 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int lengthToReadBeforeSeek = strLength / 8;
@@ -610,7 +638,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekBegin()
         {
-            string path = $"{unitTestDir}/testSeekBegin.txt";
+            string path = $"{UnitTestDir}/testSeekBegin.txt";
             int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
@@ -686,7 +714,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekCurrentBack()
         {
-            string path = $"{unitTestDir}/testSeekCurrentBack.txt";
+            string path = $"{UnitTestDir}/testSeekCurrentBack.txt";
             int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
@@ -746,7 +774,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSeekEnd()
         {
-            string path = $"{unitTestDir}/testSeekEnd.txt";
+            string path = $"{UnitTestDir}/testSeekEnd.txt";
             int strLength = 12 * 1024 * 1024;
             string text1 = RandomString(strLength);
             int readTill = strLength / 2;
@@ -812,31 +840,95 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(actualOp.Equals(expectedOp));
         }
+        #endregion
 
+        #region ConcurrentAppend
         [TestMethod]
-        public void TestGetFileStatus()
+        [DataRow(15)]
+        [DataRow(4*1024*1024)]
+        [DataRow(6 * 1024 * 1024)]
+        public void TestConcurrentAppendSerial(int size)
         {
-            string fileName = $"{unitTestDir}/testGetDirectoryEntryFile";
-            string folderName= $"{unitTestDir}/testGetDirectoryEntryFolder";
-            string text = "Hello World";
-            using (var writer = new StreamWriter(_adlsClient.CreateFile(fileName, IfExists.Overwrite, "761")))
+            string path =$"{UnitTestDir}/testConcurrentAppend_"+size;
+            int count = 2;
+            string line = RandomString(size);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(line);
+            string expectedOutput = "";
+            for(int i = 0; i < count; i++)
             {
-                writer.Write(text);
+                _adlsClient.ConcurrentAppend(path, true, textByte1, 0, textByte1.Length);
+                expectedOutput += line;
             }
-            Assert.IsTrue(_adlsClient.CreateDirectory(folderName, "732"));
-            var fileEntry = _adlsClient.GetDirectoryEntry(fileName);
-            Assert.IsTrue(fileEntry.FullName.Equals(fileName));
-            Assert.IsTrue(fileEntry.Name.Equals("testGetDirectoryEntryFile"));
-            Assert.IsTrue(fileEntry.Length==text.Length);
-            Assert.IsTrue(fileEntry.ExpiryTime==null);
-            Assert.IsTrue(fileEntry.Permission.Equals("761"));
-            var folderEntry = _adlsClient.GetDirectoryEntry(folderName);
-            Assert.IsTrue(folderEntry.FullName.Equals(folderName));
-            Assert.IsTrue(folderEntry.Name.Equals("testGetDirectoryEntryFolder"));
-            Assert.IsTrue(folderEntry.Length == 0);
-            Assert.IsTrue(folderEntry.ExpiryTime == null);
-            Assert.IsTrue(folderEntry.Permission.Equals("732"));
+            string actualOutput = "";
+            using (var reader = new StreamReader(_adlsClient.GetReadStream(path)))
+            {
+                actualOutput = reader.ReadToEnd();
+            }
+            Assert.IsTrue(actualOutput.Equals(expectedOutput));
         }
+        [TestMethod]
+        [DataRow(15)]
+        [DataRow(1 * 1024 * 1024)]
+        public void TestConcurrentAppendParallel(int size)
+        {
+            string path = $"{UnitTestDir}/testConcurrentAppendParallel_" + size;
+            int count = 10;
+            string line = RandomString(size);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(line);
+            string expectedOutput = "";
+            Parallel.For(0, count,
+                index => { _adlsClient.ConcurrentAppend(path, true, textByte1, 0, textByte1.Length); });
+            for (int i = 0; i < count; i++)
+            {
+                expectedOutput += line;
+            }
+            string actualOutput = "";
+            using (var reader = new StreamReader(_adlsClient.GetReadStream(path)))
+            {
+                actualOutput = reader.ReadToEnd();
+            }
+            Assert.IsTrue(actualOutput.Equals(expectedOutput));
+        }
+        #endregion
+
+        #region GetFileStatus
+        [TestMethod]
+        [DataRow(15)]
+        [DataRow(1 * 1024 * 1024)]
+        public void TestConcurrentAppendGetFileStatus(int size)
+        {
+            string path = $"{UnitTestDir}/testConcurrentAppendParallelGetFile_" + size;
+            int count = 10;
+            string line = RandomString(size);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(line);
+            int expectedLength = count * size;
+            Parallel.For(0, count,
+                index => { _adlsClient.ConcurrentAppend(path, true, textByte1, 0, textByte1.Length); });
+            var resp = new OperationResponse();
+            var diren = Core.GetFileStatusAsync(path, UserGroupRepresentation.ObjectID, _adlsClient, new RequestOptions(), resp, default(CancellationToken), true).GetAwaiter().GetResult();
+            Assert.IsTrue(diren.Length == expectedLength);
+        }
+
+        /// <summary>
+        /// Unit test for verifying whether UserRepresentation correctly retrieves object Id or the user principal name in getfilestatus
+        /// </summary>
+        [TestMethod]
+        public void TestUserRepresentation()
+        {
+            string filename = $"{UnitTestDir}/UserRepresentation.txt";
+            using (var ostream = new StreamWriter(_adlsClient.CreateFile(filename, IfExists.Overwrite)))
+            {
+                ostream.Write("Hello This is a user representation test");
+            }
+            var entry = _adlsClient.GetDirectoryEntry(filename);
+            Assert.IsTrue(VerifyGuid(entry.User));
+            entry = _adlsClient.GetDirectoryEntry(filename, UserGroupRepresentation.UserPrincipalName);
+            Assert.IsFalse(VerifyGuid(entry.User));
+        }
+
+        #endregion
+
+        #region Rename
         /// <summary>
         /// Unit test to rename a directory where the source directory exists as a subdirectory in the destination path
         /// </summary>
@@ -846,8 +938,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExistsSubDirec(bool overwrite)
         {
-            string srcpath = $"{unitTestDir}/testRenameSource1" + overwrite;
-            string destPath = $"{unitTestDir}/testRenameDestination1" + overwrite;
+            string srcpath = $"{UnitTestDir}/testRenameSource1" + overwrite;
+            string destPath = $"{UnitTestDir}/testRenameDestination1" + overwrite;
             string subDestpath = destPath + "/testRenameSource1" + overwrite;
             bool result = _adlsClient.CreateDirectory(srcpath, "");
             Assert.IsTrue(result);
@@ -865,8 +957,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(false)]
         public void TestRenameDirectoryDestinationNotExist(bool overwrite)
         {
-            string srcDirPath = $"{unitTestDir}/testRenameSource2" + overwrite;
-            string destDirPath = $"{unitTestDir}/testRenameDest2" + overwrite;
+            string srcDirPath = $"{UnitTestDir}/testRenameSource2" + overwrite;
+            string destDirPath = $"{UnitTestDir}/testRenameDest2" + overwrite;
             bool result = _adlsClient.CreateDirectory(srcDirPath, "");
             Assert.IsTrue(result);
             result = _adlsClient.Rename(srcDirPath, destDirPath, overwrite);
@@ -890,8 +982,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExist(bool overwrite)
         {
-            string srcDirPath = $"{unitTestDir}/testRenameSource3" + overwrite;
-            string destDirPath = $"{unitTestDir}/testRenameDest3" + overwrite;
+            string srcDirPath = $"{UnitTestDir}/testRenameSource3" + overwrite;
+            string destDirPath = $"{UnitTestDir}/testRenameDest3" + overwrite;
             string expectedDestPath = destDirPath + "/testRenameSource3" + overwrite;
             Assert.IsTrue(_adlsClient.CreateDirectory(srcDirPath, ""));
             Assert.IsTrue(_adlsClient.CreateDirectory(destDirPath, ""));
@@ -915,8 +1007,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(false)]
         public void TestRenameDirectoryDestinationExistNonEmpty(bool overwrite)
         {
-            string srcDirPath = $"{unitTestDir}/testRenameSource4" + overwrite;
-            string destDirPath = $"{unitTestDir}/testRenameDest4" + overwrite;
+            string srcDirPath = $"{UnitTestDir}/testRenameSource4" + overwrite;
+            string destDirPath = $"{UnitTestDir}/testRenameDest4" + overwrite;
             string destDirFilePath = destDirPath + "/File.txt";
             string expectedDestPath = destDirPath + "/testRenameSource4" + overwrite;
             Assert.IsTrue(_adlsClient.CreateDirectory(srcDirPath, ""));
@@ -943,8 +1035,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameFileDestinationNotExist(bool overwrite)
         {
-            string srcFilePath = $"{unitTestDir}/testRenameSource5" + overwrite + ".txt";
-            string destFilePath = $"{unitTestDir}/testRenameDest5" + overwrite + ".txt";
+            string srcFilePath = $"{UnitTestDir}/testRenameSource5" + overwrite + ".txt";
+            string destFilePath = $"{UnitTestDir}/testRenameDest5" + overwrite + ".txt";
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
@@ -987,8 +1079,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameFileDestinationExist(bool overwrite)
         {
-            string srcFilePath = $"{unitTestDir}/testRenameSource6" + overwrite + ".txt";
-            string destFilePath = $"{unitTestDir}/testRenameDest6" + overwrite + ".txt";
+            string srcFilePath = $"{UnitTestDir}/testRenameSource6" + overwrite + ".txt";
+            string destFilePath = $"{UnitTestDir}/testRenameDest6" + overwrite + ".txt";
             int strLength = 300;
             string srcFileText = RandomString(strLength);
             byte[] srcByte = Encoding.UTF8.GetBytes(srcFileText);
@@ -1039,6 +1131,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(overwrite ? output.Equals(srcFileText) : output.Equals(destFileText));
         }
+        #endregion
+
+        #region Delete
         /// <summary>
         /// Unit test to try deleting an non empty directory without specifying the flag
         /// </summary>
@@ -1046,9 +1141,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestDeleteException()
         {
-            string deletePath = $"{unitTestDir}/testDelete/testDelete1";
+            string deletePath = $"{UnitTestDir}/testDelete/testDelete1";
             _adlsClient.CreateDirectory(deletePath, "");
-            _adlsClient.Delete($"{unitTestDir}/testDelete");
+            _adlsClient.Delete($"{UnitTestDir}/testDelete");
             Assert.Fail("Trying to delete an non-empty directory so it should throw an exception");
         }
         /// <summary>
@@ -1057,7 +1152,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestDeleteNonRecursive()
         {
-            string deletePath = $"{unitTestDir}/testDelete1";
+            string deletePath = $"{UnitTestDir}/testDelete1";
             _adlsClient.CreateDirectory(deletePath, "");
             bool result = _adlsClient.Delete(deletePath);
             Assert.IsTrue(result);
@@ -1076,18 +1171,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestDeleteRecursive()
         {
-            string deletePath = $"{unitTestDir}/testDelete2/testDelete3/testDeleteInternal";
+            string deletePath = $"{UnitTestDir}/testDelete2/testDelete3/testDeleteInternal";
             _adlsClient.CreateDirectory(deletePath, "");
-            bool result = _adlsClient.DeleteRecursive($"{unitTestDir}/testDelete2");
+            bool result = _adlsClient.DeleteRecursive($"{UnitTestDir}/testDelete2");
             Assert.IsTrue(result);
             try
             {
-                _adlsClient.GetDirectoryEntry($"{unitTestDir}/testDelete2");
+                _adlsClient.GetDirectoryEntry($"{UnitTestDir}/testDelete2");
                 Assert.Fail("The directory should have been deleted so GetFileStatus should throw an exception");
             }
             catch (IOException) { }
 
         }
+        #endregion
+
+        #region Concat
         /// <summary>
         /// Unit test to try concat same file
         /// </summary>
@@ -1095,9 +1193,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException1()
         {
-            string destPath = $"{unitTestDir}/destPath.txt";
+            string destPath = $"{UnitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = $"{unitTestDir}/Source/srcPath1.txt";
+            string srcFile1 = $"{UnitTestDir}/Source/srcPathEx1.txt";
             srcList.Add(srcFile1);
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
@@ -1110,9 +1208,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException2()
         {
-            string destPath = $"{unitTestDir}/destPath.txt";
+            string destPath = $"{UnitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = $"{unitTestDir}/Source/srcPath2.txt";
+            string srcFile1 = $"{UnitTestDir}/Source/srcPathEx2.txt";
             srcList.Add(destPath);
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
@@ -1125,9 +1223,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException3()
         {
-            string destPath = $"{unitTestDir}/destPath.txt";
+            string destPath = $"{UnitTestDir}/destPath.txt";
             List<string> srcList = new List<string>();
-            string srcFile1 = $"{unitTestDir}/Source/srcPath3.txt";
+            string srcFile1 = $"{UnitTestDir}/Source/srcPathEx3.txt";
             srcList.Add(srcFile1);
             _adlsClient.ConcatenateFiles(destPath, srcList);
             Assert.Fail("Trying to concat one file should throw an exception");
@@ -1139,11 +1237,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException((typeof(AdlsException)))]
         public void TestConcatException4()
         {
-            string destPath = $"{unitTestDir}/destPath1";
+            string destPath = $"{UnitTestDir}/destPath1";
             List<string> srcList = new List<string>()
             {
-                $"{unitTestDir}/Source4/SrcFile1.txt",
-                $"{unitTestDir}/Source4/SrcFile2.txt"
+                $"{UnitTestDir}/Source4/SrcFileEx4.txt",
+                $"{UnitTestDir}/Source4/SrcFileEx5.txt"
             };
             byte[] textByte1 = Encoding.UTF8.GetBytes("Hello World");
             _adlsClient.CreateDirectory(destPath);
@@ -1157,6 +1255,32 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             _adlsClient.ConcatenateFiles(destPath, srcList);
         }
+
+        [TestMethod]
+        [ExpectedException(typeof(AdlsException))]
+        public void TestConcatException5()
+        {
+            string destPath = $"{UnitTestDir}/destPathEx2.txt";
+            List<string> srcList = new List<string>()
+            {
+                $"{UnitTestDir}/Source4/SrcFileEx1.txt",
+                $"{UnitTestDir}/Source4/SrcFileEx2.txt"
+            };
+            byte[] textByte1 = Encoding.UTF8.GetBytes("Hello World");
+            using (var ostream = _adlsClient.CreateFile(srcList[0], IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            using (var ostream = _adlsClient.CreateFile(srcList[1], IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+            _adlsClient.ConcatenateFiles(destPath, srcList);
+            using (var ostream = _adlsClient.GetAppendStream(destPath))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+        }
         /// <summary>
         /// Unit test to concat two file with and without deleting the source directory
         /// </summary>
@@ -1164,19 +1288,19 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
         [DataTestMethod]
-        [DataRow(false, unitTestDir+"/destPath2.txt", unitTestDir+"/Source")]
-        [DataRow(true, unitTestDir+"/destPath3.txt", unitTestDir+"/Source1")]
+        [DataRow(false, UnitTestDir+"/destPath2.txt", UnitTestDir+"/Source")]
+        [DataRow(true, UnitTestDir+"/destPath3.txt", UnitTestDir+"/Source1")]
         public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath)
         {
             List<string> srcList = new List<string>();
-            string srcFile1 = sourcePath + "/srcPath4.txt";
+            string srcFile1 = sourcePath + "/srcPath1.txt";
             string text1 = RandomString(2 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
-            string srcFile2 = sourcePath + "/srcPath5.txt";
+            string srcFile2 = sourcePath + "/srcPath2.txt";
             string text2 = RandomString(3 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
@@ -1227,26 +1351,26 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
         [DataTestMethod]
-        [DataRow(false, unitTestDir+"/destPath4.txt", unitTestDir+"/Source2")]
-        [DataRow(true, unitTestDir+"/destPath5.txt", unitTestDir+"/Source3")]
+        [DataRow(false, UnitTestDir+"/destPath4.txt", UnitTestDir+"/Source2")]
+        [DataRow(true, UnitTestDir+"/destPath5.txt", UnitTestDir+"/Source3")]
         public void TestConcatThreeFile(bool deleteSource, string destPath, string sourcePath)
         {
             List<string> srcList = new List<string>();
-            string srcFile1 = sourcePath + "/srcPath1.txt";
+            string srcFile1 = sourcePath + "/srcPath3.txt";
             string text1 = RandomString(1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
-            string srcFile2 = sourcePath + "/srcPath2.txt";
+            string srcFile2 = sourcePath + "/srcPath4.txt";
             string text2 = RandomString(5 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte2, 0, textByte2.Length);
             }
-            string srcFile3 = sourcePath + "/srcPath3.txt";
+            string srcFile3 = sourcePath + "/srcPath5.txt";
             string text3 = RandomString(300 * 1024);
             byte[] textByte3 = Encoding.UTF8.GetBytes(text3);
             using (var ostream = _adlsClient.CreateFile(srcFile3, IfExists.Overwrite, ""))
@@ -1293,7 +1417,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             {
                 try
                 {
-                    _adlsClient.GetDirectoryEntry($"{unitTestDir}/Source");
+                    _adlsClient.GetDirectoryEntry($"{UnitTestDir}/Source");
                     Assert.Fail("The directory should have been deleted so GetFileStatus should throw an exception");
                 }
                 catch (IOException) { }
@@ -1303,7 +1427,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConcatExisting()
         {
-            string sourcePath = unitTestDir + "/TestConcatExisting";
+            string sourcePath = UnitTestDir + "/TestConcatExisting";
             List<string> srcList = new List<string>();
             string destPath = sourcePath + "/destPath.txt";
             string text1 = RandomString(1024);
@@ -1331,6 +1455,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 Assert.IsTrue(istream.ReadToEnd().Equals(text1+text2+text3));
             }
         }
+        #endregion
+
+        #region Expiry
         /// <summary>
         /// Unit test to try set expiry time for a directory 
         /// </summary>
@@ -1338,7 +1465,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestExpiryFailDirectory()
         {
-            string path = $"{unitTestDir}/ExpiryFolder";
+            string path = $"{UnitTestDir}/ExpiryFolder";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetExpiryTime(path, ExpiryOption.NeverExpire, 0);
             Assert.Fail("SetExpiry should have raised an exception as expiry cannot be set for folders");
@@ -1349,7 +1476,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeNever()
         {
-            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFile1.txt";
+            string path = $"{UnitTestDir}/ExpiryFolder/ExpiryFile1.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -1371,7 +1498,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeAbsolute()
         {
-            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFileAbsolute.txt";
+            string path = $"{UnitTestDir}/ExpiryFolder/ExpiryFileAbsolute.txt";
             string text1 = RandomString(100);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))
@@ -1391,7 +1518,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeRelativeCreation()
         {
-            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFileRelative.txt";
+            string path = $"{UnitTestDir}/ExpiryFolder/ExpiryFileRelative.txt";
             var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "");
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
             DateTime create = diren.LastModifiedTime.Value;
@@ -1408,7 +1535,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestExpiryTimeRelativeNow()
         {
-            string path = $"{unitTestDir}/ExpiryFolder/ExpiryFile3.txt";
+            string path = $"{UnitTestDir}/ExpiryFolder/ExpiryFile3.txt";
             long time = 5000;//In milliseconds: 5 seconds
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, ""))
             { }
@@ -1424,6 +1551,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (IOException)
             { }
         }
+        #endregion
+
+        #region PermissionAndAcls
         /// <summary>
         /// Unit test to try setting invalid permission
         /// </summary>
@@ -1431,7 +1561,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestSetPermissionException()
         {
-            string path = $"{unitTestDir}/SetPermission";
+            string path = $"{UnitTestDir}/SetPermission";
             string permission = "77777";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, permission);
@@ -1443,7 +1573,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFolder()
         {
-            string path = $"{unitTestDir}/SetPermissionFolder";
+            string path = $"{UnitTestDir}/SetPermissionFolder";
             string originalPermission = "771";
             string permission = "772";
             _adlsClient.CreateDirectory(path, originalPermission);
@@ -1499,7 +1629,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFile()
         {
-            string path = $"{unitTestDir}/SetPermission.txt";
+            string path = $"{UnitTestDir}/SetPermission.txt";
             string originalPermission = "770";
             string permission = "772";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, originalPermission))
@@ -1541,7 +1671,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCheckNoAccess()
         {
-            string path = $"{unitTestDir}/CheckNoAccess";
+            string path = $"{UnitTestDir}/CheckNoAccess";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, "775");
             AdlsClient nonOwner1 = SetupNonOwnerClient1();
@@ -1564,7 +1694,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCheckAccess()
         {
-            string path = $"{unitTestDir}/CheckAccess";
+            string path = $"{UnitTestDir}/CheckAccess";
             string originalPermission = "774";
             string changedPermission = "775";
             _adlsClient.CreateDirectory(path, "");
@@ -1611,7 +1741,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ExpectedException(typeof(AdlsException))]
         public void TestSetAclException()
         {
-            string path = $"{unitTestDir}/SetAclEntriesException";
+            string path = $"{UnitTestDir}/SetAclEntriesException";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() { new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite) };//Non owner client 1
             _adlsClient.SetAcl(path, aclList);
@@ -1623,7 +1753,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetAcl()
         {
-            string path = $"{unitTestDir}/SetAclEntries";
+            string path = $"{UnitTestDir}/SetAclEntries";
             _adlsClient.CreateDirectory(path, "");
             _adlsClient.SetPermission(path, "770");
             string testFile = path + "/SetAcl.txt";
@@ -1694,7 +1824,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="path">Destination path</param>
         [TestMethod]
-        [DataRow(unitTestDir+"/ModifyAclEntries.txt")]
+        [DataRow(UnitTestDir+"/ModifyAclEntries.txt")]
         public void TestModifyAcl(string path)
         {
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "770"))
@@ -1744,7 +1874,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclGroup()
         {
-            string path = $"{unitTestDir}/ModifyAclEntryGroup.txt";
+            string path = $"{UnitTestDir}/ModifyAclEntryGroup.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             {
 
@@ -1796,7 +1926,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclOther()
         {
-            string path = $"{unitTestDir}/ModifyAclEntryOther.txt";
+            string path = $"{UnitTestDir}/ModifyAclEntryOther.txt";
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             { }
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
@@ -1841,7 +1971,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestModifyAclMask()
         {
-            string path = $"{unitTestDir}/ModifyAclEntryMask.txt";
+            string path = $"{UnitTestDir}/ModifyAclEntryMask.txt";
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, "700"))
             {
                 byte[] buff = Encoding.UTF8.GetBytes("Hello");
@@ -1889,7 +2019,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclMaskGroup()
         {
-            string path = $"{unitTestDir}/TestAclMaskGroup";
+            string path = $"{UnitTestDir}/TestAclMaskGroup";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1921,7 +2051,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetOwnerGroupMask()
         {
-            string path = $"{unitTestDir}/TestGroupMask";
+            string path = $"{UnitTestDir}/TestGroupMask";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1956,7 +2086,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetOwner()
         {
-            string path = $"{unitTestDir}/TestOwner";
+            string path = $"{UnitTestDir}/TestOwner";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.All),
@@ -1991,7 +2121,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetGroup()
         {
-            string path = $"{unitTestDir}/TestGroup";
+            string path = $"{UnitTestDir}/TestGroup";
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>()
             {
@@ -2022,7 +2152,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclExtended()
         {
-            string path = $"{unitTestDir}/TestAclExtended";
+            string path = $"{UnitTestDir}/TestAclExtended";
             _adlsClient.CreateDirectory(path, "750");
             List<AclEntry> aclList = new List<AclEntry>()
             {
@@ -2076,7 +2206,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="path"></param>
         [TestMethod]
-        [DataRow(unitTestDir+"/DefaultAclEntries")]
+        [DataRow(UnitTestDir+"/DefaultAclEntries")]
         public void TestAclDefault(string path)
         {
             _adlsClient.CreateDirectory(path, "700");
@@ -2116,7 +2246,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultMode()
         {
-            string path = $"{unitTestDir}/TestAclDefaultMode";
+            string path = $"{UnitTestDir}/TestAclDefaultMode";
             _adlsClient.CreateDirectory(path, "730");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.WriteExecute),
@@ -2161,7 +2291,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultGroup()
         {
-            string path = $"{unitTestDir}/TestAclDefaultGroup";
+            string path = $"{UnitTestDir}/TestAclDefaultGroup";
             _adlsClient.CreateDirectory(path, "740");
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
             string subDirec = path + "/subdirec";
@@ -2208,7 +2338,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveAcl()
         {
-            string path = $"{unitTestDir}/TestRemoveAcl.txt";
+            string path = $"{UnitTestDir}/TestRemoveAcl.txt";
             TestModifyAcl(path);
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite)
@@ -2228,7 +2358,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveDefaultAcl()
         {
-            string path = $"{unitTestDir}/TestRemoveDefault";
+            string path = $"{UnitTestDir}/TestRemoveDefault";
             TestAclDefault(path);
             _adlsClient.RemoveDefaultAcls(path);
             string subDirec = path + "/subdirecNew";
@@ -2246,7 +2376,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRemoveAllAcl()
         {
-            string path = $"{unitTestDir}/TesRemoveAcl";
+            string path = $"{UnitTestDir}/TesRemoveAcl";
             TestModifyAcl(path);
             _adlsClient.RemoveAllAcls(path);
             AdlsClient nonOwnerCLient1 = SetupNonOwnerClient1();
@@ -2261,7 +2391,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestGetAclStatus()
         {
-            string path = $"{unitTestDir}/TestGetAclStatus";
+            string path = $"{UnitTestDir}/TestGetAclStatus";
             TestModifyAcl(path);
             AclStatus status = _adlsClient.GetAclStatus(path);
             Assert.IsTrue(status.Owner.Equals(_ownerObjectId));
@@ -2269,34 +2399,19 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite)));
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ReadExecute)));
         }
-
+        #endregion
         private bool VerifyGuid(string objectId)
         {
             return Regex.IsMatch(objectId, @"^[{(]?[0-9A-Fa-f]{8}[-]?([0-9A-Fa-f]{4}[-]?){3}[0-9A-Fa-f]{12}[)}]?$");
         }
-        /// <summary>
-        /// Unit test for verifying whether UserRepresentation correctly retrieves object Id or the user principal name in getfilestatus
-        /// </summary>
-        [TestMethod]
-        public void TestUserRepresentation()
-        {
-            string filename = $"{unitTestDir}/UserRepresentation.txt";
-            using (var ostream = new StreamWriter(_adlsClient.CreateFile(filename, IfExists.Overwrite)))
-            {
-                ostream.Write("Hello This is a user representation test");
-            }
-            var entry = _adlsClient.GetDirectoryEntry(filename);
-            Assert.IsTrue(VerifyGuid(entry.User));
-            entry = _adlsClient.GetDirectoryEntry(filename, UserGroupRepresentation.UserPrincipalName);
-            Assert.IsFalse(VerifyGuid(entry.User));
-        }
+        
         /// <summary>
         /// Unit test for getting content summary of a directory
         /// </summary>
         [TestMethod]
         public void TestGetContentSummary()
         {
-            string path = $"{unitTestDir}/CntSum";
+            string path = $"{UnitTestDir}/CntSum";
             int oneLevelDirecCnt = 3;
             int oneLevelFileCnt = 2;
             int recurseLevel = 2;
@@ -2323,7 +2438,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestGetFileListStatus()
         {
             char prefix = 'F';
-            string path = $"{unitTestDir}/{prefix}";
+            string path = $"{UnitTestDir}/{prefix}";
             int totFiles = 1;
             string filePrefix = "";
             int setListSize = 120;

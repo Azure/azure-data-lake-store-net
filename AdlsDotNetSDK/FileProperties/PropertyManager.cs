@@ -96,7 +96,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             }
             lock (PropertyDumpWriter)
             {
-                PropertyDumpWriter.WriteLine($"Entry name{OuputLineSeparator}{output}");
+                PropertyDumpWriter.WriteLine($"Entry name{OuputLineSeparator}Entry Type{OuputLineSeparator}{output}");
             }
         }
         // Kept this in this class so that others can use it
@@ -118,7 +118,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             }
             lock (PropertyDumpWriter)
             {
-                PropertyDumpWriter.WriteLine($"{node.FullPath}{OuputLineSeparator}{output}");
+                PropertyDumpWriter.WriteLine($"{node.FullPath}{OuputLineSeparator}{node.Type}{OuputLineSeparator}{output}");
             }
         }
         private PropertyTreeNode RunGetProperty(string path)
