@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.1.1
+- Internal changes only
 ### Version 1.1.0
 - Add query parameter getConsistentLength to getfilestatus to get consistent length and pass it for open and append
 - Fix retrieving x-ms-requestid for remote exception
