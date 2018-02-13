@@ -388,7 +388,7 @@ namespace Microsoft.Azure.DataLake.Store
             // Pass getConsistentlength so that we get the updated length of stream
             DirectoryEntry diren = await Core
                 .GetFileStatusAsync(filename, UserGroupRepresentation.ObjectID, this,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken, true).ConfigureAwait(false);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error opening a Read Stream for file {filename}.");

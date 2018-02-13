@@ -617,7 +617,12 @@ namespace Microsoft.Azure.DataLake.Store
             QueryParams qp = new QueryParams();
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
-            qp.Add("getconsistentlength", Convert.ToString(getConsistentFileLength));
+            // Currently disabled
+            if (getConsistentFileLength)
+            {
+                qp.Add("getconsistentlength", "true");
+            }
+
             DirectoryEntry der;
             var responseTuple = await WebTransport.MakeCallAsync("GETFILESTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
