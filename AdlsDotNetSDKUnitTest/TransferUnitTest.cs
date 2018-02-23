@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -14,10 +13,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     public class TransferUnitTest
     {
         private static AdlsClient _adlsClient;
-        private static string localPath = "C:\\Data";
-        private static string remotePath = "/Test1/Uploader";
-        private static string remotePathDownload = "/Test1/Downloader/A";
-        private static string localPathDownload = "C:\\Data\\A";
+        private static readonly string LocalPath = "C:\\Data" + SdkUnitTest.TestId;
+        private static readonly string RemotePath = "/Test1" + SdkUnitTest.TestId;
+        private static readonly string LocalPathUpload1 = $"{LocalPath}\\B";
+        private static readonly string LocalPathUpload2 = $"{LocalPath}\\C";
+        private static readonly string RemotePathUpload1 = $"{RemotePath}/Uploader/B";
+        private static readonly string RemotePathUpload2 = $"{RemotePath}/Uploader/C";
+        private static readonly string RemotePathDownload = $"{RemotePath}/Downloader/A";
+        private static readonly string LocalPathDownload = $"{LocalPath}\\A";
         private static int TransferChunkSize = 240 * 1024;
         private static int LowFileSize = 100 * 1024;
         private static int HighFileSize = 500 * 1024;
@@ -29,13 +32,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             _adlsClient = SdkUnitTest.SetupSuperClient();
 
-            _adlsClient.DeleteRecursive("/Test1");
-            _adlsClient.CreateDirectory(remotePath);
-            if (!Directory.Exists(localPath))
+            _adlsClient.DeleteRecursive(RemotePath);
+            if (!Directory.Exists(LocalPath))
             {
-                Directory.CreateDirectory(localPath);
+                Directory.CreateDirectory(LocalPath);
             }
-            DataCreator.CreateDirRecursiveRemote(_adlsClient, remotePathDownload, 2, 3, 3, 4, LowFileSize, HighFileSize, true);
+            DataCreator.CreateDirRecursiveRemote(_adlsClient, RemotePathDownload, 2, 3, 3, 4, LowFileSize, HighFileSize, true);
             DataCreator.BuffSize = DataCreatorBuffSize;
             CopyFileJob.ReadForwardBuffSize = ReadBufferForwardSize;
             AdlsOutputStream.BufferCapacity = CopyBufferSize;
@@ -43,54 +45,54 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             FileDownloader.SkipChunkingWeightThreshold = TransferChunkSize;
             FileDownloader.NumLargeFileThreshold = Int64.MaxValue;
 
-            DataCreator.CreateDirRecursiveLocal(localPath + "\\B", 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
-            DataCreator.CreateDirRecursiveLocal(localPath + "\\C", 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
+            DataCreator.CreateDirRecursiveLocal(LocalPathUpload1, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
+            DataCreator.CreateDirRecursiveLocal(LocalPathUpload2, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
 
         }
 
         [TestMethod]
         public void TestUploadNonBinary()
         {
-            TransferStatus status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
+            TransferStatus status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
             Queue<DirectoryInfo> localQueue = new Queue<DirectoryInfo>();
             Queue<DirectoryEntry> remoteQueue = new Queue<DirectoryEntry>();
-            localQueue.Enqueue(new DirectoryInfo(localPath + "\\B"));
-            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePath));
+            localQueue.Enqueue(new DirectoryInfo(LocalPathUpload1));
+            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(RemotePathUpload1));
             Verify(localQueue, remoteQueue);
-            status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Fail, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
+            status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Fail, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
         [TestMethod]
         public void TestUploadBinary()
         {
-            TransferStatus status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Overwrite, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            TransferStatus status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Overwrite, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
             Queue<DirectoryInfo> localQueue = new Queue<DirectoryInfo>();
             Queue<DirectoryEntry> remoteQueue = new Queue<DirectoryEntry>();
-            localQueue.Enqueue(new DirectoryInfo(localPath + "\\B"));
-            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePath));
+            localQueue.Enqueue(new DirectoryInfo(LocalPathUpload2));
+            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(RemotePathUpload2));
             Verify(localQueue, remoteQueue);
-            status = FileUploader.Upload(localPath + "\\B", remotePath, _adlsClient, 10, IfExists.Fail, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Fail, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
         [TestMethod]
         public void TestDownload()
         {
-            TransferStatus status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 25, IfExists.Overwrite, null, false, false, default(CancellationToken), false, 4194304, TransferChunkSize);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
+            TransferStatus status = FileDownloader.Download(RemotePathDownload, LocalPathDownload, _adlsClient, 25, IfExists.Overwrite, null, false, false, default(CancellationToken), false, 4194304, TransferChunkSize);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
             Queue<DirectoryInfo> localQueue = new Queue<DirectoryInfo>();
             Queue<DirectoryEntry> remoteQueue = new Queue<DirectoryEntry>();
-            localQueue.Enqueue(new DirectoryInfo(localPathDownload));
-            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(remotePathDownload));
+            localQueue.Enqueue(new DirectoryInfo(LocalPathDownload));
+            remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(RemotePathDownload));
             Verify(localQueue, remoteQueue);
-            status = FileDownloader.Download(remotePathDownload, localPathDownload, _adlsClient, 10, IfExists.Fail, null);
+            status = FileDownloader.Download(RemotePathDownload, LocalPathDownload, _adlsClient, 10, IfExists.Fail);
             Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
         private int Read(Stream stream, byte[] arr)
@@ -197,8 +199,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassCleanup]
         public static void CleanTests()
         {
-            _adlsClient.DeleteRecursive("/Test1");
-            DataCreator.DeleteRecursiveLocal(new DirectoryInfo(localPath));
+            _adlsClient.DeleteRecursive(RemotePath);
+            DataCreator.DeleteRecursiveLocal(new DirectoryInfo(LocalPath));
         }
     }
 }

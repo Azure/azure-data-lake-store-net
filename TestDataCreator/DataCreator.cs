@@ -23,33 +23,33 @@ namespace TestDataCreator
 
         internal class State
         {
-            internal string path;
-            internal bool isLocal;
-            internal long fileLength;
-            internal bool writeInNewLines;
-            internal AdlsClient client;
+            internal string Path;
+            internal bool IsLocal;
+            internal long FileLength;
+            internal bool WriteInNewLines;
+            internal AdlsClient Client;
 
             internal State(string ph, long fLength, bool writeNewLines, bool local = true, AdlsClient ct = null)
             {
-                path = ph;
-                fileLength = fLength;
-                writeInNewLines = writeNewLines;
-                isLocal = local;
-                client = ct;
+                Path = ph;
+                FileLength = fLength;
+                WriteInNewLines = writeNewLines;
+                IsLocal = local;
+                Client = ct;
             }
         }
 
         private static void Run(object state)
         {
             var st = state as State;
-            if (st.isLocal)
+            if (st.IsLocal)
             {
-                using (var ostream = new StreamWriter(new FileStream(st.path, FileMode.Create, FileAccess.Write), Encoding.UTF8))
+                using (var ostream = new StreamWriter(new FileStream(st.Path, FileMode.Create, FileAccess.Write), Encoding.UTF8))
                 {
-                    if (st.fileLength > 0)
+                    if (st.FileLength > 0)
                     {
-                        long lengthToRead = st.fileLength;
-                        using (Stream rndStream = new RandomDataStream(st.fileLength))
+                        long lengthToRead = st.FileLength;
+                        using (Stream rndStream = new RandomDataStream(st.FileLength))
                         {
                             byte[] readBytes = new byte[BuffSize];
                             while (lengthToRead > 0)
@@ -59,7 +59,7 @@ namespace TestDataCreator
                                 // Break when the end of the file is reached.
                                 if (bytesRead > 0)
                                 {
-                                    if (st.writeInNewLines)
+                                    if (st.WriteInNewLines)
                                     {
                                         ostream.WriteLine(Encoding.UTF8.GetString(readBytes, 0, bytesRead));
                                     }
@@ -81,12 +81,12 @@ namespace TestDataCreator
             }
             else
             {
-                using (var ostream = st.client.CreateFile(st.path, IfExists.Overwrite))
+                using (var ostream = st.Client.CreateFile(st.Path, IfExists.Overwrite))
                 {
-                    if (st.fileLength> 0)
+                    if (st.FileLength> 0)
                     {
-                        long lengthToRead = st.fileLength;
-                        using (Stream rndStream = new RandomDataStream(st.fileLength))
+                        long lengthToRead = st.FileLength;
+                        using (Stream rndStream = new RandomDataStream(st.FileLength))
                         {
                             byte[] readBytes = new byte[BuffSize];
                             while (lengthToRead > 0)

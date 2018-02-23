@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.3
+- Internal changes.
+- Fix some unit tests
 ### Version 1.1.2
 - Internal changes only.
 ### Version 1.1.1

@@ -4,9 +4,6 @@ using System.Threading;
 using Microsoft.Azure.DataLake.Store.Acl;
 using Microsoft.Azure.DataLake.Store.AclTools;
 using Microsoft.Azure.DataLake.Store.FileProperties;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
-using Microsoft.Rest;
-using Microsoft.Rest.Azure.Authentication;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TestDataCreator;
 
@@ -22,20 +19,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Adls Client
         /// </summary>
         private static AdlsClient _adlsClient;
-        /// <summary>
-        /// Remote path
-        /// </summary>
-        private static string remotePath = "/Test2/RecursiveAcl/A";
 
-        private static string localPath = @"C:\Data1";
+        private static readonly string RemotePath = "/Test2" + SdkUnitTest.TestId;
         /// <summary>
-        /// A non objectowner Id- rdutta-app1
+        /// Unittest path
         /// </summary>
-        private static string _nonOwner1ObjectId;
-        /// <summary>
-        /// A non-owner object app id- rdutta-app3
-        /// </summary>
-        private static string _nonOwner2ObjectId;
+        private static readonly string UnitTestPath = $"{RemotePath}/RecursiveAcl/A";
+
+        private static readonly string LocalPath = @"C:\Data1" + SdkUnitTest.TestId;
         /// <summary>
         /// Semaphore to serialize acl modify and remove
         /// </summary>
@@ -45,10 +36,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Semaphore to serialize acl modify and remove
         /// </summary>
         private static readonly Semaphore SemSetAcl = new Semaphore(1, 1);
-        /// <summary>
-        /// Group Id: rdutta-group1 -has rdutta-app3,rdutta-app4
-        /// </summary>
-        private static string _group1Id;
 
         private static int _oneLevelDirCount;
         private static int _oneLevelFileCnt;
@@ -59,18 +46,15 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassInitialize]
         public static void SetupClient(TestContext context)
         {
-            _nonOwner1ObjectId = SdkUnitTest.ReadSetting("NonOwner1ObjectId");
-            _nonOwner2ObjectId = SdkUnitTest.ReadSetting("NonOwner2ObjectId");
-            _group1Id = SdkUnitTest.ReadSetting("Group1Id");
-            _adlsClient = SetupSuperClient();
+            _adlsClient = SdkUnitTest.SetupSuperClient();
 
-            _adlsClient.DeleteRecursive("/Test2");
+            _adlsClient.DeleteRecursive(RemotePath);
             _oneLevelDirCount = 3;
             _oneLevelFileCnt = 2;
             _recurseLevel = 3;
             _oneFileSize = 100;
 
-            DataCreator.CreateDirRecursiveRemote(_adlsClient, remotePath, _recurseLevel, _oneLevelDirCount, _oneLevelFileCnt, _oneLevelFileCnt, _oneFileSize, _oneFileSize);
+            DataCreator.CreateDirRecursiveRemote(_adlsClient, UnitTestPath, _recurseLevel, _oneLevelDirCount, _oneLevelFileCnt, _oneLevelFileCnt, _oneFileSize, _oneFileSize);
         }
 
         private static void GetExpectedOutput(int oneLevelDirecCnt, int oneLevelFileCnt, int recurseLevel,
@@ -87,20 +71,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             expectedFileCount = (expectedDirCount+1) * oneLevelFileCnt;
             expectedFileSize = expectedFileCount * oneFileSize;
         }
-        /// <summary>
-        /// Setsup the super client and returns
-        /// </summary>
-        /// <returns></returns>
-        private static AdlsClient SetupSuperClient()
-        {
-            string clientId = SdkUnitTest.ReadSetting("AccountOwnerClientId");
-            string clientSecret = SdkUnitTest.ReadSetting("AccountOwnerClientSecret");
-            string domain = SdkUnitTest.ReadSetting("Domain");
-            string clientAccountPath = SdkUnitTest.ReadSetting("Account");
-            var creds = new ClientCredential(clientId, clientSecret);
-            ServiceClientCredentials clientCreds = ApplicationTokenProvider.LoginSilentAsync(domain, creds).GetAwaiter().GetResult();
-            return AdlsClient.CreateClient(clientAccountPath, clientCreds);
-        }
+        
         /// <summary>
         /// Gets a sample Acl entries - For modify and remove
         /// </summary>
@@ -109,9 +80,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             return new List<AclEntry>()
             {
-                new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite),
-                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.WriteOnly),
-                new AclEntry(AclType.user, _group1Id, AclScope.Default, AclAction.WriteExecute)
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite),
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner2ObjectId, AclScope.Access, AclAction.WriteOnly),
+                new AclEntry(AclType.user, SdkUnitTest.Group1Id, AclScope.Default, AclAction.WriteExecute)
             };
         }
         /// <summary>
@@ -122,8 +93,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             return new List<AclEntry>()
             {
-                new AclEntry(AclType.user, _nonOwner1ObjectId, AclScope.Access, AclAction.ReadOnly),
-                new AclEntry(AclType.user, _nonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly)
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner1ObjectId, AclScope.Access, AclAction.ReadOnly),
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly)
             };
         }
         /// <summary>
@@ -139,10 +110,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 return;
             }
             List<AclEntry> aclEntries1 = GetAclEntryForModifyAndRemove();
-            var aclStats = AclProcessor.RunAclProcessor(remotePath + "/B0", _adlsClient, aclEntries1,
+            var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B0", _adlsClient, aclEntries1,
                 RequestedAclType.ModifyAcl, 25);
             var aclVerifyStats =
-                AclProcessor.RunAclVerifier(remotePath + "/B0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
@@ -158,10 +129,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             TestModifyAcl();
             List<AclEntry> aclEntries1 = GetAclEntryForModifyAndRemove();
-            var aclStats = AclProcessor.RunAclProcessor(remotePath + "/B0", _adlsClient, aclEntries1,
+            var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B0", _adlsClient, aclEntries1,
                 RequestedAclType.RemoveAcl, 10);
             var aclVerifyStats =
-                AclProcessor.RunAclVerifier(remotePath + "/B0", _adlsClient, aclEntries1, RequestedAclType.RemoveAcl, 10);
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.RemoveAcl, 10);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
@@ -187,10 +158,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 new AclEntry(AclType.group, "", AclScope.Access, AclAction.All),
                 new AclEntry(AclType.other, "", AclScope.Access, AclAction.None)
             };
-            var aclStats = AclProcessor.RunAclProcessor(remotePath + "/B1", _adlsClient, aclEntries3,
+            var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B1", _adlsClient, aclEntries3,
                 RequestedAclType.SetAcl, 25);
             var aclVerifyStats =
-                AclProcessor.RunAclVerifier(remotePath + "/B1", _adlsClient, aclEntries2, RequestedAclType.SetAcl, 10);
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B1", _adlsClient, aclEntries2, RequestedAclType.SetAcl, 10);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
@@ -205,26 +176,25 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestFileProperties()
         {
             TestSetAcl();
-            var node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, false, localPath + @"\logFile", true, 25, true);
+            var node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, true, false, LocalPath + @"\logFile", true, 25, true);
             TestTreeNode(node, _recurseLevel - 1);
-            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, false, true, localPath + @"\logFile1", true, 25, true);
+            node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, false, true, LocalPath + @"\logFile1", true, 25, true);
             Assert.IsTrue(node.AllChildSameAcl);
-            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, true, true, localPath + @"\logFile2", true, 25, true);
+            node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, true, true, LocalPath + @"\logFile2", true, 25, true);
             TestTreeNode(node, _recurseLevel - 1);
             Assert.IsTrue(node.AllChildSameAcl);
             var entry = new List<AclEntry>()
             {
-                new AclEntry(AclType.user, _group1Id, AclScope.Default, AclAction.WriteExecute)
+                new AclEntry(AclType.user, SdkUnitTest.Group1Id, AclScope.Default, AclAction.WriteExecute)
             };
-            _adlsClient.ModifyAclEntries(remotePath + "/B1/C0/D0", entry);
-            node = PropertyManager.TestGetProperty(remotePath + "/B1", _adlsClient, false, true, localPath + @"\logFile3", true, 25, true);
+            _adlsClient.ModifyAclEntries(UnitTestPath + "/B1/C0/D0", entry);
+            node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, false, true, LocalPath + @"\logFile3", true, 25, true);
             Assert.IsFalse(node.AllChildSameAcl);
         }
 
         private static void TestTreeNode(PropertyTreeNode node, int recurseLevel)
         {
-            int expectedDirCount, expectedFileCount, expectedFileSize;
-            GetExpectedOutput(_oneLevelDirCount, _oneLevelFileCnt, recurseLevel, _oneFileSize, out expectedFileCount, out expectedDirCount, out expectedFileSize);
+            GetExpectedOutput(_oneLevelDirCount, _oneLevelFileCnt, recurseLevel, _oneFileSize, out var expectedFileCount, out var expectedDirCount, out var expectedFileSize);
             Assert.IsTrue(node.TotChildFiles == expectedFileCount);
             Assert.IsTrue(node.TotChildDirec == expectedDirCount);
             Assert.IsTrue(node.TotChildSize == expectedFileSize);
@@ -245,8 +215,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassCleanup]
         public static void CleanClient()
         {
-            _adlsClient.DeleteRecursive("/Test2");
-            Directory.Delete(localPath, true);
+            _adlsClient.DeleteRecursive(RemotePath);
+            Directory.Delete(LocalPath, true);
         }
     }
 }

@@ -4,7 +4,11 @@ using System.Threading;
 namespace Microsoft.Azure.DataLake.Store.RetryPolicies
 {
     /// <summary>
-    /// Exponential retry policy
+    /// Exponential retry policy.
+    /// Does retries for following: 
+    /// For 5xx http status codes except 501 and 505 
+    /// For 401, 408 and 429 status codes
+    /// Any other unhandled exception from web- Request timeout for client, etc
     /// </summary>
     public class ExponentialRetryPolicy : RetryPolicy
     {
@@ -64,7 +68,7 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
             return false;
         }
         /// <summary>
-        /// Determines whether to retry exponentially
+        /// Determines whether to retry exponentially. 
         /// </summary>
         /// <param name="httpCode">Http status code</param>
         /// <param name="ex">Last exception that we saw during Httprequest</param>

@@ -9,6 +9,10 @@ namespace Microsoft.Azure.DataLake.Store
     /// </summary>
     public class AdlsException : IOException
     {
+        /// <summary>
+        /// Constructor that sets the message for inner exception
+        /// </summary>
+        /// <param name="message">Message</param>
         public AdlsException(string message) : base(message)
         { }
         /// <summary>

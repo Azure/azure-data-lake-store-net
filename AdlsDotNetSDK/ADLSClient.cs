@@ -157,6 +157,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             UserAgent = $"{adlsSdkName};{SdkVersion}/{osInfo}/{dotNetVersion}";
         }
+
         /// <summary>
         /// Protected constructor for moq tests
         /// </summary>
@@ -164,7 +165,8 @@ namespace Microsoft.Azure.DataLake.Store
         {
             
         }
-        private AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
+
+        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -179,7 +181,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
         }
 
-        private AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false)
+        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -189,6 +191,7 @@ namespace Microsoft.Azure.DataLake.Store
             ClientId = clientId;
             AccessProvider = creds;
         }
+
         private bool IsValidAccount(string accnt)
         {
             return Regex.IsMatch(accnt, @"^[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-][a-zA-Z0-9.\-]*$");
@@ -206,6 +209,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return new AdlsClient(accnt, Interlocked.Increment(ref _atomicClientId), token, true);
         }
+
         /// <summary>
         /// Factory method that creates an instance AdlsClient using the token key. If an application wants to perform multi-threaded operations using this SDK
         /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
@@ -217,6 +221,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), token);
         }
+
         /// <summary>
         /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
         /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
@@ -241,6 +246,7 @@ namespace Microsoft.Azure.DataLake.Store
                 _proto = "http";
             }
         }
+
         /// <summary>
         /// Atomically returns the UserAgent
         /// </summary>
@@ -252,6 +258,7 @@ namespace Microsoft.Azure.DataLake.Store
                 return _userAgentString;
             }
         }
+
         /// <summary>
         /// Adds the user agent suffix
         /// </summary>
@@ -278,6 +285,7 @@ namespace Microsoft.Azure.DataLake.Store
                 return _proto;
             }
         }
+
         /// <summary>
         /// Gets the authorization token
         /// </summary>
@@ -296,6 +304,7 @@ namespace Microsoft.Azure.DataLake.Store
                 return AccessToken;
             }
         }
+
         /// <summary>
         /// Sets the auth token.
         /// </summary>
