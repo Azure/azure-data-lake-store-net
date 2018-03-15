@@ -642,7 +642,7 @@ namespace Microsoft.Azure.DataLake.Store
                 }
                 catch (Exception)
                 {
-                    resp.Error = "Uexpected error in JSON parsing";
+                    resp.Error = "Unexpected error in JSON parsing";
                 }
 
             }
