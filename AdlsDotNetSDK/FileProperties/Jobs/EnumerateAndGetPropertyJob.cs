@@ -13,6 +13,7 @@
             }
             if (_currentNode.Type == DirectoryEntryType.DIRECTORY)
             {
+
                 var fop = _manager.Client.EnumerateDirectory(_currentNode.FullPath);
 
                 foreach (var dir in fop)
@@ -20,13 +21,14 @@
                     if (dir.Type == DirectoryEntryType.DIRECTORY)
                     {
                         _currentNode.ChildDirectoryNodes.Add(new PropertyTreeNode(dir.FullName, dir.Type, dir.Length,
-                            _currentNode, _manager.DisplayFiles || _manager.GetAclProperty));
+                            _currentNode, _manager.GetAclProperty || _manager.DisplayFiles));
                         _currentNode.DirectChildDirec++;
                     }
                     else
                     {
                         _currentNode.DirectChildSize += dir.Length;
                         _currentNode.DirectChildFiles++;
+                        // We need to add files to list only if user has specified DisplayFiles
                         if (_manager.DisplayFiles)
                         {
                             _currentNode.ChildFileNodes.Add(
@@ -45,6 +47,9 @@
                 {
                     _manager.ConsumerQueue.Add(new EnumerateAndGetPropertyJob(childNode, _manager));
                 }
+                // REMEMBER if user has not specified DISPLAYFILES we would not compute ACL for the file
+                // _currentNode.ChildFileNodes will be empty if user has not passed DisplayFiles
+                // Reason is there can be millions of files and there will be unnecessary delay in getting Acls even though user does not want acl of files
                 if (_manager.GetAclProperty)
                 {
                     foreach (var childNode in _currentNode.ChildFileNodes)
@@ -55,8 +60,8 @@
                 // If it is the root node
                 if (_currentNode.DepthLevel == 0)
                 {
-                    // If no subdirectories and we are only retrieving disk usage then end
-                    // for acl if there are no sub directories and sub files then only end
+                    // For only disk usage (no getacl) if no subdirectories then end
+                    // for getacl if there are no sub directories and sub files then only end
                     if (!_manager.GetAclProperty && _currentNode.ChildDirectoryNodes.Count == 0 || (_manager.GetAclProperty && _currentNode.NoChildren()))
                     {
                         _manager.ConsumerQueue.Add(new PoisonJob());
@@ -74,12 +79,6 @@
         {
             if (currentNode.CheckAndUpdateParentProperties(_manager.GetAclProperty, _manager.GetSizeProperty, firstTurn))
             {
-                if (PropertyManager.PropertyJobLog.IsDebugEnabled)
-                {
-                    var pn = currentNode.ParentNode;
-                    PropertyManager.PropertyJobLog.Debug(
-                        $"{JobType()}.UpdateParentPorperty, JobEntryName: {_currentNode.FullPath}, ParentNode: {pn.FullPath}, AllChildPropertiesUpdated{(_manager.GetSizeProperty ? $", TotFiles: {pn.TotChildFiles}, TotDirecs: {pn.TotChildDirec}, Totsizes: {pn.TotChildSize}" : string.Empty)}{(_manager.GetAclProperty ? $", IsAclSameForAllChilds: {pn.AllChildSameAcl}" : string.Empty)}");
-                }
                 // Everything below currentNode.ParentNode is done- now put job for dumping
                 EnqueueWritingJobForAllChilds(currentNode.ParentNode);
                 if (currentNode.ParentNode.DepthLevel == 0)
@@ -89,15 +88,6 @@
                 else
                 {
                     UpdateParentProperty(currentNode.ParentNode, false);
-                }
-            }
-            else
-            {
-                if (PropertyManager.PropertyJobLog.IsDebugEnabled)
-                {
-                    var pn = currentNode.ParentNode;
-                    PropertyManager.PropertyJobLog.Debug(
-                        $"{JobType()}.UpdateParentPorperty, JobEntryNode: {_currentNode.FullPath}, ParentNode: {pn.FullPath}{(_manager.GetSizeProperty ? $", TotChildSizeDone: {pn.GetNumChildDirectoryProcessed()}/{pn.ChildDirectoryNodes.Count}, TotFiles: {pn.TotChildFiles}, TotDirecs: {pn.TotChildDirec}, Totsizes: {pn.TotChildSize}" : string.Empty)}{(_manager.GetAclProperty ? $", TotChildSizeDone: {pn.GetNumChildsAclProcessed()}/{pn.ChildDirectoryNodes.Count + pn.ChildFileNodes.Count}, IsAclSameForAllChilds: {pn.AllChildSameAcl}" : string.Empty)}");
                 }
             }
         }
@@ -111,7 +101,7 @@
                     return;
                 }
                 // Do not show the children's acl information since parent has a consistent acl and user want to see consistent acl only
-                bool skipChildAclOuput = _manager.GetAclProperty && _manager.DisplayConsistentAclTree && currentNode.AllChildSameAcl;
+                bool skipChildAclOuput = _manager.GetAclProperty && _manager.HideConsistentAclTree && currentNode.AllChildSameAcl;
                 // If we are viewing acl only then no need to show the children since parent has consistent acl
                 if (skipChildAclOuput && !_manager.GetSizeProperty)
                 {
@@ -120,16 +110,15 @@
                 foreach (var dirNode in currentNode.ChildDirectoryNodes)
                 {
                     dirNode.SkipAclOutput = skipChildAclOuput;
-                    _manager.ConsumerQueue.Add(new DumpFilePropertyJob(_manager, dirNode));
+                    _manager.PropertyWriterQueue.Add(new DumpFilePropertyJob(_manager, dirNode));
                 }
-                // For files: If user is viewing sizes only then only show files if user has explicitly specified DisplayFiles.
-                // If acl then show files if it is necessary to show acl infromation for files
-                if (_manager.DisplayFiles || _manager.GetAclProperty && !skipChildAclOuput)
+                
+                if (_manager.DisplayFiles)
                 {
                     foreach (var fileNode in currentNode.ChildFileNodes)
                     {
                         fileNode.SkipAclOutput = skipChildAclOuput;
-                        _manager.ConsumerQueue.Add(new DumpFilePropertyJob(_manager, fileNode));
+                        _manager.PropertyWriterQueue.Add(new DumpFilePropertyJob(_manager, fileNode));
                     }
                 }
             }

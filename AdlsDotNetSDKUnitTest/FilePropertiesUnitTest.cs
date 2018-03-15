@@ -180,14 +180,20 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             TestTreeNode(node, _recurseLevel - 1);
             node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, false, true, LocalPath + @"\logFile1", true, 25, true);
             Assert.IsTrue(node.AllChildSameAcl);
+            node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, true, true, LocalPath + @"\logFile2", true, 25);
+            TestTreeNode(node, _recurseLevel - 1);
             node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, true, true, LocalPath + @"\logFile2", true, 25, true);
             TestTreeNode(node, _recurseLevel - 1);
             Assert.IsTrue(node.AllChildSameAcl);
             var entry = new List<AclEntry>()
             {
-                new AclEntry(AclType.user, SdkUnitTest.Group1Id, AclScope.Default, AclAction.WriteExecute)
+                new AclEntry(AclType.user, SdkUnitTest.Group1Id, AclScope.Access, AclAction.WriteExecute)
             };
-            _adlsClient.ModifyAclEntries(UnitTestPath + "/B1/C0/D0", entry);
+
+            _adlsClient.ModifyAclEntries(UnitTestPath + "/B1/C0/C0File.txt", entry);
+            node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, false, true, LocalPath + @"\logFile3", true, 25);
+            // This will still be true because we are only getting acl of directories and consistent acl wont take account of the file
+            Assert.IsTrue(node.AllChildSameAcl);
             node = PropertyManager.TestGetProperty(UnitTestPath + "/B1", _adlsClient, false, true, LocalPath + @"\logFile3", true, 25, true);
             Assert.IsFalse(node.AllChildSameAcl);
         }

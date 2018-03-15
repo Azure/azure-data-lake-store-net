@@ -2,6 +2,7 @@
 
 namespace Microsoft.Azure.DataLake.Store.FileProperties.Jobs
 {
+    // This JOB IS ALWAYS RUN BY ONE THREAD _threadWriter
     internal class DumpFilePropertyJob : BaseJob
     {
         private readonly PropertyManager _manager;

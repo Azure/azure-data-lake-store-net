@@ -1,10 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Microsoft.Azure.DataLake.Store.Acl;
+using NLog;
 
 namespace Microsoft.Azure.DataLake.Store.FileProperties
 {
     internal class PropertyTreeNode
     {
+        /// <summary>
+        /// This logging is only for debuging purposes, it will dump huge amount of per-thread data
+        /// </summary>
+        private static readonly Logger PropertyTreeNodeLog = LogManager.GetLogger("adls.dotnetverbose.PropertyTreeNode");
         internal List<PropertyTreeNode> ChildDirectoryNodes { get; set; }
         internal List<PropertyTreeNode> ChildFileNodes { get; set; }
         internal long DepthLevel;
@@ -39,10 +45,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         }
         internal long GetNumChildDirectoryProcessed()
         {
-            lock (_lock)
-            {
-                return _numChildDirectoryNodesSizeCalculated;
-            }
+            return _numChildDirectoryNodesSizeCalculated;
         }
         private readonly object _lock = new object();
         internal PropertyTreeNode(string fullPath, DirectoryEntryType type, long size, PropertyTreeNode parent, bool calculateFile) : this(fullPath, type, size, parent)
@@ -84,23 +87,21 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         {
             return _numChildDirectoryNodesSizeCalculated >= ChildDirectoryNodes.Count;
         }
-        // This is always called by the child nodes - Will return true if all the child directory node sizes are computed
-        private bool UpdateNumChildNodeSizeCalculated()
-        {
-            _numChildDirectoryNodesSizeCalculated++;
-            return _numChildDirectoryNodesSizeCalculated >= ChildDirectoryNodes.Count;
-        }
+        
         // Updates the current node's disk properties with the child's properties. If all childs have updated, then just return true.
         private bool UpdateNodeSize(long childDirec, long childFiles, long size)
         {
             if (CheckAllChildDirectoryNodesCalculated())
             {
-                return true;
+                // This should never be entered
+                throw new Exception($"Size property of Parent: {FullPath} is getting updated more than it should be {ChildDirectoryNodes.Count}");
             }
             TotChildDirec += childDirec;
             TotChildFiles += childFiles;
             TotChildSize += size;
-            return UpdateNumChildNodeSizeCalculated();
+            // Will return true if all the child directory node sizes are computed
+            _numChildDirectoryNodesSizeCalculated++;
+            return CheckAllChildDirectoryNodesCalculated();
         }
         #endregion
 
@@ -109,19 +110,13 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         {
             return _numChildsAclProcessed >= ChildDirectoryNodes.Count + ChildFileNodes.Count;
         }
-        // Updates the number of childs whose acl has been compared
-        private bool UpdateNumChildAclProcessed()
-        {
-            _numChildsAclProcessed++;
-            return _numChildsAclProcessed >= (ChildDirectoryNodes.Count + ChildFileNodes.Count);
-        }
-
+        
         private bool CompareAclAndUpdateChildAclProcessed(List<AclEntry> acls, bool childAclSame)
         {
-
-            if (CheckAllAclChildNodesProcessed()) //If acl for all child nodes are computed
+            if (CheckAllAclChildNodesProcessed())
             {
-                return true;
+                // This should never be entered
+                throw new Exception($"Acl property of Parent: {FullPath} is getting updated more than it should be {ChildDirectoryNodes.Count + ChildFileNodes.Count}");
             }
             bool isAclSame = true;
             if (Acls.Entries.Count == acls.Count)
@@ -146,11 +141,16 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                 isAclSame = false;
             }
             AllChildSameAcl = isAclSame && AllChildSameAcl && childAclSame;
-            return UpdateNumChildAclProcessed();
+
+            // Updates the number of childs whose acl has been compared
+            _numChildsAclProcessed++;
+            return CheckAllAclChildNodesProcessed();
         }
+
         #endregion
         /// <summary>
-        /// This update the Acl property or size proerty or both of the current node. This is called by a child node.
+        /// This updates the Acl property or size proerty or both of the current node. This is called by a child node.
+        /// If both are getting computed: For a directory we must update them together only. Meaning /Data should update both proerpties of / at the same time
         /// </summary>
         /// <param name="getAclProperty">True if we want the acl as one property</param>
         /// <param name="getSizeProperty">True if we want size as one property</param>
@@ -159,10 +159,13 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         /// <returns></returns>
         private bool CheckAndUpdateProperties(bool getAclProperty, bool getSizeProperty, PropertyTreeNode childNode, bool checkBaseCase)
         {
-            // Whether to compute Acl this turn- when we have reached end of tree i.e. there are no children or if child is a file or if we are recursively moving up
-            // Whether to compute size this turn- when we have reached end of tree i.e. there are no children directories or if we are moving recursively up
-            bool computeAclThisTurn = getAclProperty && (!checkBaseCase || childNode.NoChildren());
-            bool computeSizeThisTurn = getSizeProperty && (!checkBaseCase || (childNode.Type == DirectoryEntryType.DIRECTORY && childNode.NoDirectoryChildren()));
+            // Whether to compute Acl this turn- when we have reached end of tree i.e. there are no children (files and directories) or if child is a file or if we are recursively moving up
+            bool computeAclThisTurn = !checkBaseCase || childNode.NoChildren();
+
+            // Whether to compute size this turn- 1) if we are moving recursively up 2) when we have reached end of tree there are two options: 
+            //a) if we are getting Acl then we will only update size if it has no files and directories For ex: childNode is /Data which has few files under it. In this case we cannot update size of / with size of /Data because acl of files under /data is still not computed 
+            //b) if acl is not computed then just see if childnode has any directories or not. If it has files we do not need to wait since acl is not getting computed
+            bool computeSizeThisTurn = !checkBaseCase || childNode.Type == DirectoryEntryType.DIRECTORY && (getAclProperty ? childNode.NoChildren() : childNode.NoDirectoryChildren());
             if (!(computeAclThisTurn || computeSizeThisTurn)) // If we do not have to compute acl or size property just return
             {
                 return false;
@@ -193,6 +196,11 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                     {
                         allProperty = CheckAllAclChildNodesProcessed() && allProperty;
                     }
+                }
+                if (PropertyTreeNodeLog.IsDebugEnabled)
+                {
+                    PropertyTreeNodeLog.Debug(
+                        $"UpdateParentPorperty, allPropertyUpdated: {allProperty}, checkBase: {checkBaseCase}, JobEntryNode: {childNode.FullPath}, ParentNode: {FullPath}{(getSizeProperty ? $", TotChildSizeDone: {GetNumChildDirectoryProcessed()}/{ChildDirectoryNodes.Count}, TotFiles: {TotChildFiles}, TotDirecs: {TotChildDirec}, Totsizes: {TotChildSize}" : string.Empty)}{(getAclProperty ? $", TotChildAclDone: {GetNumChildsAclProcessed()}/{ChildDirectoryNodes.Count + ChildFileNodes.Count}, IsAclSameForAllChilds: {AllChildSameAcl}" : string.Empty)}");
                 }
                 return allProperty;
             }

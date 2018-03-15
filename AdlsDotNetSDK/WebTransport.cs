@@ -17,6 +17,10 @@ namespace Microsoft.Azure.DataLake.Store
     internal class WebTransport
     {
         /// <summary>
+        /// Logger to log VERB, Header of requests and responses headers
+        /// </summary>
+        private static readonly Logger WebTransportPowershellLog = LogManager.GetLogger("adls.powershell.WebTransport");
+        /// <summary>
         /// Logger to log messages related to Http transport
         /// </summary>
         private static readonly Logger WebTransportLog = LogManager.GetLogger("adls.dotnet.WebTransport");
@@ -187,7 +191,7 @@ namespace Microsoft.Azure.DataLake.Store
                 }
                 else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
                 {
-                    error = resp.HttpStatus + ": " + resp.RemoteExceptionName;
+                    error = $"{resp.HttpStatus} ( {resp.RemoteExceptionName}  {resp.RemoteExceptionMessage} JavaClassName: {resp.RemoteExceptionJavaClassName} ";
                 }
                 else if (!string.IsNullOrEmpty(resp.Error))
                 {
@@ -199,7 +203,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (WebTransportLog.IsDebugEnabled)
             {
-                string logLine = $"HTTPRequest,{(resp.IsSuccessful ? "Succeeded" : "failed")},cReqId:{requestId},lat:{resp.LastCallLatency},err{error},Reqlen:{requestLength},Resplen:{responseLength}" +
+                string logLine = $"HTTPRequest,{(resp.IsSuccessful ? "Succeeded" : "failed")},cReqId:{requestId},lat:{resp.LastCallLatency},err:{error},Reqlen:{requestLength},Resplen:{responseLength}" +
                                  $",token_ns:{resp.TokenAcquisitionLatency},sReqId:{resp.RequestId},path:{path},qp:{querParams}";
                 WebTransportLog.Debug(logLine);
             }
@@ -217,6 +221,36 @@ namespace Microsoft.Azure.DataLake.Store
             else if (!string.IsNullOrEmpty(resp.RemoteExceptionName)) resp.IsSuccessful = false;
             else if (((int)resp.HttpStatus) >= 100 && ((int)resp.HttpStatus) < 300) resp.IsSuccessful = true;
             else resp.IsSuccessful = false;
+        }
+
+        private static void PostPowershellLogDetails(HttpWebRequest request, HttpWebResponse response)
+        {
+            if (WebTransportPowershellLog.IsDebugEnabled)
+            {
+                string message = $"VERB: {request.Method}{Environment.NewLine}{Environment.NewLine}RequestHeaders:{Environment.NewLine}";
+                bool firstHeader = true;
+                foreach (string requestHeader in request.Headers)
+                {
+                    if (requestHeader.Equals("Authorization"))
+                    {
+                        continue;
+                    }
+
+                    message += (!firstHeader ? Environment.NewLine : "") + $"[{requestHeader}:{request.Headers[requestHeader]}]";
+                    firstHeader = false;
+                }
+                message += $"{Environment.NewLine}{Environment.NewLine}";
+                message += $"ResponseStatus:{response.StatusCode}{Environment.NewLine}{Environment.NewLine}ResponseHeaders:{Environment.NewLine}";
+                firstHeader = true;
+                foreach (string responseHeader in response.Headers)
+                {
+                    message += (!firstHeader ? Environment.NewLine : "") + $"[{responseHeader}:{response.Headers[responseHeader]}]";
+                    firstHeader = false;
+                }
+
+                message += $"{Environment.NewLine}{Environment.NewLine}";
+                WebTransportPowershellLog.Debug(message);
+            }
         }
 
         /// <summary>
@@ -242,82 +276,96 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return null;
             }
+
             try
             {
-                //If operation is cancelled then stop
-                cancelToken.ThrowIfCancellationRequested();
-                HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(urlString);
-                //This point onwards if operation is cancelled http request is aborted
-                cancelToken.Register(OnCancel, webReq);
-                Stopwatch watch = Stopwatch.StartNew();
-                token = await client.GetTokenAsync(cancelToken).ConfigureAwait(false);
-                watch.Stop();
-                resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
-                if (string.IsNullOrEmpty(token))
+                // Create does not throw WebException
+                HttpWebRequest webReq = (HttpWebRequest) WebRequest.Create(urlString);
+                try
                 {
-                    resp.Error = "Token is null or empty";
-                    return null;
-                }
-                AssignCommonHttpHeaders(webReq, client, req, token, op.Method);
-                if (!op.Method.Equals("GET"))
-                {
-                    if (op.RequiresBody && requestData.Data != null)
+                    //If operation is cancelled then stop
+                    cancelToken.ThrowIfCancellationRequested();
+                    //This point onwards if operation is cancelled http request is aborted
+                    cancelToken.Register(OnCancel, webReq);
+                    Stopwatch watch = Stopwatch.StartNew();
+                    token = await client.GetTokenAsync(cancelToken).ConfigureAwait(false);
+                    watch.Stop();
+                    resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
+                    if (string.IsNullOrEmpty(token))
                     {
-                        SetWebRequestContentLength(webReq, requestData.Count); 
-                        using (Stream ipStream = await webReq.GetRequestStreamAsync().ConfigureAwait(false))
-                        {
-                            await ipStream.WriteAsync(requestData.Data, requestData.Offset, requestData.Count,
-                                cancelToken).ConfigureAwait(false);
-                        }
+                        resp.Error = "Token is null or empty";
+                        return null;
                     }
-                    else
-                    {
-                        SetWebRequestContentLength(webReq, 0);
-                    }
-                }
-                using (var webResponse = (HttpWebResponse)await webReq.GetResponseAsync().ConfigureAwait(false))
-                {
-                    resp.HttpStatus = webResponse.StatusCode;
-                    resp.HttpMessage = webResponse.StatusDescription;
-                    resp.RequestId = webResponse.Headers["x-ms-request-id"];
-                    if (op.ReturnsBody)
-                    {
 
-                        if (!InitializeResponseData(webResponse, ref responseData))
+                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method);
+                    if (!op.Method.Equals("GET"))
+                    {
+                        if (op.RequiresBody && requestData.Data != null)
                         {
-                            return null;
-                        }
-                        int totalBytes = 0;
-                        using (Stream opStream = webResponse.GetResponseStream())
-                        {
-
-                            int noBytes;
-                            int totalLengthToRead = responseData.Count;
-                            //Read the required amount of data. In case of chunked it is what users requested, else it is amount of data sent
-                            do
+                            using (Stream ipStream = await webReq.GetRequestStreamAsync().ConfigureAwait(false))
                             {
-                                noBytes = await opStream.ReadAsync(responseData.Data, responseData.Offset, totalLengthToRead, cancelToken).ConfigureAwait(false);
-                                totalBytes += noBytes;
-                                responseData.Offset += noBytes;
-                                totalLengthToRead -= noBytes;
-
-                            } while (noBytes > 0 && totalLengthToRead > 0);
+                                await ipStream.WriteAsync(requestData.Data, requestData.Offset, requestData.Count,
+                                    cancelToken).ConfigureAwait(false);
+                            }
                         }
-                        return Tuple.Create(responseData.Data, totalBytes);//Return the total bytes read also since in case of chunked amount of data returned can be less than data returned
+                        else
+                        {
+                            SetWebRequestContentLength(webReq, 0);
+                        }
+                    }
+
+                    using (var webResponse = (HttpWebResponse) await webReq.GetResponseAsync().ConfigureAwait(false))
+                    {
+                        resp.HttpStatus = webResponse.StatusCode;
+                        resp.HttpMessage = webResponse.StatusDescription;
+                        resp.RequestId = webResponse.Headers["x-ms-request-id"];
+                        PostPowershellLogDetails(webReq, webResponse);
+                        if (op.ReturnsBody)
+                        {
+
+                            if (!InitializeResponseData(webResponse, ref responseData))
+                            {
+                                return null;
+                            }
+
+                            int totalBytes = 0;
+                            using (Stream opStream = webResponse.GetResponseStream())
+                            {
+
+                                int noBytes;
+                                int totalLengthToRead = responseData.Count;
+                                //Read the required amount of data. In case of chunked it is what users requested, else it is amount of data sent
+                                do
+                                {
+                                    noBytes = await opStream.ReadAsync(responseData.Data, responseData.Offset,
+                                        totalLengthToRead, cancelToken).ConfigureAwait(false);
+                                    totalBytes += noBytes;
+                                    responseData.Offset += noBytes;
+                                    totalLengthToRead -= noBytes;
+
+                                } while (noBytes > 0 && totalLengthToRead > 0);
+                            }
+
+                            return
+                                Tuple.Create(responseData.Data,
+                                    totalBytes); //Return the total bytes read also since in case of chunked amount of data returned can be less than data returned
+                        }
                     }
                 }
-            }
-            catch (WebException e)
-            {
-                HandleWebException(e, resp, path, req.RequestId, token, cancelToken);
-            }
+                catch (WebException e)
+                {
+                    HandleWebException(e, resp, path, req.RequestId, token, webReq, cancelToken);
+                }
+            }// Any unhandled exception is caught here
             catch (Exception e)
             {
                 resp.Ex = cancelToken.IsCancellationRequested ? new OperationCanceledException(cancelToken) : e;
 
             }
+
             return null;
         }
+
         /// <summary>
         /// Makes a single Http call to the server, sends the request and obtains the response. This is a synchronous call.
         /// </summary>
@@ -339,85 +387,97 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return null;
             }
+
             try
             {
-                HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(urlString);
-                Stopwatch watch = Stopwatch.StartNew();
-                token = client.GetTokenAsync().GetAwaiter().GetResult();
-                watch.Stop();
-                resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
-                if (string.IsNullOrEmpty(token))
+                // Create does not throw WebException
+                HttpWebRequest webReq = (HttpWebRequest) WebRequest.Create(urlString);
+                try
                 {
-                    resp.Error = "Token is null or empty";
-                    return null;
-                }
-                AssignCommonHttpHeaders(webReq, client, req, token, op.Method);
-                if (!op.Method.Equals("GET"))
-                {
-                    if (op.RequiresBody && requestData.Data != null)
+                    Stopwatch watch = Stopwatch.StartNew();
+                    token = client.GetTokenAsync().GetAwaiter().GetResult();
+                    watch.Stop();
+                    resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
+                    if (string.IsNullOrEmpty(token))
                     {
-                        SetWebRequestContentLength(webReq, requestData.Count);
-#if NET452
-                        using (Stream ipStream = webReq.GetRequestStream())
-#else
-                        using (Stream ipStream = webReq.GetRequestStreamAsync().GetAwaiter().GetResult())
-#endif
+                        resp.Error = "Token is null or empty";
+                        return null;
+                    }
+
+                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method);
+                    if (!op.Method.Equals("GET"))
+                    {
+                        if (op.RequiresBody && requestData.Data != null)
                         {
-                            ipStream.Write(requestData.Data, requestData.Offset, requestData.Count);
+#if NET452
+                            using (Stream ipStream = webReq.GetRequestStream())
+#else
+                            using (Stream ipStream = webReq.GetRequestStreamAsync().GetAwaiter().GetResult())
+#endif
+                            {
+                                ipStream.Write(requestData.Data, requestData.Offset, requestData.Count);
+                            }
+                        }
+                        else
+                        {
+                            SetWebRequestContentLength(webReq, 0);
                         }
                     }
-                    else
-                    {
-                        SetWebRequestContentLength(webReq, 0);
-                    }
-                }
 #if NET452
                 using (var webResponse = (HttpWebResponse)webReq.GetResponse())
 #else
-                using (var webResponse = (HttpWebResponse)webReq.GetResponseAsync().GetAwaiter().GetResult())
+                    using (var webResponse = (HttpWebResponse) webReq.GetResponseAsync().GetAwaiter().GetResult())
 #endif
-                {
-                    resp.HttpStatus = webResponse.StatusCode;
-                    resp.HttpMessage = webResponse.StatusDescription;
-                    resp.RequestId = webResponse.Headers["x-ms-request-id"];
-                    if (op.ReturnsBody)
                     {
-
-                        if (!InitializeResponseData(webResponse, ref responseData))
-                        {
-                            return null;
-                        }
-                        int totalBytes = 0;
-                        using (Stream opStream = webResponse.GetResponseStream())
+                        resp.HttpStatus = webResponse.StatusCode;
+                        resp.HttpMessage = webResponse.StatusDescription;
+                        resp.RequestId = webResponse.Headers["x-ms-request-id"];
+                        PostPowershellLogDetails(webReq, webResponse);
+                        if (op.ReturnsBody)
                         {
 
-                            int noBytes;
-                            int totalLengthToRead = responseData.Count;
-                            //Read the required amount of data. In case of chunked it is what users requested, else it is amount of data sent
-                            do
+                            if (!InitializeResponseData(webResponse, ref responseData))
                             {
-                                noBytes = opStream.Read(responseData.Data, responseData.Offset, totalLengthToRead);
-                                totalBytes += noBytes;
-                                responseData.Offset += noBytes;
-                                totalLengthToRead -= noBytes;
+                                return null;
+                            }
 
-                            } while (noBytes > 0 && totalLengthToRead > 0);
+                            int totalBytes = 0;
+                            using (Stream opStream = webResponse.GetResponseStream())
+                            {
+
+                                int noBytes;
+                                int totalLengthToRead = responseData.Count;
+                                //Read the required amount of data. In case of chunked it is what users requested, else it is amount of data sent
+                                do
+                                {
+                                    noBytes = opStream.Read(responseData.Data, responseData.Offset, totalLengthToRead);
+                                    totalBytes += noBytes;
+                                    responseData.Offset += noBytes;
+                                    totalLengthToRead -= noBytes;
+
+                                } while (noBytes > 0 && totalLengthToRead > 0);
+                            }
+
+                            return
+                                Tuple.Create(responseData.Data,
+                                    totalBytes); //Return the total bytes read also since in case of chunked amount of data returned can be less than data returned
                         }
-                        return Tuple.Create(responseData.Data, totalBytes);//Return the total bytes read also since in case of chunked amount of data returned can be less than data returned
                     }
                 }
-            }
-            catch (WebException e)
-            {
-                HandleWebException(e, resp, path, req.RequestId, token);
-            }
+                catch (WebException e)
+                {
+                    HandleWebException(e, resp, path, req.RequestId, token, webReq);
+                }
+            }// Any unhandled exception is caught here
             catch (Exception e)
             {
                 resp.Ex = e;
 
             }
+
             return null;
         }
+
         /// <summary>
         /// Serializes the client FQDN, queryparams and token into a request URL
         /// </summary>
@@ -472,6 +532,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 webReq.Headers["x-ms-adl-client-latency"] = latencyHeader;
             }
+             
 #if NET452
             webReq.UserAgent = client.GetUserAgent();
             //Setting timeout is only available in NET452
@@ -497,7 +558,7 @@ namespace Microsoft.Azure.DataLake.Store
 #else
             // Set the ContentLength property of the WebRequest.  
             webReq.Headers["Content-Length"] = Convert.ToString(count);
-#endif           
+#endif
         }
         /// <summary>
         /// Verifies the responseData for the operation and initializes it if the encoding is chunked
@@ -548,8 +609,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="path">Path</param>
         /// <param name="requestId">Request Id</param>
         /// <param name="token">Auth token</param>
-        /// <param name="cancelToken">Cance</param>
-        private static void HandleWebException(WebException e, OperationResponse resp, string path, string requestId, string token, CancellationToken cancelToken = default(CancellationToken))
+        /// <param name="webReq">Http Web request</param>
+        /// <param name="cancelToken">Cancel Token</param>
+        private static void HandleWebException(WebException e, OperationResponse resp, string path, string requestId, string token, HttpWebRequest webReq, CancellationToken cancelToken = default(CancellationToken))
         {
             if (cancelToken.IsCancellationRequested)
             {
@@ -562,6 +624,7 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     using (var errorResponse = (HttpWebResponse) e.Response)
                     {
+                        PostPowershellLogDetails(webReq, errorResponse);
                         resp.HttpStatus = errorResponse.StatusCode;
                         resp.RequestId = errorResponse.Headers["x-ms-request-id"];
                         if (resp.HttpStatus == HttpStatusCode.Unauthorized && TokenLog.IsDebugEnabled)

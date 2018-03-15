@@ -42,6 +42,7 @@ namespace Microsoft.Azure.DataLake.Store
     /// Client of Azure data lake store. It contains the public APIs to perform operations of REST API which are easier to call and more usable than Core APIs. Core APIs provide more freedom but ADLSClient provide more commonly used forms.
     /// It encapsulates the Authorization token and token refresh. Contains factory methods that takes a ServiceClientCredential or a string auth token and returns instance of this class. For every operation it provides
     /// a async and sync version. Every sync method is a wait on async method with exception of Create and Concurrent append. Currently this class is not inheritable since it has not exposed constructors.
+    /// Adls use NLog for logging. adls.dotnet.* is the name of the logger to obtain all logs.
     /// </summary>
     public class AdlsClient
     {
@@ -90,13 +91,15 @@ namespace Microsoft.Azure.DataLake.Store
         /// SDK version- AssemblyFileVersion
         /// </summary>
         private static readonly string SdkVersion;
+
         /// <summary>
         /// Default number of threads used by tools like uploader/downloader, recursive acl change and other multi-threaded tools using the SDK.
         /// Can be used to set ServicePointManager.DefaultConnectionLimit if you want the SDK to decide number of threads it uses for multi-threaded tools.
         /// </summary>
-        public static int DefaultNumThreads { get; internal set;  }
+        public static int DefaultNumThreads { get; internal set; }
 
         internal const int DefaultThreadsCalculationFactor = 8;
+
         #endregion
 
         #region Constructors
@@ -1219,16 +1222,23 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="getDiskUsage">True if we want disk usage</param>
         /// <param name="saveToLocal">True if we want to save to local file else save to ADL</param>
         /// <param name="numThreads">Number of threads</param>
-        /// <param name="displayFiles">True if we want to display properties of files. By default we show properties of directories</param>
+        /// <param name="displayFiles">True if we want to display properties of files. By default we show properties of directories. If this is false we would not retrieve Acls for files.</param>
         /// <param name="hideConsistentAcl">if True then we wont dump the acl property of a directory/file if it's parent directory has same acl for all of its descendants. For ex: If 
-        ///                                     the root ("/") has same Acl for all it's descendants, then we will show the Acl for the root only. If this flag is false, then we show the Acl for all directories or files</param>
+        ///                                     the root ("/") has same Acl for all it's descendants, then we will show the Acl for the root only. If this flag is false, then we show the Acl for all directories or files.
+        ///                                 This cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files.</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
-        public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = true, long maxDepth = Int64.MaxValue)
+        public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue)
         {
             if (!(getAclUsage || getDiskUsage))
             {
                 throw new ArgumentException("At least one option of getAclUsage and getDiskUsage need to be set as true.");
             }
+
+            if (!displayFiles && hideConsistentAcl)
+            {
+                throw new ArgumentException("hideConsistentAcl cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files also.");
+            }
+
             PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth);
         }
         #endregion

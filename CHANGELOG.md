@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.1.4
+- Fix FileProperties bug for disk usage and acl usage for files
+- Internal changes to logging
+- Add Microsoft license and icon url for nuget in csproj
 ### Version 1.1.3
 - Internal changes.
 - Fix some unit tests
