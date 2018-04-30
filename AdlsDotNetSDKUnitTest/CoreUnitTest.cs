@@ -17,6 +17,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     [TestClass]
     public class CoreUnitTest
     {
+        /// <summary>
+        /// Adls Client
+        /// </summary>
+        private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
         private const int NumTests = 5;
         [ClassInitialize]
@@ -78,6 +82,29 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsClient.CreateClient("contoso.dogfood.com.net", "Test");
             AdlsClient.CreateClient("contoso-test.azure-data.net", "test");
         }
+
+        [TestMethod]
+        public void TestPathMissingRootSeparator()
+        {
+            string path = "CorePathMissingRootSeparator"+SdkUnitTest.TestId;
+            string direcPath = path + "/directory";
+            Assert.IsTrue(_adlsClient.CreateDirectory(direcPath));
+            string filePath = path + "/file";
+            string text = "First Line";
+            using (var writer = new StreamWriter(_adlsClient.CreateFile(filePath, IfExists.Overwrite)))
+            {
+                writer.Write(text);
+            }
+
+            using (var reader = new StreamReader(_adlsClient.GetReadStream(filePath)))
+            {
+                string output=reader.ReadToEnd();
+                Assert.IsTrue(text.Equals(output));
+            }
+
+            _adlsClient.DeleteRecursive(path);
+        }
+
         /// <summary>
         /// Unit test to test the exponential retry mechanism - 4 retries
         /// </summary>

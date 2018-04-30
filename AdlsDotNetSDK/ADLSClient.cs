@@ -41,8 +41,10 @@ namespace Microsoft.Azure.DataLake.Store
     /// <summary>
     /// Client of Azure data lake store. It contains the public APIs to perform operations of REST API which are easier to call and more usable than Core APIs. Core APIs provide more freedom but ADLSClient provide more commonly used forms.
     /// It encapsulates the Authorization token and token refresh. Contains factory methods that takes a ServiceClientCredential or a string auth token and returns instance of this class. For every operation it provides
-    /// a async and sync version. Every sync method is a wait on async method with exception of Create and Concurrent append. Currently this class is not inheritable since it has not exposed constructors.
-    /// Adls use NLog for logging. adls.dotnet.* is the name of the logger to obtain all logs.
+    /// a async and sync version. Every sync method is a wait on async method with exception of Create and Concurrent append. 
+    /// All APIs are thread safe with some exceptions in CreateFile and GetAppendStream. CreateFile and GetAppendStream cannot be called for the same path from different threads because writing is done with a lease so there will lease conflicts
+    /// If an application wants to perform multi-threaded operations using this SDK it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+    /// By default ServicePointManager.DefaultConnectionLimit is set to 2. Adls use NLog for logging. adls.dotnet.* is the name of the logger to obtain all logs.
     /// </summary>
     public class AdlsClient
     {
@@ -50,7 +52,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Logger to log information (debug/error/trace) regarding client
         /// </summary>
-        private static readonly Logger ClientLogger = LogManager.GetLogger("adls.dotnet");
+        protected static readonly Logger ClientLogger = LogManager.GetLogger("adls.dotnet");
         /// <summary>
         /// Object synchronise setters/getters for clienttoken and proto
         /// </summary>
@@ -99,6 +101,11 @@ namespace Microsoft.Azure.DataLake.Store
         public static int DefaultNumThreads { get; internal set; }
 
         internal const int DefaultThreadsCalculationFactor = 8;
+
+        /// <summary>
+        /// DIP IP
+        /// </summary>
+        internal string DipIp { get; set; }
 
         #endregion
 
@@ -215,10 +222,11 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Factory method that creates an instance AdlsClient using the token key. If an application wants to perform multi-threaded operations using this SDK
-        /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="accountFqdn">Azure data lake store account name including full domain name (e.g. contoso.azuredatalakestore.net)</param>
-        /// <param name="token">Full authorization Token e.g. Bearing: abcddsfere.....</param>
+        /// <param name="token">Full authorization Token e.g. Bearer abcddsfere.....</param>
         /// <returns>AdlsClient</returns>
         public static AdlsClient CreateClient(string accountFqdn, string token)
         {
@@ -227,7 +235,8 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
-        /// it is recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
@@ -239,6 +248,16 @@ namespace Microsoft.Azure.DataLake.Store
         #endregion
 
         #region Thread Safe Getter Setters
+        /// <summary>
+        /// Update the DipIp
+        /// </summary>
+        /// <param name="cancelToken"></param>
+        /// <returns></returns>
+        internal virtual Task UpdateDipAsync(CancellationToken cancelToken)
+        {
+            return Task.FromResult(default(object));
+        }
+
         /// <summary>
         /// Sets the request protocol as http. Only set for testing purposes.
         /// </summary>
@@ -323,7 +342,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         #region REST API 
         /// <summary>
-        /// Asynchronous API to create a directory
+        /// Asynchronous API to create a directory.
         /// </summary>
         /// <param name="dirName">Name of directory</param>
         /// <param name="octalPermission">Octal permission</param>
@@ -488,17 +507,10 @@ namespace Microsoft.Azure.DataLake.Store
                 ClientLogger.Trace($"AdlsStoreClient, Create File {filename} for client {ClientId}");
             }
             string leaseId = Guid.NewGuid().ToString();
-            RetryPolicy policy;
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            if (overwrite)
-            {
-                policy = new ExponentialRetryPolicy();
-            }
-            else
-            {
-                policy = new NoRetryPolicy();
-            }
+            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
+            
             OperationResponse resp = new OperationResponse();
             await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
@@ -534,17 +546,10 @@ namespace Microsoft.Azure.DataLake.Store
                 ClientLogger.Trace($"AdlsStoreClient, Create File {filename} for client {ClientId}");
             }
             string leaseId = Guid.NewGuid().ToString();
-            RetryPolicy policy;
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            if (overwrite)
-            {
-                policy = new ExponentialRetryPolicy();
-            }
-            else
-            {
-                policy = new NoRetryPolicy();
-            }
+            RetryPolicy policy = overwrite ?  new ExponentialRetryPolicy() : (RetryPolicy) new NonIdempotentRetryPolicy();
+            
             OperationResponse resp = new OperationResponse();
             Core.Create(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp);
             if (!resp.IsSuccessful)
@@ -553,6 +558,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous api to delete a file or directory. For directory it will only delete if it is empty.
         /// </summary>
@@ -578,6 +584,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return isSucceded;
         }
+
         /// <summary>
         /// Synchronous api to delete a file or directory. For directory it will only delete if it is empty.
         /// </summary>
@@ -588,6 +595,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return DeleteAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous api to delete a file or directory recursively
         /// </summary>
@@ -613,6 +621,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return isSucceded;
         }
+
         /// <summary>
         /// Synchronous api to delete a file or directory recursively. If it is a non-empty directory then it deletes the sub-directories or files.
         /// </summary>
@@ -623,6 +632,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return DeleteRecursiveAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous API to rename a file or directory.
         /// For renaming directory: If the destination exists then it puts the source directory one level under the destination.
@@ -663,6 +673,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return isSucceeded;
         }
+
         /// <summary>
         /// Synchronous API to rename a file or directory.
         /// For renaming directory: If the destination exists then it puts the source directory one level under the destination.
@@ -679,6 +690,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return RenameAsync(path, destination, overwrite, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
         /// </summary>
@@ -701,6 +713,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return diren;
         }
+
         /// <summary>
         /// Synchronously gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
         /// </summary>
@@ -775,6 +788,9 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return new FileStatusOutput(listBefore, listAfter, maxEntries, userIdFormat, this, path);
         }
+
+        #region Access, Acl, Permission
+        
         /// <summary>
         /// Asynchronously sets the expiry time
         /// </summary>
@@ -845,6 +861,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return CheckAccessAsync(path, rwx, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously sets the permission of the specified path
         /// </summary>
@@ -877,6 +894,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             SetPermissionAsync(path, permission, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously modifies acl entries of a file or directory with given ACL list. It merges the exisitng ACL list with given list.
         /// </summary>
@@ -896,6 +914,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, false)} for path {path}.");
             }
         }
+
         /// <summary>
         /// Modifies acl entries of a file or directory with given ACL list. It merges the exisitng ACL list with given list.
         /// </summary>
@@ -907,6 +926,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             ModifyAclEntriesAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously sets Acl Entries for a file or directory. It wipes out the existing Acl entries for the path.
         /// </summary>
@@ -926,6 +946,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, false)} for path {path}.");
             }
         }
+
         /// <summary>
         /// Sets Acl Entries for a file or directory. It wipes out the existing Acl entries for the path.
         /// </summary>
@@ -937,6 +958,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             SetAclAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Sets the owner or/and group of the path
         /// </summary>
@@ -948,6 +970,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             SetOwnerAsync(path, owner, group, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously sets the owner or/and group of the path
         /// </summary>
@@ -988,6 +1011,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in modifying ACL entries {AclEntry.SerializeAcl(aclSpec, true)} for path {path}.");
             }
         }
+
         /// <summary>
         /// Removes specified Acl Entries for a file or directory.
         /// </summary>
@@ -999,6 +1023,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             RemoveAclEntriesAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously removes all Acl Entries for a file or directory.
         /// </summary>
@@ -1017,6 +1042,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in removing all ACL entries for path {path}.");
             }
         }
+
         /// <summary>
         /// Removes all Acl Entries for a file or directory.
         /// </summary>
@@ -1026,6 +1052,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             RemoveAllAclsAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously removes all Acl Entries of AclScope default for a file or directory.
         /// </summary>
@@ -1044,6 +1071,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in removing all default ACL entries for path {path}.");
             }
         }
+
         /// <summary>
         /// Removes all Acl Entries of AclScope default for a file or directory.
         /// </summary>
@@ -1053,6 +1081,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             RemoveDefaultAclsAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronously gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
@@ -1073,6 +1102,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return status;
         }
+
         /// <summary>
         /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
@@ -1083,8 +1113,13 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return GetAclStatusAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
         }
+
+        #endregion
+
         /// <summary>
-        /// Gets content summary of a file or directory
+        /// Gets content summary of a file or directory.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="path">Path of the directory or file</param>
         /// <param name="numThreads">Number of threads</param>
@@ -1117,6 +1152,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in concurrent append for file {path}.");
             }
         }
+
         /// <summary>
         /// Synchronous API to perform concurrent append at server. The offset at which append will occur is determined by server.
         /// </summary>
@@ -1138,6 +1174,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in concurrent append for file {path}.");
             }
         }
+
         /// <summary>
         /// Checks whether file or directory exists
         /// </summary>
@@ -1163,12 +1200,15 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return true;
         }
+
         #endregion
 
         #region SDKTools
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="srcPath">Local source path</param>
         /// <param name="destPath">Remote destination path - It should always be a directory.</param>
@@ -1184,9 +1224,12 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return FileUploader.Upload(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, isBinary, cancelToken);
         }
+
         /// <summary>
         /// Download directory or file from remote server to local. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="srcPath">Remote source path</param>
         /// <param name="destPath">Local destination path. It should always be a directory.</param>
@@ -1201,8 +1244,11 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return FileDownloader.Download(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, cancelToken);
         }
+
         /// <summary>
         /// Change Acl (Modify, set and remove) recursively on a directory tree
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="path">The root directory path from where the Acl change will begin</param>
         /// <param name="aclEntries">Acl entries to add or set or remove depending on the input</param>
@@ -1213,8 +1259,11 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return AclProcessor.RunAclProcessor(path, this, aclEntries, type, threadCount);
         }
+
         /// <summary>
         /// Recursively dumps file property of alldirectories or/and files under the given path to a local or adl file. File property can be disk usage or Acl or both.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
         /// <param name="path">Path of the file or directory</param>
         /// <param name="getAclUsage">True if we want Acl usage</param>
@@ -1223,9 +1272,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="saveToLocal">True if we want to save to local file else save to ADL</param>
         /// <param name="numThreads">Number of threads</param>
         /// <param name="displayFiles">True if we want to display properties of files. By default we show properties of directories. If this is false we would not retrieve Acls for files.</param>
-        /// <param name="hideConsistentAcl">if True then we wont dump the acl property of a directory/file if it's parent directory has same acl for all of its descendants. For ex: If 
-        ///                                     the root ("/") has same Acl for all it's descendants, then we will show the Acl for the root only. If this flag is false, then we show the Acl for all directories or files.
-        ///                                 This cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files.</param>
+        /// <param name="hideConsistentAcl">Do not show directory subtree if the ACLs are the same throughout the entire subtree. This 
+        ///                                 makes it easier to see only the paths up to which the ACLs differ. For example if all files and folders under /a/b are the same, do not show the subtree under /a/b, and just output /a/b with 'True' in the Consistent ACL column. Cannot be set if IncludeFiles is not set, because consistent Acl cannot be determined without retrieving acls for the files.</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
         public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue)
         {
@@ -1241,6 +1289,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth);
         }
+
         #endregion
 
         /// <summary>

@@ -70,7 +70,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             Client = client;
             CancelToken = cancelToken;
-            NumThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
+            NumThreads = numThreads <= 0 ? AdlsClient.DefaultNumThreads : numThreads;
             _threadWorker = new Thread[NumThreads];
             for (int i = 0; i < NumThreads; i++)
             {

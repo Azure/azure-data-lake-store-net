@@ -9,7 +9,8 @@ namespace Microsoft.Azure.DataLake.Store
 {
     /// <summary>
     /// ADLS Input stream that reads data from a file on Data lake. It reads data in bulk from server to a buffer and then provides buffered output to the client as per request.
-    /// Data can be read asynchronously/synchronously. Data can be read serially or from arbitrary points in file. Read is fully synchronous till the transport layer. ReadAsync is fully synchronous till the transport layer. 
+    /// Data can be read asynchronously/synchronously. Data can be read serially or from arbitrary points in file. Read is fully synchronous till the transport layer. ReadAsync is fully asynchronous till the transport layer. 
+    /// AdlsInputStream is not threadsafe since it uses buffer (maintains state so not stateless). 
     /// </summary>
     public class AdlsInputStream : Stream
     {

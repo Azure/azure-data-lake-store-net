@@ -141,13 +141,12 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                 {
                     PropertyLog.Debug($"FileProperty, SourcePath: {path}, GetDiskUsage: {GetSizeProperty}, GetAclProperty: {GetAclProperty}{(GetAclProperty ? $", AclConsistency: {HideConsistentAclTree}" : string.Empty)}, SaveToLocal: {SaveToLocal}");
                 }
-                // Create DumpFile
+
                 var dir = Client.GetDirectoryEntry(path); // If the path does not exist then it will throw an exception
                 HeadNode = new PropertyTreeNode(dir.FullName, dir.Type, dir.Length, null, DisplayFiles || GetAclProperty);
-                if (dir.Type == DirectoryEntryType.FILE)
+                if (dir.Type == DirectoryEntryType.FILE && !DisplayFiles)
                 {
-                    WritePropertyTreeNodeToFile(HeadNode);
-                    return HeadNode;
+                    throw new ArgumentException("Input path is a file and DisplayFiles is false");
                 }
                 ConsumerQueue.Add(new EnumerateAndGetPropertyJob(HeadNode, this));
 

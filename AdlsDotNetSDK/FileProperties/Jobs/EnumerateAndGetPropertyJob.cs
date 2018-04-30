@@ -57,19 +57,20 @@
                         _manager.ConsumerQueue.Add(new EnumerateAndGetPropertyJob(childNode, _manager));
                     }
                 }
-                // If it is the root node
-                if (_currentNode.DepthLevel == 0)
-                {
-                    // For only disk usage (no getacl) if no subdirectories then end
-                    // for getacl if there are no sub directories and sub files then only end
-                    if (!_manager.GetAclProperty && _currentNode.ChildDirectoryNodes.Count == 0 || (_manager.GetAclProperty && _currentNode.NoChildren()))
-                    {
-                        _manager.ConsumerQueue.Add(new PoisonJob());
-                    }
-                    return null;
-                }
-
             }
+            // Putting this outside because input can be a file also
+            // If it is the root node then enter here. If the input is a file then it will exit before updating the parent property
+            if (_currentNode.DepthLevel == 0)
+            {
+                // For only disk usage (no getacl) if no subdirectories then end
+                // for getacl if there are no sub directories and sub files then only end
+                if (!_manager.GetAclProperty && _currentNode.ChildDirectoryNodes.Count == 0 || (_manager.GetAclProperty && _currentNode.NoChildren()))
+                {
+                    _manager.ConsumerQueue.Add(new PoisonJob());
+                }
+                return null;
+            }
+
             UpdateParentProperty(_currentNode, true);
             return null;
         }

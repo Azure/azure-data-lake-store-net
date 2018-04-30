@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using Microsoft.Azure.DataLake.Store.Acl;
@@ -97,6 +98,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 new AclEntry(AclType.user, SdkUnitTest.NonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly)
             };
         }
+
         /// <summary>
         /// Tests Acl modify
         /// </summary>
@@ -169,6 +171,25 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _setAclRun = true;
             SemSetAcl.Release();
         }
+
+
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentException))]
+        public void TestFilePropertiesForFileInputWithNoDisplayFiles()
+        {
+            PropertyManager.TestGetProperty(UnitTestPath + "/B1/B0File.txt", _adlsClient, true, true, LocalPath + @"\logFileError", true);
+        }
+
+        [TestMethod]
+        public void TestFilePropertiesForFileInput()
+        {
+            var node=PropertyManager.TestGetProperty(UnitTestPath + "/B1/B0File.txt", _adlsClient,true,true, LocalPath + @"\logFile0", true, -1, true);
+            Assert.IsTrue(node.TotChildDirec == 0);
+            Assert.IsTrue(node.TotChildFiles == 0);
+            Assert.IsTrue(node.DirectChildDirec == 0);
+            Assert.IsTrue(node.DirectChildFiles == 0);
+        }
+
         /// <summary>
         /// Test Acl dump and file properties
         /// </summary>

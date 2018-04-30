@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
 
 namespace Microsoft.Azure.DataLake.Store
@@ -8,6 +9,10 @@ namespace Microsoft.Azure.DataLake.Store
     /// </summary>
     public class RequestOptions
     {
+        internal bool KeepAlive = true;
+        internal bool IgnoreDip = false;
+        internal X509Certificate ClientCert = null;
+
         private string _requestId;
         /// <summary>
         /// Unique request Id of the Http Request
@@ -36,7 +41,7 @@ namespace Microsoft.Azure.DataLake.Store
             get { return _retryOption; }
             private set
             {
-                _retryOption = value ?? new NoRetryPolicy();
+                _retryOption = value ?? new NonIdempotentRetryPolicy();
             }
         }
         /// <summary>

@@ -28,7 +28,8 @@ namespace Microsoft.Azure.DataLake.Store
         }
     }
     /// <summary>
-    /// Core layer. It contains methods for REST APIs. For each rest api command it sends a HTTP request to server.
+    /// Core is a stateless class. It contains thread safe methods for REST APIs. For each rest api command it sends a HTTP request to server. 
+    /// Every API is threadsafe with some exceptions in Create and Append (Listed in the documentation of the respective apis).
     /// We have both async and sync versions of CREATE, APPEND, OPEN, CONCURRENTAPPEND. The reason we have that is if the application is doing these operations heavily using explicit threads,
     /// then using async-await internally creates unecessary threads in threadpool and performance degrades due to context switching. Application can create explicit threads in cases of uploader and downloader.
     /// All these operation also call sync versions of MakeCall in WebTransport layer.
@@ -94,12 +95,14 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="octalPermission">Octal permission string</param>
         /// <returns>Returns true if it is a valid permission string else false</returns>
-        private static bool IsValidOctal(string octalPermission)
+        internal static bool IsValidOctal(string octalPermission)
         {
             return Regex.IsMatch(octalPermission, "^[01]?[0-7]?[0-7]?[0-7]$");
         }
         /// <summary>
         /// Create a new file. This is an asynchronous operation.
+        /// 
+        /// Not threadsafe when CreateAsync is called multiple times for same path with different leaseId. 
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="overwrite">Overwrites the existing file if the flag is true</param>
@@ -129,6 +132,8 @@ namespace Microsoft.Azure.DataLake.Store
         }
         /// <summary>
         /// Create a new file. This is a synchronous operation.
+        /// 
+        /// Not threadsafe when Create is called for same path from different threads with different leaseId. 
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="overwrite">Overwrites the existing file if the flag is true</param>
@@ -198,6 +203,8 @@ namespace Microsoft.Azure.DataLake.Store
         }
         /// <summary>
         /// Append data to file. This is an asynchronous operation.
+        /// 
+        /// Not threadsafe when AppendAsync is called for same path from different threads. 
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="leaseId">String containing the lease ID, when a client obtains a lease on a file no other client can make edits to the file </param>
@@ -224,7 +231,9 @@ namespace Microsoft.Azure.DataLake.Store
             await WebTransport.MakeCallAsync("APPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
-        /// Append data to file. This is a synchronous operation.
+        /// Append data to file. This is a synchronous operation. 
+        /// 
+        /// Not threadsafe when Append is called for same path from different threads. 
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="leaseId">String containing the lease ID, when a client obtains a lease on a file no other client can make edits to the file </param>

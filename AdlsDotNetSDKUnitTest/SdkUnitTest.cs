@@ -84,6 +84,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         private static string _domain;
 
+        private static string _dogFoodAuthEndPoint;
+
         private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
@@ -122,6 +124,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _nonOwner3ClientSecret = ReadSetting("NonOwner3ClientSecret");
             Group1Id = ReadSetting("Group1Id");
             _domain = ReadSetting("Domain");
+            _dogFoodAuthEndPoint = ReadSetting("DogFoodAuthenticationEndPoint");
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
         }
         /// <summary>
@@ -203,20 +206,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             else
             {
-                AuthenticationContext authenticationContext = new AuthenticationContext($"https://login.windows-ppe.net/{_domain}/oauth2/token");
-                AuthenticationResult authenticationResult = authenticationContext.AcquireToken(
-                    "https://management.core.windows.net/", new ClientCredential(clientId, clientSecret));
-                client = AdlsClient.CreateClient(clientAccountPath, "Bearer " + authenticationResult.AccessToken);
+                var serviceSettings = ActiveDirectoryServiceSettings.Azure;
+                serviceSettings.TokenAudience = new Uri("https://management.core.windows.net/");
+                serviceSettings.AuthenticationEndpoint = new Uri(_dogFoodAuthEndPoint);
+                var clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds, serviceSettings).GetAwaiter().GetResult();
+                client = AdlsClient.CreateClient(clientAccountPath, clientCreds);
             }
 
             return client;
         }
         #endregion
-
+        
         [TestMethod]
         public void TestRequestIdException()
         {
-            string path = $"{UnitTestDir}/testBadOffsetException.txt";
+            string path = $"{UnitTestDir}/testRequestIdException.txt";
             string text1 = "I am the first line";
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(path, IfExists.Overwrite, ""))

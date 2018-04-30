@@ -29,5 +29,6 @@
     <add key="Group1Id" value="" />
     <!--Tenant ID or Domain-->
     <add key="Domain" value=""/>
+    <add key="DogFoodAuthenticationEndPoint" value=""/>
   </appSettings>
 </configuration>

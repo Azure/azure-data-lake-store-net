@@ -15,6 +15,8 @@ namespace Microsoft.Azure.DataLake.Store
     ///
     ///     Multiple entries can be on a single request.Entries will be separated by semicolons
     ///     Limit max entries on a single request to three, to limit increase in HTTP request size.
+    /// 
+    /// All apis are threadsafe.
     /// </summary>
     public class LatencyTracker
     {

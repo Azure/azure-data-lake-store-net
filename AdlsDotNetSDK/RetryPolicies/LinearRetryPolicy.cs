@@ -4,14 +4,11 @@ using System.Threading;
 namespace Microsoft.Azure.DataLake.Store.RetryPolicies
 {
     /// <summary>
-    /// Exponential retry policy.
-    /// Does retries for following: 
-    /// For 5xx http status codes except 501 and 505 
-    /// For 401, 408 and 429 status codes
-    /// Any other unhandled exception from web- Request timeout for client, etc
+    /// 
     /// </summary>
-    public class ExponentialRetryPolicy : RetryPolicy
+    internal class LinearRetryPolicy : RetryPolicy
     {
+        
         /// <summary>
         /// Tracks the current number of retries
         /// </summary>
@@ -21,34 +18,28 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
         /// </summary>
         private int MaxRetries { get; }
         /// <summary>
-        /// Factor by which we will increase the interval
-        /// </summary>
-        private int ExponentialFactor { get; }
-        /// <summary>
         /// Wait time
         /// </summary>
-        private int ExponentialInterval { get; set; }
+        private int LinearInterval { get; }
         /// <summary>
         /// Default settings of Exponential retry policies
         /// </summary>
-        public ExponentialRetryPolicy()
+        internal LinearRetryPolicy()
         {
             NumberOfRetries = 0;
             MaxRetries = 4;
-            ExponentialFactor = 4;
-            ExponentialInterval = DefaultRetryInterval;
+            LinearInterval = DefaultRetryInterval;
         }
         /// <summary>
         /// Exponential retry policies with specified maximum retries and interval
         /// </summary>
         /// <param name="maxRetries">Maximum retries</param>
         /// <param name="interval">Exponential time interval</param>
-        public ExponentialRetryPolicy(int maxRetries, int interval)
+        internal LinearRetryPolicy(int maxRetries, int interval)
         {
             NumberOfRetries = 0;
             MaxRetries = maxRetries;
-            ExponentialFactor = 4;
-            ExponentialInterval = interval;
+            LinearInterval = interval;
         }
 
         /// <summary>
@@ -59,12 +50,11 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
         /// <returns>True if it should be retried else false</returns>
         public override bool ShouldRetry(int httpCode, Exception ex)
         {
-            if (ShouldRetryBasedOnHttpOutput(httpCode,ex))
+            if (ShouldRetryBasedOnHttpOutput(httpCode, ex))
             {
                 if (NumberOfRetries < MaxRetries)
                 {
-                    Thread.Sleep(ExponentialInterval);
-                    ExponentialInterval = ExponentialFactor * ExponentialInterval;
+                    Thread.Sleep(LinearInterval);
                     NumberOfRetries++;
                     return true;
                 }

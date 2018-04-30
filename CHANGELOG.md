@@ -1,4 +1,13 @@
 # Changes to the SDK
+### Version 1.1.5
+- Fix Copyright message
+- Fix missing / prefix in path
+- Fix NullException error for GetFileProperties with input path as a file
+- Add documentation for threadsafety of Apis in ADlsClient and Core
+- Update the NLog version from beta to stable for .NETStandard
+- Use System.Net.Requests instead of System.Net.Http
+- Internal changes
+- Add NonIdempotentRetryPolicy for operations that can retry on 429, and use it instead of NoRetryPolicy
 ### Version 1.1.4
 - Fix FileProperties bug for disk usage and acl usage for files
 - Internal changes to logging

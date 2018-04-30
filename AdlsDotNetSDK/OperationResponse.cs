@@ -67,6 +67,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// Total latency for token acquisition for the last request for the operation
         /// </summary>
         public long TokenAcquisitionLatency { get; internal set; }
+
+        /// <summary>
+        /// For WebExceptionStatus
+        /// </summary>
+        internal bool ConnectionFailure { get; set; }
+
         /// <summary>
         /// Resets all memebers exception the ExceptionHistory
         /// </summary>
@@ -82,6 +88,7 @@ namespace Microsoft.Azure.DataLake.Store
             Error = "";
             RequestId = "";
             LastCallLatency = TokenAcquisitionLatency = 0;
+            ConnectionFailure = false;
         }
     }
 }
