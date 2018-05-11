@@ -12,6 +12,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
     public sealed class MockAdlsOutputStream : AdlsOutputStream
     {
         private readonly Stream _internalStream;
+        private readonly DirectoryEntry _directoryEntry;
         /// <summary>
         /// Set is not supported. Gets the position where next data will be written
         /// </summary>
@@ -22,9 +23,10 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             set => throw new NotSupportedException();
         }
 
-        internal MockAdlsOutputStream(Stream internalStream)
+        internal MockAdlsOutputStream(Stream internalStream, DirectoryEntry entry)
         {
             _internalStream = internalStream;
+            _directoryEntry = entry;
         }
         /// <summary>
         /// Asynchronously flushes data from buffer to underlying stream and updates the metadata
@@ -40,6 +42,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void Flush()
         {
             _internalStream.Flush();
+            _directoryEntry.Length = _internalStream.Length;
         }
         /// <summary>
         /// Writes data to internal buffer. If the buffer fills up then writes to the underlying stream.
@@ -72,7 +75,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         protected override void Dispose(bool disposing)
         {
             // Flush the stream and take it to begining, This is the memory stream for whole file so do not close it
-            _internalStream.Flush();
+            Flush();
             _internalStream.Seek(0, SeekOrigin.Begin);
         }
     }

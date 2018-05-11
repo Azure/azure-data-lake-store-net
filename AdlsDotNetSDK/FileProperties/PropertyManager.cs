@@ -43,7 +43,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         internal StreamWriter PropertyDumpWriter;
 
         internal bool DontDeleteChildNodes;
-        private const char OuputLineSeparator = '\t';
+        internal const char OuputLineSeparator = '\t';
         private void SetException(Exception ex)
         {
             lock (_lock)

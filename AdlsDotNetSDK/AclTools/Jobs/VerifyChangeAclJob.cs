@@ -35,7 +35,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
         /// <param name="subList">Acl entries from input that was given as input to Acl Processor</param>
         /// <param name="notContains">Whether to check remove Acl has worked</param>
         /// <returns>True if the verify is correct else false</returns>
-        private bool CheckAclListContains(List<AclEntry> parentList, List<AclEntry> subList, bool notContains = false)
+        internal static bool CheckAclListContains(List<AclEntry> parentList, List<AclEntry> subList, bool notContains = false)
         {
             HashSet<string> hSet = new HashSet<string>();
             foreach (var en in parentList)

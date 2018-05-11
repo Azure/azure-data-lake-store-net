@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.Azure.DataLake.Store.AclTools;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
 
 namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
@@ -104,7 +105,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             _directoryEntries[filename].DataStream.Seek(_directoryEntries[filename].DataStream.Length,
                 SeekOrigin.Begin);
-            return new MockAdlsOutputStream(_directoryEntries[filename].DataStream);
+            return new MockAdlsOutputStream(_directoryEntries[filename].DataStream, _directoryEntries[filename].Entry);
         }
         /// <summary>
         /// Creates an entry to the internal dictionary for the new file. The entry encapsulates AclStatus, DirectoryEntry and a memory stream
@@ -123,7 +124,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             var metaData = CreateMetaData(filename, DirectoryEntryType.FILE, octalPermission);
             _directoryEntries.Add(filename, metaData);
-            return new MockAdlsOutputStream(metaData.DataStream);
+            return new MockAdlsOutputStream(metaData.DataStream, metaData.Entry);
         }
         /// <summary>
         /// Delete an entry from the internal dictionary
@@ -564,6 +565,158 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             return new TransferStatus();
         }
+        /// <summary>
+        /// Currently the recursive entities need to be created separately for mock testing
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="aclEntries"></param>
+        /// <param name="type"></param>
+        /// <param name="threadCount"></param>
+        /// <returns></returns>
+        public override AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1)
+        {
+            int numDirs = 0, numFiles = 0;
+            foreach (var directoryEntriesKey in _directoryEntries.Keys)
+            {
+                if (directoryEntriesKey.StartsWith(path))
+                {
+                    switch (type)
+                    {
+                        case RequestedAclType.ModifyAcl: ModifyAclEntries(_directoryEntries[directoryEntriesKey].Entry.FullName,aclEntries);
+                            break;
+                        case RequestedAclType.RemoveAcl:
+                            RemoveAclEntries(_directoryEntries[directoryEntriesKey].Entry.FullName, aclEntries);
+                            break;
+                        case RequestedAclType.SetAcl:
+                            SetAcl(_directoryEntries[directoryEntriesKey].Entry.FullName, aclEntries);
+                            break;
+                    }
+
+                    if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
+                    {
+                        numDirs++;
+                    }
+                    else
+                    {
+                        numFiles++;
+                    }
+                }
+            }
+            return new AclProcessorStats(numFiles,numDirs);
+        }
+
+        /// <summary>
+        /// Currently the recursive entities need to be created separately for mock testing
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="numThreads"></param>
+        /// <param name="cancelToken"></param>
+        /// <returns></returns>
+        public override ContentSummary GetContentSummary(string path, int numThreads = -1,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            int numDirs = 0, numFiles = 0;
+            long numSize = 0;
+            foreach (var directoryEntriesKey in _directoryEntries.Keys)
+            {
+                if (directoryEntriesKey.StartsWith(path))
+                {
+                    if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
+                    {
+                        numDirs++;
+                    }
+                    else
+                    {
+                        numFiles++;
+                        numSize += _directoryEntries[directoryEntriesKey].Entry.Length;
+                    }
+                }
+            }
+            return new ContentSummary(numDirs, numFiles, numSize, numSize);
+        }
+
+        /// <summary>
+        /// Gets fileproperties, conmsistentacl is always true since this is mock
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="getAclUsage"></param>
+        /// <param name="dumpFileName"></param>
+        /// <param name="getDiskUsage"></param>
+        /// <param name="saveToLocal"></param>
+        /// <param name="numThreads"></param>
+        /// <param name="displayFiles"></param>
+        /// <param name="hideConsistentAcl"></param>
+        /// <param name="maxDepth"></param>
+        public override void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true,
+            bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false,
+            long maxDepth = Int64.MaxValue)
+        {
+            if (!(getAclUsage || getDiskUsage))
+            {
+                throw new ArgumentException("At least one option of getAclUsage and getDiskUsage need to be set as true.");
+            }
+
+            if (!displayFiles && hideConsistentAcl)
+            {
+                throw new ArgumentException("hideConsistentAcl cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files also.");
+            }
+            using (var propertyDumpWriter = new StreamWriter((saveToLocal
+                ? new FileStream(dumpFileName, FileMode.Create, FileAccess.ReadWrite)
+                : (Stream)CreateFile(dumpFileName, IfExists.Overwrite))))
+            {
+                WriteHeader(propertyDumpWriter, getDiskUsage, getAclUsage, displayFiles, hideConsistentAcl);
+                foreach (var directoryEntriesKey in _directoryEntries.Keys)
+                {
+                    ContentSummary summary=null;
+                    AclStatus status = null;
+                    if (directoryEntriesKey.StartsWith(path))
+                    {
+                        if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
+                        {
+                            summary=GetContentSummary(_directoryEntries[directoryEntriesKey].Entry.FullName);
+                        }
+                        else
+                        {
+                            summary=new ContentSummary(0,1, _directoryEntries[directoryEntriesKey].Entry.Length, _directoryEntries[directoryEntriesKey].Entry.Length);
+                        }
+                        status = GetAclStatus(_directoryEntries[directoryEntriesKey].Entry.FullName);
+                        string output = "";
+                        if (getDiskUsage)
+                        {
+                            output =
+                                $"1{FileProperties.PropertyManager.OuputLineSeparator}1{FileProperties.PropertyManager.OuputLineSeparator}1{FileProperties.PropertyManager.OuputLineSeparator}{summary.Length}{FileProperties.PropertyManager.OuputLineSeparator}{summary.FileCount}{FileProperties.PropertyManager.OuputLineSeparator}{summary.DirectoryCount}";
+                        }
+                        if (getAclUsage)
+                        {
+                            bool showAclConsistentColumn = displayFiles || hideConsistentAcl;
+                            output +=
+                                $"{(string.IsNullOrEmpty(output) ? "" : $"{FileProperties.PropertyManager.OuputLineSeparator}")}{string.Join("|", status.Entries)}{(showAclConsistentColumn ? $"{FileProperties.PropertyManager.OuputLineSeparator}true" : "")}";
+                        }
+                        propertyDumpWriter.WriteLine($"{_directoryEntries[directoryEntriesKey].Entry.FullName}{FileProperties.PropertyManager.OuputLineSeparator}{_directoryEntries[directoryEntriesKey].Entry.Type}{FileProperties.PropertyManager.OuputLineSeparator}{output}");
+                    }
+                }
+            }
+        }
+
+        private void WriteHeader(StreamWriter propertyDumpWriter, bool getSizeProperty, bool getAclProperty, bool displayFiles, bool hideConsistentAclTree)
+        {
+            string output = "";
+            if (getSizeProperty)
+            {
+                output =
+                    $"Total size of direct child files and directories{FileProperties.PropertyManager.OuputLineSeparator}Total number of direct files{FileProperties.PropertyManager.OuputLineSeparator}Total number of direct directories{FileProperties.PropertyManager.OuputLineSeparator}Total size{FileProperties.PropertyManager.OuputLineSeparator}Total number of files{FileProperties.PropertyManager.OuputLineSeparator}Total number of directories";
+            }
+            if (getAclProperty)
+            {
+                // If DisplayFiles is false that means HideConsistentAcl has to be false (there is a check at entry point in client)/
+                // And if DisplayFiles is false consistentAcl information is not correct since acl of files is not known
+                bool showAclConsistentColumn = displayFiles || hideConsistentAclTree;
+                output +=
+                        $"{(string.IsNullOrEmpty(output) ? "" : $"{FileProperties.PropertyManager.OuputLineSeparator}")}Acl Entries{(showAclConsistentColumn ? FileProperties.PropertyManager.OuputLineSeparator + "Whether Acl is same for all descendants" : "")}";
+            }
+            propertyDumpWriter.WriteLine($"Entry name{FileProperties.PropertyManager.OuputLineSeparator}Entry Type{FileProperties.PropertyManager.OuputLineSeparator}{output}");
+        }
+       
     }
 }
 

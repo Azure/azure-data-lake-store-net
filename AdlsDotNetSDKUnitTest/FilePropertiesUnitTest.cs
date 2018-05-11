@@ -77,7 +77,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Gets a sample Acl entries - For modify and remove
         /// </summary>
         /// <returns></returns>
-        private static List<AclEntry> GetAclEntryForModifyAndRemove()
+        internal static List<AclEntry> GetAclEntryForModifyAndRemove()
         {
             return new List<AclEntry>()
             {
@@ -90,7 +90,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Gets a sample acl entries
         /// </summary>
         /// <returns></returns>
-        private static List<AclEntry> GetAclEntryForSet()
+        internal static List<AclEntry> GetAclEntryForSet()
         {
             return new List<AclEntry>()
             {

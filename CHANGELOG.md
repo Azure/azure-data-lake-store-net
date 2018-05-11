@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.1.6
+- Mock api tests for GetContentSummary, ChangeAcl recursively and FileProperties dump
 ### Version 1.1.5
 - Fix Copyright message
 - Fix missing / prefix in path
