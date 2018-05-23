@@ -49,7 +49,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestGetContentSummary()
         {
             var summary= _adlsClient.GetContentSummary(rootPath);
-            Assert.IsTrue(summary.DirectoryCount == 3);
+            Assert.IsTrue(summary.DirectoryCount == 2);
             Assert.IsTrue(summary.FileCount == 1);
             Assert.IsTrue(summary.Length == TestString.Length);
         }

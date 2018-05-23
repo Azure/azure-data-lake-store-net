@@ -111,7 +111,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             return _numChildsAclProcessed >= ChildDirectoryNodes.Count + ChildFileNodes.Count;
         }
         
-        private bool CompareAclAndUpdateChildAclProcessed(List<AclEntry> acls, bool childAclSame)
+        private bool CompareAclAndUpdateChildAclProcessed(PropertyTreeNode childNode)
         {
             if (CheckAllAclChildNodesProcessed())
             {
@@ -119,15 +119,28 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                 throw new Exception($"Acl property of Parent: {FullPath} is getting updated more than it should be {ChildDirectoryNodes.Count + ChildFileNodes.Count}");
             }
             bool isAclSame = true;
-            if (Acls.Entries.Count == acls.Count)
+            // Parent should always be directory
+            if(Type != DirectoryEntryType.DIRECTORY)
             {
-                HashSet<string> hset = new HashSet<string>();
-                foreach (var aclsEntry in Acls.Entries)
+                throw new InvalidOperationException("The parent can never be a file");
+            }
+            
+            HashSet<string> hset = new HashSet<string>();
+            foreach (var aclsEntry in Acls.Entries)
+            {
+                // If the child is a file then compare only the ACCESS acls for verifying whether acls are same
+                // If child is a directory even the default acls need to match also
+                if (!(childNode.Type == DirectoryEntryType.FILE && aclsEntry.Scope == AclScope.Default))
                 {
                     hset.Add(aclsEntry.ToString());
                 }
-
-                foreach (var aclsEntry in acls)
+            }
+            // At this point if the child is a file then hset only contains Access acls of the parent, if child is a directory, 
+            // hset contains all Acls (including default) of the parent
+            // If the count of parent acl matches with count of child acls then only compare the individual acls
+            if (hset.Count == childNode.Acls.Entries.Count)
+            {
+                foreach (var aclsEntry in childNode.Acls.Entries)
                 {
                     if (!hset.Contains(aclsEntry.ToString()))
                     {
@@ -140,7 +153,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             {
                 isAclSame = false;
             }
-            AllChildSameAcl = isAclSame && AllChildSameAcl && childAclSame;
+            AllChildSameAcl = isAclSame && AllChildSameAcl && childNode.AllChildSameAcl;
 
             // Updates the number of childs whose acl has been compared
             _numChildsAclProcessed++;
@@ -190,7 +203,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                 {
                     if (computeAclThisTurn)
                     {
-                        allProperty = CompareAclAndUpdateChildAclProcessed(childNode.Acls.Entries, childNode.AllChildSameAcl) && allProperty;
+                        allProperty = CompareAclAndUpdateChildAclProcessed(childNode) && allProperty;
                     }
                     else// Currently this will never arise 
                     {

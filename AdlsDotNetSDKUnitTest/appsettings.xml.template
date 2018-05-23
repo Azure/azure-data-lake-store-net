@@ -1,0 +1,39 @@
+﻿<configuration>
+  <appSettings>
+    <!--Account domain name. e.g., something.azuredatalakestore.net-->
+    <Account></Account>
+    
+    <!--Owner should be the owner of the account i.e. super user
+        Object Id is the service principal Id
+        Client Id is the app Id
+        Client Secret is the key
+    -->
+    <AccountOwnerObjectId></AccountOwnerObjectId>
+    <AccountOwnerClientId></AccountOwnerClientId>
+    <AccountOwnerClientSecret></AccountOwnerClientSecret>
+    
+    <!--Non owners should not be owners of the account-->
+    <!--Details for nonowner1 -->
+    <NonOwner1ObjectId></NonOwner1ObjectId>
+    <NonOwner1ClientId></NonOwner1ClientId>
+    <NonOwner1ClientSecret></NonOwner1ClientSecret>
+    
+    <!--Details for nonowner2 -->
+    <NonOwner2ObjectId></NonOwner2ObjectId>
+    <NonOwner2ClientId></NonOwner2ClientId>
+    <NonOwner2ClientSecret></NonOwner2ClientSecret>
+    
+    <!--Details of nonowner 3 -->
+    <NonOwner3ObjectId></NonOwner3ObjectId>
+    <NonOwner3ClientId></NonOwner3ClientId>
+    <NonOwner3ClientSecret></NonOwner3ClientSecret> 
+    
+    <!--Group1 should have nonowner2 and nonowner3-->
+    <Group1Id></Group1Id>
+    
+    <!--Tenant ID or Domain-->
+    <Domain></Domain>
+    <!--DogFood endpoint-->
+    <DogFoodAuthenticationEndPoint></DogFoodAuthenticationEndPoint> 
+  </appSettings>
+</configuration>

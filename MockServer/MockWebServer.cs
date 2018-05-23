@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.IO;
+using Microsoft.Net.Http.Server;
 
 namespace MockServer
 {
@@ -28,7 +29,7 @@ namespace MockServer
         /// <summary>
         /// Http listener that immplements a mock server on a localhost and a particular port
         /// </summary>
-        private readonly HttpListener _listener;
+        private readonly WebListener _webListener;
         /// <summary>
         /// Initializes the Httplistener to listen to a particular port of localhost
         /// </summary>
@@ -37,8 +38,9 @@ namespace MockServer
         {
             _threadWorker = new Thread(Run);
             _list = new Queue<MockResponse>();
-            _listener = new HttpListener();
-            _listener.Prefixes.Add("http://" + Host + ":" + port + "/");
+            var settings = new WebListenerSettings();
+            settings.UrlPrefixes.Add("http://" + Host + ":" + port + "/");
+            _webListener = new WebListener(settings);
         }
         /// <summary>
         /// Starts the server thread
@@ -89,21 +91,21 @@ namespace MockServer
         /// </summary>
         public void Run()
         {
-            _listener.Start();
+            _webListener.Start();
             while (true)
             {
                 MockResponse resp = GetMockResponse();
                 if (resp == null)
                 {
-                    _listener.Stop();
+                    _webListener.Dispose();
                     return;
                 }
-                HttpListenerContext context = _listener.GetContext();
-                Wait(context.Request.InputStream);
-                context.Response.StatusCode = (int)resp.StatusCode.Value;
-                context.Response.StatusDescription = resp.StatusDescription;
-                context.Response.SendChunked = false;
-                context.Response.Close();
+                using (var context = _webListener.AcceptAsync().GetAwaiter().GetResult())
+                {
+                    Wait(context.Request.Body);
+                    context.Response.StatusCode = (int)resp.StatusCode.Value;
+                    context.Response.ReasonPhrase = resp.StatusDescription;
+                }
             }
         }
         /// <summary>

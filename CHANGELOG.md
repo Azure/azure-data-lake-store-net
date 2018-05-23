@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.1.7
+- Consider only access acls for comparing files to parent directory for determining consistent acls in recursive acl dump. Add unittest
+- Add netcore support for unittest. Change MockServer to use weblistener for it's netcore support.
+- Fix mock testing for GetContentSummary, GetFileProperties
 ### Version 1.1.6
 - Mock api tests for GetContentSummary, ChangeAcl recursively and FileProperties dump
 ### Version 1.1.5

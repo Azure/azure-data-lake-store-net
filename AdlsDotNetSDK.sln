@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.Azure.DataLake.St
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MockServer", "MockServer\MockServer.csproj", "{1300BC51-B06B-4405-A934-2782A2BFDAD6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestDataCreator", "TestDataCreator\TestDataCreator.csproj", "{8FE461F9-3D39-4D31-9767-7C432AB7E57D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestDataCreator", "TestDataCreator\TestDataCreator.csproj", "{8FE461F9-3D39-4D31-9767-7C432AB7E57D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

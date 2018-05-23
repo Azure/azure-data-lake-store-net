@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net452</TargetFramework>
+    <TargetFrameworks>net452;netstandard1.4</TargetFrameworks>
     <ApplicationIcon />
     <OutputTypeEx>library</OutputTypeEx>
     <StartupObject />
@@ -12,7 +12,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="1.1.2" />
+    <PackageReference Include="Microsoft.Net.Http.Server" Version="1.1.4" />
   </ItemGroup>
-
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.4'">
+    <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
+  </ItemGroup>
 </Project>

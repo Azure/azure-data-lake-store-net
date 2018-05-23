@@ -95,6 +95,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             return new List<AclEntry>()
             {
                 new AclEntry(AclType.user, SdkUnitTest.NonOwner1ObjectId, AclScope.Access, AclAction.ReadOnly),
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner1ObjectId, AclScope.Default, AclAction.ReadOnly),
                 new AclEntry(AclType.user, SdkUnitTest.NonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly)
             };
         }

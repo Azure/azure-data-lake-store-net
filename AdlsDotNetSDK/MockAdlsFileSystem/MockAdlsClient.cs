@@ -619,7 +619,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             long numSize = 0;
             foreach (var directoryEntriesKey in _directoryEntries.Keys)
             {
-                if (directoryEntriesKey.StartsWith(path))
+                if (directoryEntriesKey.StartsWith(path) && !directoryEntriesKey.Equals(path))
                 {
                     if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
                     {
@@ -660,6 +660,10 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             {
                 throw new ArgumentException("hideConsistentAcl cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files also.");
             }
+            if (saveToLocal)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(dumpFileName));
+            }
             using (var propertyDumpWriter = new StreamWriter((saveToLocal
                 ? new FileStream(dumpFileName, FileMode.Create, FileAccess.ReadWrite)
                 : (Stream)CreateFile(dumpFileName, IfExists.Overwrite))))
@@ -667,19 +671,14 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                 WriteHeader(propertyDumpWriter, getDiskUsage, getAclUsage, displayFiles, hideConsistentAcl);
                 foreach (var directoryEntriesKey in _directoryEntries.Keys)
                 {
-                    ContentSummary summary=null;
-                    AclStatus status = null;
+                    
                     if (directoryEntriesKey.StartsWith(path))
                     {
-                        if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
-                        {
-                            summary=GetContentSummary(_directoryEntries[directoryEntriesKey].Entry.FullName);
-                        }
-                        else
-                        {
-                            summary=new ContentSummary(0,1, _directoryEntries[directoryEntriesKey].Entry.Length, _directoryEntries[directoryEntriesKey].Entry.Length);
-                        }
-                        status = GetAclStatus(_directoryEntries[directoryEntriesKey].Entry.FullName);
+                        var summary = _directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY
+                            ? GetContentSummary(_directoryEntries[directoryEntriesKey].Entry.FullName)
+                            : new ContentSummary(0, 1, _directoryEntries[directoryEntriesKey].Entry.Length,
+                                _directoryEntries[directoryEntriesKey].Entry.Length);
+                        var status = GetAclStatus(_directoryEntries[directoryEntriesKey].Entry.FullName);
                         string output = "";
                         if (getDiskUsage)
                         {

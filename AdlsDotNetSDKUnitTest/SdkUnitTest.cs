@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Configuration;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Azure.DataLake.Store.Acl;
@@ -13,6 +12,7 @@ using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Microsoft.Rest.Azure.Authentication;
 using Microsoft.Rest;
 using System.Threading;
+using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -22,7 +22,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         internal static readonly string TestId = Guid.NewGuid().ToString();
         private static AdlsClient _adlsClient;
         private static readonly Random Random = new Random();
-        private static readonly System.Collections.Specialized.NameValueCollection AppSettings = ConfigurationManager.AppSettings;
+        private static IConfigurationRoot Config = new ConfigurationBuilder()
+                                    .SetBasePath(Directory.GetCurrentDirectory())
+                                    .AddXmlFile("appsettings.xml").Build();
         /// <summary>
         /// Full Account domain name
         /// </summary>
@@ -96,11 +98,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <summary>
         /// Reads the app configuration
         /// </summary>
-        /// <param name="settingName"></param>
+        /// <param name="settingName">Value of the setting in appsettings</param>
         /// <returns></returns>
         internal static string ReadSetting(string settingName)
         {
-            return AppSettings[settingName];
+            return Config.GetSection("AppSettings:" + settingName).Value;
         }
         /// <summary>
         /// Sets up the unit test

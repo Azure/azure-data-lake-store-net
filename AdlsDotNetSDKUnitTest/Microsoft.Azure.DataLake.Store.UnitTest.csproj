@@ -1,7 +1,7 @@
 ﻿<Project>
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.props" />
   <PropertyGroup>    
-    <TargetFramework>net452</TargetFramework>    
+    <TargetFrameworks>net452;netcoreapp2.0</TargetFrameworks>    
   </PropertyGroup>
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 
@@ -19,6 +19,8 @@
     <PackageReference Include="Microsoft.Rest.ClientRuntime.Azure.Authentication" Version="2.3.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.1.18" />
     <PackageReference Include="MSTest.TestFramework" Version="1.1.18" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="1.1.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Xml" Version="1.1.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +29,11 @@
     <ProjectReference Include="..\TestDataCreator\TestDataCreator.csproj" />
   </ItemGroup>
 
+  
   <ItemGroup>
-    <Reference Include="System.Configuration" />
+    <None Update="appsettings.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
