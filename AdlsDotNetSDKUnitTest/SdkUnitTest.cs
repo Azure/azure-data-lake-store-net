@@ -1312,6 +1312,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             TestConcatTwoFile(false, UnitTestDir + "/destPath2.txt", UnitTestDir + "/Source");
             TestConcatTwoFile(true, UnitTestDir + "/destPath3.txt", UnitTestDir + "/Source1");
+            TestConcatTwoFile(false, UnitTestDir + "/destPath3.txt", UnitTestDir + "/Source1", "prefix+with,signs");
+            TestConcatTwoFile(true, UnitTestDir + "/destPath3.txt", UnitTestDir + "/Source1", "prefix+with,signs");
         }
 
         /// <summary>
@@ -1320,17 +1322,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="deleteSource">Whether to delete source directory</param>
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
-        public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath)
+        public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath, string sourceFileNamePrefix = "")
         {
             List<string> srcList = new List<string>();
-            string srcFile1 = sourcePath + "/srcPath1.txt";
+            string srcFile1 = sourcePath + "/" + sourceFileNamePrefix + "srcPath1.txt";
             string text1 = RandomString(2 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
-            string srcFile2 = sourcePath + "/srcPath2.txt";
+            string srcFile2 = sourcePath + "/" + sourceFileNamePrefix + "srcPath2.txt";
             string text2 = RandomString(3 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))

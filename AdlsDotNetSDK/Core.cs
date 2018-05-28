@@ -572,8 +572,7 @@ namespace Microsoft.Azure.DataLake.Store
                 return;
             }
             HashSet<string> hashSet = new HashSet<string>();//To check whether we have duplciate file names in the list
-            StringBuilder sb = new StringBuilder("sources=");
-            int itemInBuilder = 0;
+            Newtonsoft.Json.Linq.JArray jArray = new Newtonsoft.Json.Linq.JArray();
             foreach (var sourceFile in sourceFiles)
             {
                 if (string.IsNullOrEmpty(sourceFile))
@@ -594,15 +593,12 @@ namespace Microsoft.Azure.DataLake.Store
                     resp.Error = "One of the Files to concatenate is same as another file";
                     return;
                 }
-                if (itemInBuilder > 0) //If first item is already in string builder
-                {
-                    sb.Append(",");
-                }
-                hashSet.Add(sourceFile);
-                itemInBuilder++;
-                sb.Append(sourceFile);
+                
+                jArray.Add(sourceFile);
             }
-            byte[] body = Encoding.UTF8.GetBytes(sb.ToString());
+            Newtonsoft.Json.Linq.JObject jObject = new Newtonsoft.Json.Linq.JObject();
+            jObject.Add("sources", jArray);
+            byte[] body = Encoding.UTF8.GetBytes(jObject.ToString(Formatting.None));
             QueryParams qp = new QueryParams();
             if (deleteSourceDirectory)
             {

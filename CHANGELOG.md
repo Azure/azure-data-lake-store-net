@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.8
+- MsConcat sources will be sent in Json format.
+- Server version upgraded to 2018-05-01
 ### Version 1.1.7
 - Consider only access acls for comparing files to parent directory for determining consistent acls in recursive acl dump. Add unittest
 - Add netcore support for unittest. Change MockServer to use weblistener for it's netcore support.
