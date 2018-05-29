@@ -273,6 +273,13 @@ namespace Microsoft.Azure.DataLake.Store
                 webReq.Headers["Connection"] = "Close";
 #endif
             }
+
+            string contentType;
+            if(customHeaders.TryGetValue("Content-Type", out contentType))
+            {
+                webReq.ContentType = contentType;
+            }
+
             if (customHeaders != null)
             {
                 foreach (var key in customHeaders.Keys)

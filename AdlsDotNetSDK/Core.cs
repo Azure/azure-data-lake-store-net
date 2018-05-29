@@ -604,7 +604,9 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 qp.Add("deleteSourceDirectory", "true");
             }
-            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            IDictionary<string, string> headers = new Dictionary<string, string>();
+            headers.Add("Content-Type", "application/json");
+            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken, ).ConfigureAwait(false);
         }
         /// <summary>
         /// Gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
