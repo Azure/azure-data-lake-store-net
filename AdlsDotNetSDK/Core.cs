@@ -81,10 +81,10 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexpected problem with reading JSON";
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return false;
                 }
             }
@@ -455,17 +455,17 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexpected problem with reading JSON";
+                    resp.Error = resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return false;
                 }
             }
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is not expected";
+                resp.Error = "The request was successful but output was null";
                 return false;
             }
 
@@ -522,10 +522,10 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexpected problem with reading JSON";
+                    resp.Error = resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return false;
                 }
             }
@@ -712,10 +712,10 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexpected problem with reading JSON";
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return null;
                 }
 
@@ -870,10 +870,10 @@ namespace Microsoft.Azure.DataLake.Store
                     }
                     return direcList;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexpected problem with reading JSON";
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                 }
             }
             else
@@ -1238,17 +1238,17 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "Unexcepted error in json parsing";
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return null;
                 }
             }
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Unexcepted error in json parsing";
+                resp.Error = "The request is successful but the response is null";
                 return null;
             }
             return status;
@@ -1313,10 +1313,10 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     resp.IsSuccessful = false;
-                    resp.Error = "";
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
                     return null;
                 }
             }

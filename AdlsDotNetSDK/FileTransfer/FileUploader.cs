@@ -87,8 +87,9 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             if (File.Exists(SourcePath))
             {
                 var file = new FileInfo(SourcePath);
-                long fileSizeToTransfer;
-                long chunks = AddFileToConsumerQueue(file.FullName, file.Length, file.Length > ChunkSize, out fileSizeToTransfer);
+                // Make sure if sourcepath is relative then convert it to Absolute path
+                SourcePath = file.FullName;
+                long chunks = AddFileToConsumerQueue(file.FullName, file.Length, file.Length > ChunkSize, out long fileSizeToTransfer);
                 StatusUpdate(1, file.Length <= ChunkSize ? 1 : 0, chunks, fileSizeToTransfer, 0);
                 return false;
             }
@@ -112,6 +113,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             if (Directory.Exists(SourcePath))
             {
                 DirectoryInfo dir = new DirectoryInfo(SourcePath);
+                // Make sure if sourcepath is relative then convert it to Absolute path
+                SourcePath = dir.FullName;
                 UploaderProducerQueue.Add(dir);
                 return true;
             }

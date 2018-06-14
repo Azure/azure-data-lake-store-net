@@ -53,7 +53,8 @@ namespace Microsoft.Azure.DataLake.Store
                     sb.Append(Separator);
                     sb.Append(nm);
                     sb.Append("=");
-                    sb.Append(Param[nm]);
+                    // This is necessary for encoding query values like for rename we have the destination path as a query parameter
+                    sb.Append(Uri.EscapeDataString(Param[nm]));
 
                 }
             }

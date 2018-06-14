@@ -74,6 +74,16 @@ namespace Microsoft.Azure.DataLake.Store
         internal bool ConnectionFailure { get; set; }
 
         /// <summary>
+        /// This is for debugging purposes
+        /// </summary>
+        internal int AuthorizationHeaderLength { get; set;  }
+
+        /// <summary>
+        /// This is a non-json error response
+        /// </summary>
+        internal string RemoteErrorNonJsonResponse { get; set; }
+
+        /// <summary>
         /// Resets all memebers exception the ExceptionHistory
         /// </summary>
         public void Reset()

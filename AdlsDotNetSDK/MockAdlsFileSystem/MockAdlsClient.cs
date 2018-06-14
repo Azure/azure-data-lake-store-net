@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Azure.DataLake.Store.Acl;
 using Microsoft.Azure.DataLake.Store.AclTools;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
@@ -64,6 +65,21 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             };
             return metaData;
         }
+
+        /// <summary>
+        /// Creates a directory- Creates an entry for the directory in the internal dictionary
+        /// </summary>
+        /// <param name="dirName">Directory name</param>
+        /// <param name="octalPermission">Octal permission</param>
+        /// <param name="cancelToken">Cacnellation token</param>
+        public override async Task<bool> CreateDirectoryAsync(string dirName, string octalPermission = null,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+                _directoryEntries.Add(dirName, CreateMetaData(dirName, DirectoryEntryType.DIRECTORY, octalPermission)),cancelToken);
+            return true;
+        }
+
         /// <summary>
         /// Creates a directory- Creates an entry for the directory in the internal dictionary
         /// </summary>
@@ -74,9 +90,29 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override bool CreateDirectory(string dirName, string octalPermission = null,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            _directoryEntries.Add(dirName, CreateMetaData(dirName,DirectoryEntryType.DIRECTORY, octalPermission));
-            return true;
+            return CreateDirectoryAsync(dirName, octalPermission, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Returns a memory stream for reading data of the file
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns></returns>
+        public override async Task<AdlsInputStream> GetReadStreamAsync(string filename,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                if (!_directoryEntries.ContainsKey(filename))
+                {
+                    throw new AdlsException("The file does not exists");
+                }
+
+                return new MockAdlsInputStream(_directoryEntries[filename].DataStream);
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Returns a memory stream for reading data of the file
         /// </summary>
@@ -85,12 +121,32 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns></returns>
         public override AdlsInputStream GetReadStream(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
-            if (!_directoryEntries.ContainsKey(filename))
-            {
-                throw new AdlsException("The file does not exists");
-            }
-            return new MockAdlsInputStream(_directoryEntries[filename].DataStream);
+            return GetReadStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Returns the memory stream for appending to the file encapsulated in mock adls output stream.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns></returns>
+        public override async Task<AdlsOutputStream> GetAppendStreamAsync(string filename,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                if (!_directoryEntries.ContainsKey(filename))
+                {
+                    throw new AdlsException("The file does not exists");
+                }
+
+                _directoryEntries[filename].DataStream.Seek(_directoryEntries[filename].DataStream.Length,
+                    SeekOrigin.Begin);
+                return new MockAdlsOutputStream(_directoryEntries[filename].DataStream,
+                    _directoryEntries[filename].Entry);
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Returns the memory stream for appending to the file encapsulated in mock adls output stream.
         /// </summary>
@@ -99,14 +155,35 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns></returns>
         public override AdlsOutputStream GetAppendStream(string filename, CancellationToken cancelToken = default(CancellationToken))
         {
-            if (!_directoryEntries.ContainsKey(filename))
-            {
-                throw new AdlsException("The file does not exists");
-            }
-            _directoryEntries[filename].DataStream.Seek(_directoryEntries[filename].DataStream.Length,
-                SeekOrigin.Begin);
-            return new MockAdlsOutputStream(_directoryEntries[filename].DataStream, _directoryEntries[filename].Entry);
+            return GetAppendStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Creates an entry to the internal dictionary for the new file. The entry encapsulates AclStatus, DirectoryEntry and a memory stream
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="mode">If exists hether to overwrite or fail</param>
+        /// <param name="octalPermission">Permission string</param>
+        /// <param name="createParent">True if we create parent directories- currently has no effect</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns>Mock ADls output stream</returns>
+        public override async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, string octalPermission = null,
+            bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+
+                if (mode == IfExists.Fail && _directoryEntries.ContainsKey(filename))
+                {
+                    throw new AdlsException("The file exists");
+                }
+
+                var metaData = CreateMetaData(filename, DirectoryEntryType.FILE, octalPermission);
+                _directoryEntries.Add(filename, metaData);
+                return new MockAdlsOutputStream(metaData.DataStream, metaData.Entry);
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Creates an entry to the internal dictionary for the new file. The entry encapsulates AclStatus, DirectoryEntry and a memory stream
         /// </summary>
@@ -118,14 +195,31 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override AdlsOutputStream CreateFile(string filename, IfExists mode, string octalPermission = null,
             bool createParent = true)
         {
-            if (mode == IfExists.Fail && _directoryEntries.ContainsKey(filename))
-            {
-                throw new AdlsException("The file exists");
-            }
-            var metaData = CreateMetaData(filename, DirectoryEntryType.FILE, octalPermission);
-            _directoryEntries.Add(filename, metaData);
-            return new MockAdlsOutputStream(metaData.DataStream, metaData.Entry);
+            return CreateFileAsync(filename, mode, octalPermission, createParent).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Delete an entry from the internal dictionary
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns></returns>
+        public override async Task<bool> DeleteAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                foreach (var directoryEntriesKey in _directoryEntries.Keys)
+                {
+                    if (directoryEntriesKey.StartsWith(path + "/"))
+                    {
+                        return false;
+                    }
+                }
+
+                return _directoryEntries.Remove(path);
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Delete an entry from the internal dictionary
         /// </summary>
@@ -134,15 +228,40 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns></returns>
         public override bool Delete(string path, CancellationToken cancelToken = default(CancellationToken))
         {
-            foreach (var directoryEntriesKey in _directoryEntries.Keys)
-            {
-                if (directoryEntriesKey.StartsWith(path+"/"))
-                {
-                    return false;
-                }
-            }
-            return _directoryEntries.Remove(path);
+            return DeleteAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Deletes all entries within a directory or delete a file
+        /// </summary>
+        /// <param name="path">Path of directory or file</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns></returns>
+        public override async Task<bool> DeleteRecursiveAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                var keysToRemove = new List<string>();
+                foreach (var directoryEntriesKey in _directoryEntries.Keys)
+                {
+                    if (directoryEntriesKey.StartsWith(path))
+                    {
+                        keysToRemove.Add(directoryEntriesKey);
+                    }
+                }
+
+                foreach (var key in keysToRemove)
+                {
+                    if (!_directoryEntries.Remove(key))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Deletes all entries within a directory or delete a file
         /// </summary>
@@ -151,22 +270,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns></returns>
         public override bool DeleteRecursive(string path, CancellationToken cancelToken = default(CancellationToken))
         {
-            var keysToRemove = new List<string>();
-            foreach (var directoryEntriesKey in _directoryEntries.Keys)
-            {
-                if (directoryEntriesKey.StartsWith(path))
-                {
-                    keysToRemove.Add(directoryEntriesKey);
-                }
-            }
-            foreach (var key in keysToRemove)
-            {
-                if (!_directoryEntries.Remove(key))
-                {
-                    return false;
-                }
-            }
-            return true;
+            return DeleteRecursiveAsync(path, cancelToken).GetAwaiter().GetResult();
         }
 
         private void MoveOneEntry(string src, string dest)
@@ -198,6 +302,58 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                 MoveOneEntry(srcPath,destPath);
             }
         }
+
+        /// <summary>
+        /// Removes the source entry and add a new entry in the internal dictionary with the same metadata of the source entry
+        /// </summary>
+        /// <param name="path">Source path name</param>
+        /// <param name="destination">Destination path</param>
+        /// <param name="overwrite">True if we want to overwrite the destination file</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns></returns>
+        public override async Task<bool> RenameAsync(string path, string destination, bool overwrite = false,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                if (!_directoryEntries.ContainsKey(path))
+                {
+                    throw new AdlsException("the path does not exist");
+                }
+
+                // The destination exist part is still not fully mocked.
+                if (_directoryEntries.ContainsKey(destination))
+                {
+                    if (_directoryEntries[destination].Entry.Type == DirectoryEntryType.FILE)
+                    {
+                        MoveOneEntry(path, destination);
+                        return true;
+                    }
+
+                    var destEntryName = path + "/" + Path.GetFileName(path);
+                    if (_directoryEntries.ContainsKey(destEntryName))
+                    {
+                        return false;
+                    }
+
+                    MoveDirectory(path, destEntryName);
+                }
+                else
+                {
+                    if (_directoryEntries[path].Entry.Type == DirectoryEntryType.FILE)
+                    {
+                        MoveOneEntry(path, destination);
+                    }
+                    else
+                    {
+                        MoveDirectory(path, destination);
+                    }
+                }
+
+                return true;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Removes the source entry and add a new entry in the internal dictionary with the same metadata of the source entry
         /// </summary>
@@ -209,38 +365,50 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override bool Rename(string path, string destination, bool overwrite = false,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            if (!_directoryEntries.ContainsKey(path))
-            {
-                throw new AdlsException("the path does not exist");
-            }
-            // The destination exist part is still not fully mocked.
-            if (_directoryEntries.ContainsKey(destination))
-            {
-                if (_directoryEntries[destination].Entry.Type == DirectoryEntryType.FILE)
-                {
-                    MoveOneEntry(path,destination);
-                    return true;
-                }
-                var destEntryName = path + "/" + Path.GetFileName(path);
-                if (_directoryEntries.ContainsKey(destEntryName))
-                {
-                    return false;
-                }
-                MoveDirectory(path, destEntryName);
-            }
-            else
-            {
-                if (_directoryEntries[path].Entry.Type == DirectoryEntryType.FILE)
-                {
-                    MoveOneEntry(path, destination);
-                }
-                else
-                {
-                    MoveDirectory(path,destination);
-                }
-            }
-            return true;
+            return RenameAsync(path, destination, overwrite, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Get Directory or file info
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="userIdFormat">User or group Id format</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task<DirectoryEntry> GetDirectoryEntryAsync(string path,
+            UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() =>
+            {
+                // Update the length here
+                if (_directoryEntries.ContainsKey(path))
+                {
+                    if (_directoryEntries[path].Entry.Type == DirectoryEntryType.FILE)
+                    {
+                        _directoryEntries[path].Entry.Length =
+                            _directoryEntries[path].DataStream.Length; // Update the stream length
+                    }
+
+                    return new DirectoryEntry(_directoryEntries[path].Entry); // send deep copy
+                }
+
+                // The input path path can be a directory which is not in the dictionary
+                foreach (var entries in _directoryEntries.Keys)
+                {
+                    if (entries.StartsWith(path + "/")) // This has to be directory
+                    {
+                        return new DirectoryEntry(path)
+                        {
+                            Type = DirectoryEntryType.DIRECTORY,
+                            Length = 0
+                        };
+                    }
+                }
+
+                throw new AdlsException("Not exist") {HttpStatus = HttpStatusCode.NotFound};
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Get Directory or file info
         /// </summary>
@@ -252,29 +420,35 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            // Update the length here
-            if (_directoryEntries.ContainsKey(path))
-            {
-                if (_directoryEntries[path].Entry.Type == DirectoryEntryType.FILE)
-                {
-                    _directoryEntries[path].Entry.Length = _directoryEntries[path].DataStream.Length; // Update the stream length
-                }
-                return new DirectoryEntry(_directoryEntries[path].Entry); // send deep copy
-            }
-            // The input path path can be a directory which is not in the dictionary
-            foreach (var entries in _directoryEntries.Keys)
-            {
-                if (entries.StartsWith(path+"/")) // This has to be directory
-                {
-                    return new DirectoryEntry(path)
-                    {
-                        Type = DirectoryEntryType.DIRECTORY,
-                        Length = 0
-                    };
-                }
-            }
-            throw new AdlsException("Not exist") { HttpStatus = HttpStatusCode.NotFound };
+            return GetDirectoryEntryAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Concats the memory stream of source entries and merges them into a new memory stream
+        /// </summary>
+        /// <param name="destination">Destination entry</param>
+        /// <param name="concatFiles">Concat files</param>
+        /// <param name="deleteSource">True if we want to delete source</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task ConcatenateFilesAsync(string destination, List<string> concatFiles, bool deleteSource = false,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                var memoryStream = CreateFile(destination, IfExists.Overwrite);
+                foreach (var file in concatFiles)
+                {
+                    if (!_directoryEntries.ContainsKey(file))
+                    {
+                        throw new AdlsException("The file to concat does not exist");
+                    }
+
+                    _directoryEntries[file].DataStream.CopyTo(memoryStream);
+                    Delete(file);
+                }
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Concats the memory stream of source entries and merges them into a new memory stream
         /// </summary>
@@ -285,17 +459,9 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void ConcatenateFiles(string destination, List<string> concatFiles, bool deleteSource = false,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            var memoryStream = CreateFile(destination, IfExists.Overwrite);
-            foreach (var file in concatFiles)
-            {
-                if (!_directoryEntries.ContainsKey(file))
-                {
-                    throw new AdlsException("The file to concat does not exist");
-                }
-                _directoryEntries[file].DataStream.CopyTo(memoryStream);
-                Delete(file);
-            }
+            ConcatenateFilesAsync(destination, concatFiles, deleteSource, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Returns a list of entries contained under the given directory
         /// </summary>
@@ -321,6 +487,46 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             return listToReturn;
         }
+
+        /// <summary>
+        /// Sets the expiry time for the file. 
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="eopt">Expiry option</param>
+        /// <param name="expiryTime">Expiry time</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task SetExpiryTimeAsync(string path, ExpiryOption eopt, long expiryTime,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                if (!_directoryEntries.ContainsKey(path))
+                {
+                    throw new AdlsException("The file does not exist.");
+                }
+
+                DateTime? dateTimeToSet;
+                if (eopt == ExpiryOption.Absolute)
+                {
+                    dateTimeToSet = DirectoryEntry.GetDateTimeFromServerTime(expiryTime);
+                }
+                else if (eopt == ExpiryOption.NeverExpire)
+                {
+                    dateTimeToSet = null;
+                }
+                else if (eopt == ExpiryOption.RelativeToNow)
+                {
+                    dateTimeToSet = DateTime.UtcNow + new TimeSpan(expiryTime * 10000);
+                }
+                else
+                {
+                    dateTimeToSet = _directoryEntries[path].CreationTime + new TimeSpan(expiryTime * 10000);
+                }
+
+                _directoryEntries[path].Entry.ExpiryTime = dateTimeToSet;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Sets the expiry time for the file. 
         /// </summary>
@@ -331,29 +537,29 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void SetExpiryTime(string path, ExpiryOption eopt, long expiryTime,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            if (!_directoryEntries.ContainsKey(path))
-            {
-                throw new AdlsException("The file does not exist.");
-            }
-            DateTime? dateTimeToSet;
-            if (eopt == ExpiryOption.Absolute)
-            {
-                dateTimeToSet = DirectoryEntry.GetDateTimeFromServerTime(expiryTime);
-            }
-            else if (eopt == ExpiryOption.NeverExpire)
-            {
-                dateTimeToSet = null;
-            }
-            else if (eopt == ExpiryOption.RelativeToNow)
-            {
-                dateTimeToSet = DateTime.UtcNow + new TimeSpan(expiryTime * 10000);
-            }
-            else
-            {
-                dateTimeToSet = _directoryEntries[path].CreationTime + new TimeSpan(expiryTime * 10000);
-            }
-            _directoryEntries[path].Entry.ExpiryTime = dateTimeToSet;
+            SetExpiryTimeAsync(path, eopt, expiryTime, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Sets the permission string for the given path
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="permission">Permission string</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task SetPermissionAsync(string path, string permission,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                if (!_directoryEntries.ContainsKey(path))
+                {
+                    throw new AdlsException("The file does not exist.");
+                }
+
+                _directoryEntries[path].Entry.Permission = _directoryEntries[path].AclData.Permission = permission;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Sets the permission string for the given path
         /// </summary>
@@ -363,12 +569,26 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void SetPermission(string path, string permission,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            if (!_directoryEntries.ContainsKey(path))
-            {
-                throw new AdlsException("The file does not exist.");
-            }
-            _directoryEntries[path].Entry.Permission = _directoryEntries[path].AclData.Permission = permission;
+            SetPermissionAsync(path, permission, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Adds acl entries for a given path
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="aclSpec">Acl list to append</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task ModifyAclEntriesAsync(string path, List<AclEntry> aclSpec,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                // Very naive, can be made intelligent by checking whether the acls are already present
+                _directoryEntries[path].AclData.Entries.AddRange(aclSpec);
+                _directoryEntries[path].Entry.HasAcl = true;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Adds acl entries for a given path
         /// </summary>
@@ -378,10 +598,37 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void ModifyAclEntries(string path, List<AclEntry> aclSpec,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            // Very naive, can be made intelligent by checking whether the acls are already present
-            _directoryEntries[path].AclData.Entries.AddRange(aclSpec);
-            _directoryEntries[path].Entry.HasAcl = true;
+            ModifyAclEntriesAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Sets new acl entries for the given path.
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="aclSpec">Acl list to set</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task SetAclAsync(string path, List<AclEntry> aclSpec,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                var newAclList = new List<AclEntry>();
+                foreach (var aclEntry in aclSpec)
+                {
+                    if (((aclEntry.Type == AclType.user || aclEntry.Type == AclType.group) &&
+                         string.IsNullOrEmpty(aclEntry.UserOrGroupId)) || aclEntry.Type == AclType.other)
+                    {
+                        continue;
+                    }
+
+                    newAclList.Add(aclEntry);
+                }
+
+                _directoryEntries[path].AclData.Entries = newAclList;
+                _directoryEntries[path].Entry.HasAcl = true;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Sets new acl entries for the given path.
         /// </summary>
@@ -391,19 +638,34 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void SetAcl(string path, List<AclEntry> aclSpec,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            var newAclList = new List<AclEntry>();
-            foreach (var aclEntry in aclSpec)
-            {
-                if (((aclEntry.Type == AclType.user || aclEntry.Type == AclType.group) &&
-                     string.IsNullOrEmpty(aclEntry.UserOrGroupId)) || aclEntry.Type == AclType.other)
-                {
-                    continue;
-                }
-                newAclList.Add(aclEntry);
-            }
-            _directoryEntries[path].AclData.Entries = newAclList;
-            _directoryEntries[path].Entry.HasAcl = true;
+            SetAclAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Sets the owner and group of the path
+        /// </summary>
+        /// <param name="path">Path of file or directory</param>
+        /// <param name="owner">Owner guid</param>
+        /// <param name="group">Group guid</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        public override async Task SetOwnerAsync(string path, string owner, string group,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                var metaData = _directoryEntries[path];
+                if (!string.IsNullOrEmpty(owner))
+                {
+                    metaData.Entry.User = metaData.AclData.Owner = owner;
+                }
+
+                if (!string.IsNullOrEmpty(group))
+                {
+                    metaData.Entry.Group = metaData.AclData.Group = group;
+                }
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Sets the owner and group of the path
         /// </summary>
@@ -414,15 +676,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override void SetOwner(string path, string owner, string group,
             CancellationToken cancelToken = default(CancellationToken))
         {
-            var metaData=_directoryEntries[path];
-            if (!string.IsNullOrEmpty(owner))
-            {
-                metaData.Entry.User = metaData.AclData.Owner = owner;
-            }
-            if (!string.IsNullOrEmpty(group))
-            {
-                metaData.Entry.Group = metaData.AclData.Group = group;
-            }
+            SetOwnerAsync(path, owner, group, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Removes specified Acl Entries for a file or directory from the internal AclStatus maintained in memory.
@@ -430,26 +684,57 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="path">Path of the file or directory</param>
         /// <param name="aclSpec">List of Acl Entries to remove</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        public override void RemoveAclEntries(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
+        public override async Task RemoveAclEntriesAsync(string path, List<AclEntry> aclSpec, CancellationToken cancelToken = default(CancellationToken))
         {
-            var toRemove=new List<AclEntry>();
-            foreach (var aclEntryToRemove in aclSpec)
+            await Task.Run(() =>
             {
-                foreach (var entry in _directoryEntries[path].AclData.Entries)
+                var toRemove = new List<AclEntry>();
+                foreach (var aclEntryToRemove in aclSpec)
                 {
-                    if (entry.Type.Equals(aclEntryToRemove.Type) &&
-                        entry.UserOrGroupId.Equals(aclEntryToRemove.UserOrGroupId) &&
-                        entry.Scope.Equals(aclEntryToRemove.Scope))
+                    foreach (var entry in _directoryEntries[path].AclData.Entries)
                     {
-                        toRemove.Add(entry);
+                        if (entry.Type.Equals(aclEntryToRemove.Type) &&
+                            entry.UserOrGroupId.Equals(aclEntryToRemove.UserOrGroupId) &&
+                            entry.Scope.Equals(aclEntryToRemove.Scope))
+                        {
+                            toRemove.Add(entry);
+                        }
                     }
                 }
-            }
-            foreach (var entry in toRemove)
-            {
-                _directoryEntries[path].AclData.Entries.Remove(entry);
-            }
+
+                foreach (var entry in toRemove)
+                {
+                    _directoryEntries[path].AclData.Entries.Remove(entry);
+                }
+            }, cancelToken);
         }
+
+        /// <summary>
+        /// Removes specified Acl Entries for a file or directory from the internal AclStatus maintained in memory.
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="aclSpec">List of Acl Entries to remove</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override void RemoveAclEntries(string path, List<AclEntry> aclSpec,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            RemoveAclEntriesAsync(path, aclSpec, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Removes all Acl Entries for a file or directory from the internal AclStatus maintained in memory.
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override async Task RemoveAllAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                _directoryEntries[path].AclData.Entries = new List<AclEntry>();
+                _directoryEntries[path].Entry.HasAcl = false;
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Removes all Acl Entries for a file or directory from the internal AclStatus maintained in memory.
         /// </summary>
@@ -457,9 +742,34 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public override void RemoveAllAcls(string path, CancellationToken cancelToken = default(CancellationToken))
         {
-            _directoryEntries[path].AclData.Entries=new List<AclEntry>();
-            _directoryEntries[path].Entry.HasAcl = false;
+            RemoveAllAclsAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Removes all Acl Entries of AclScope default for a file or directory from the internal AclStatus maintained in memory.
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override async Task RemoveDefaultAclsAsync(string path, CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                var defaultAclList = new List<AclEntry>();
+                foreach (var aclEntry in _directoryEntries[path].AclData.Entries)
+                {
+                    if (aclEntry.Scope == AclScope.Default)
+                    {
+                        defaultAclList.Add(aclEntry);
+                    }
+                }
+
+                foreach (var aclEntry in defaultAclList)
+                {
+                    _directoryEntries[path].AclData.Entries.Remove(aclEntry);
+                }
+            }, cancelToken);
+        }
+
         /// <summary>
         /// Removes all Acl Entries of AclScope default for a file or directory from the internal AclStatus maintained in memory.
         /// </summary>
@@ -467,19 +777,20 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public override void RemoveDefaultAcls(string path, CancellationToken cancelToken = default(CancellationToken))
         {
-            var defaultAclList = new List<AclEntry>();
-            foreach (var aclEntry in _directoryEntries[path].AclData.Entries)
-            {
-                if (aclEntry.Scope == AclScope.Default)
-                {
-                    defaultAclList.Add(aclEntry);
-                }
-            }
-            foreach (var aclEntry in defaultAclList)
-            {
-                _directoryEntries[path].AclData.Entries.Remove(aclEntry);
-            }
+            RemoveDefaultAclsAsync(path, cancelToken).GetAwaiter().GetResult();
         }
+
+        /// <summary>
+        /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="userIdFormat">way to represent the user/group object</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override async Task<AclStatus> GetAclStatusAsync(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await Task.Run(() => new AclStatus(_directoryEntries[path].AclData), cancelToken);
+        }
+
         /// <summary>
         /// Gets the ACL entry list, owner ID, group ID, octal permission and sticky bit (only for a directory) of the file/directory
         /// </summary>
@@ -488,7 +799,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public override AclStatus GetAclStatus(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return new AclStatus(_directoryEntries[path].AclData);
+            return GetAclStatusAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Bulk uploads file only. Reads a local file and maintains the memory stream for the entry
@@ -649,7 +960,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <param name="maxDepth"></param>
         public override void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true,
             bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false,
-            long maxDepth = Int64.MaxValue)
+            long maxDepth = Int64.MaxValue, CancellationToken cancelToken = default(CancellationToken))
         {
             if (!(getAclUsage || getDiskUsage))
             {

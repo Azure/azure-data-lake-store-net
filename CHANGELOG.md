@@ -1,4 +1,15 @@
 # Changes to the SDK
+### Version 1.1.8
+- Fix FileTransfer upload for relative input path. Add unittest
+- Fix error message for remote exceptions which does not return json output. 
+- Add Authentication header length for logging and Adls exception message for 401
+- Add async api corresponding to non-async methods in mock adlsclient
+- Add cancellation token to recursive acl change and recursive DU and acl dump. Add progress tracking to recursive acl change
+- Allow RecursiveAcl application of default acl only to ignore file
+- For recursive acl change have priority of Acl change more than enumerate
+- Fix overflow of offset in AdlsOutputStream.WriteAsync
+- Fix encoding of query parameters
+- Fix useragent so that it does not contain localized values
 ### Version 1.1.7
 - Consider only access acls for comparing files to parent directory for determining consistent acls in recursive acl dump. Add unittest
 - Add netcore support for unittest. Change MockServer to use weblistener for it's netcore support.

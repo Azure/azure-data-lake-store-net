@@ -23,6 +23,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
         private const int NumTests = 5;
+        private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
         {
@@ -112,7 +113,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestRetry()
         {
             int port = 8080;
-            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, "Test Token");
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(502, "Bad Gateway"));
@@ -141,7 +142,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestRestry1()
         {
             int port = 8081;
-            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, "Test Token");
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(408, "Request Timeout"));
@@ -164,7 +165,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestRestry2()
         {
             int port = 8082;
-            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, "Test Token");
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(429, "Too Many Requests"));
@@ -186,7 +187,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestRestry3()
         {
             int port = 8083;
-            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, "Test Token");
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(502, "Bad Gateway"));
@@ -235,7 +236,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(200, "OK"));
-            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, "Test Token");
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
             {

@@ -20,6 +20,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         internal PriorityQueueWrapper<BaseJob> PropertyWriterQueue;
         private readonly int _numThreads;
         private Thread[] _threadConsumer;
+        private readonly CancellationToken _cancelToken;
         /// <summary>
         /// Separate single thread to write the properties to file. You only need one thread
         /// because you are writing to one file on a disk. Remember there is no lock around the writer write.
@@ -60,7 +61,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             }
         }
 
-        private PropertyManager(AdlsClient client, bool getAclProperty, bool getDiskUsage, string saveFileName, bool saveToLocal, int numThreads, bool displayFiles, bool displayConsistentAcl, long maxDepth)
+        private PropertyManager(AdlsClient client, bool getAclProperty, bool getDiskUsage, string saveFileName, bool saveToLocal, int numThreads, bool displayFiles, bool displayConsistentAcl, long maxDepth, CancellationToken cancelToken = default(CancellationToken))
         {
             Client = client;
             SaveToLocal = saveToLocal;
@@ -77,6 +78,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             MaxDepth = maxDepth;
             ConsumerQueue = new PriorityQueueWrapper<BaseJob>(_numThreads);
             PropertyWriterQueue = new PriorityQueueWrapper<BaseJob>();
+            _cancelToken = cancelToken;
             Stream underLyingStream;
             if (saveToLocal)
             {
@@ -148,6 +150,12 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
                 {
                     throw new ArgumentException("Input path is a file and DisplayFiles is false");
                 }
+
+                if (_cancelToken.IsCancellationRequested)
+                {
+                    return HeadNode;
+                }
+
                 ConsumerQueue.Add(new EnumerateAndGetPropertyJob(HeadNode, this));
 
                 //Threads responsible for enumerating and retrieving properties like size and acl
@@ -209,14 +217,19 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         /// <param name="displayFiles">True if we want to display properties of files</param>
         /// <param name="hideConsistentAcl">True if we want to view consistent acl property only</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
-        internal static PropertyTreeNode GetFileProperty(string path, AdlsClient client, bool getAclProperty, bool getDiskUsage, string dumpFileName, bool saveToLocal, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue)
+        internal static PropertyTreeNode GetFileProperty(string path, AdlsClient client, bool getAclProperty, bool getDiskUsage, string dumpFileName, bool saveToLocal, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue, CancellationToken cancelToken = default (CancellationToken))
         {
-            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth).RunGetProperty(path);
+            return new PropertyManager(client, getAclProperty, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth, cancelToken).RunGetProperty(path);
         }
         private void ConsumerRun()
         {
             while (true)
             {
+                if (_cancelToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
                 var job = ConsumerQueue.Poll();
                 if (GetException() != null || job == null || job is PoisonJob)
                 {

@@ -5,7 +5,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
     {
         private readonly AclProcessor _aclProcess;
         private readonly string _fullPath;
-        internal EnumerateDirectoryChangeAclJob(AclProcessor aclProcess,string fullPath):base(2)
+        internal EnumerateDirectoryChangeAclJob(AclProcessor aclProcess,string fullPath):base(1)
         {
             _aclProcess = aclProcess;
             _fullPath = fullPath;

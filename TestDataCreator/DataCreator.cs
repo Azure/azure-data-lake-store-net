@@ -180,7 +180,7 @@ namespace TestDataCreator
             }
         }
 
-        public static void DeleteRecursiveLocal(DirectoryInfo dir)
+        internal static void DeleteRecursiveLocal(DirectoryInfo dir)
         {
 
             IEnumerable<DirectoryInfo> enumDir = dir.EnumerateDirectories();

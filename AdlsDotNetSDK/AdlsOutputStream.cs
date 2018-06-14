@@ -337,7 +337,7 @@ namespace Microsoft.Azure.DataLake.Store
                 OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, (int)FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 // if this was a retry and we get bad offset, then this might be because we got a transient

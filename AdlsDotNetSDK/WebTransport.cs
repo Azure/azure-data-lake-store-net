@@ -38,6 +38,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         private const int UrlLength = 100;
         /// <summary>
+        /// Thorw an error if AuthorizationHeader is less than that
+        /// </summary>
+        private const int AuthorizationHeaderLengthThreshold = 10;
+        /// <summary>
         /// Method that gets called when CancellationToken is cancelled. It aborts the Http web request.
         /// </summary>
         /// <param name="state">HttpWebRequest instance</param>
@@ -130,7 +134,8 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 string logLine =
                     $"HTTPRequest,{(resp.IsSuccessful ? "Succeeded" : "failed")},cReqId:{req.RequestId},lat:{resp.LastCallLatency},err:{error},Reqlen:{requestLength},Resplen:{responseLength}" +
-                    $",token_ns:{resp.TokenAcquisitionLatency},sReqId:{resp.RequestId},path:{path},qp:{querParams}{(!req.KeepAlive ? ",keepAlive:false" : "")}{(!req.IgnoreDip && client.DipIp != null ? $",dipIp:{client.DipIp}" : "")}";
+                    $"{(resp.HttpStatus == HttpStatusCode.Unauthorized ? $",Tokenlen:{resp.AuthorizationHeaderLength}" : "")},token_ns:{resp.TokenAcquisitionLatency},sReqId:{resp.RequestId}" + 
+                    $",path:{path},qp:{querParams}{(!req.KeepAlive ? ",keepAlive:false" : "")}{(!req.IgnoreDip && client.DipIp != null ? $",dipIp:{client.DipIp}" : "")}";
                 WebTransportLog.Debug(logLine);
             }
             LatencyTracker.AddLatency(req.RequestId, numRetries, resp.LastCallLatency, error, opCode,
@@ -159,10 +164,15 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     if (requestHeader.Equals("Authorization"))
                     {
-                        continue;
+                        message += (!firstHeader ? Environment.NewLine : "") +
+                                   $"[AuthorizationHeaderLength:{request.Headers["Authorization"].Length}]";
                     }
-
-                    message += (!firstHeader ? Environment.NewLine : "") + $"[{requestHeader}:{request.Headers[requestHeader]}]";
+                    else
+                    {
+                        message += (!firstHeader ? Environment.NewLine : "") +
+                                   $"[{requestHeader}:{request.Headers[requestHeader]}]";
+                    }
+                    
                     firstHeader = false;
                 }
                 message += $"{Environment.NewLine}{Environment.NewLine}";
@@ -381,15 +391,32 @@ namespace Microsoft.Azure.DataLake.Store
                             TokenLog.Debug(tokenLogLine);
                         }
                         resp.HttpMessage = errorResponse.StatusDescription;
+                        ByteBuffer errorResponseData = default(ByteBuffer);
+                        if (!InitializeResponseData(errorResponse, ref errorResponseData))
+                        {
+                            throw new ArgumentException("ContentLength of error response stream is not set");
+                        }
                         using (Stream errorStream = errorResponse.GetResponseStream())
                         {
-                            ParseRemoteError(errorStream, resp);
+                            // Reading the data from the error response into a byte array is necessary to show the actual error data as a part of the 
+                            // error message in case JSON parsing does not work. We read the bytes and then pass it back to JsonTextReader using a memorystream
+                            int noBytes;
+                            int totalLengthToRead = errorResponseData.Count;
+                            do
+                            {
+                                noBytes = errorStream.Read(errorResponseData.Data, errorResponseData.Offset, totalLengthToRead);
+                                errorResponseData.Offset += noBytes;
+                                totalLengthToRead -= noBytes;
+
+                            } while (noBytes > 0 && totalLengthToRead > 0);
+                            
+                            ParseRemoteError(errorResponseData.Data, errorResponseData.Count, resp, errorResponse.Headers["Content-Type"]);
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    resp.Error = "Unexpected error in JSON parsing";
+                    resp.Ex = ex;
                 }
 
             }
@@ -414,48 +441,66 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Parses RemoteException and populates the remote error fields in OperationResponse
         /// </summary>
-        /// <param name="errorStream">Error Response stream</param>
+        /// <param name="errorBytes">Error Response bytes</param>
+        /// <param name="errorBytesLength">Error response bytes length</param>
         /// <param name="resp">Response instance</param>
-        /// <returns></returns>
-        private static void ParseRemoteError(Stream errorStream, OperationResponse resp)
+        /// <param name="contentType">Content Type</param>
+        private static void ParseRemoteError(byte[] errorBytes, int errorBytesLength, OperationResponse resp, string contentType)
         {
-
-            using (StreamReader stReader = new StreamReader(errorStream))
+            try
             {
-                using (var jsonReader = new JsonTextReader(stReader))
+                using (MemoryStream errorStream = new MemoryStream(errorBytes, 0, errorBytesLength))
                 {
-                    jsonReader.Read(); //StartObject {
-                    jsonReader.Read(); //"RemoteException"
-                    if (jsonReader.Value == null || !((string)jsonReader.Value).Equals("RemoteException"))
+                    using (StreamReader stReader = new StreamReader(errorStream))
                     {
-                        throw new IOException("There is some different type of exception");
-                    }
-                    jsonReader.Read(); //StartObject {
-                    do
-                    {
-                        jsonReader.Read();
-                        if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
+
+                        using (var jsonReader = new JsonTextReader(stReader))
                         {
 
-                            switch ((string)jsonReader.Value)
+                            jsonReader.Read(); //StartObject {
+                            jsonReader.Read(); //"RemoteException"
+                            if (jsonReader.Value == null || !((string) jsonReader.Value).Equals("RemoteException"))
                             {
-                                case "exception":
-                                    jsonReader.Read();
-                                    resp.RemoteExceptionName = (string)jsonReader.Value;
-                                    break;
-                                case "message":
-                                    jsonReader.Read();
-                                    resp.RemoteExceptionMessage = (string)jsonReader.Value;
-                                    break;
-                                case "javaClassName":
-                                    jsonReader.Read();
-                                    resp.RemoteExceptionJavaClassName = (string)jsonReader.Value;
-                                    break;
+                                throw new IOException(
+                                    $"Unexpected type of exception in JSON error output. Expected: RemoteException Actual: {jsonReader.Value}");
                             }
-                        }
 
-                    } while (!jsonReader.TokenType.Equals(JsonToken.EndObject));
+                            jsonReader.Read(); //StartObject {
+                            do
+                            {
+                                jsonReader.Read();
+                                if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
+                                {
+
+                                    switch ((string) jsonReader.Value)
+                                    {
+                                        case "exception":
+                                            jsonReader.Read();
+                                            resp.RemoteExceptionName = (string) jsonReader.Value;
+                                            break;
+                                        case "message":
+                                            jsonReader.Read();
+                                            resp.RemoteExceptionMessage = (string) jsonReader.Value;
+                                            break;
+                                        case "javaClassName":
+                                            jsonReader.Read();
+                                            resp.RemoteExceptionJavaClassName = (string) jsonReader.Value;
+                                            break;
+                                    }
+                                }
+
+                            } while (!jsonReader.TokenType.Equals(JsonToken.EndObject));
+
+                        }
+                    }
                 }
+            }
+            catch (Exception e)
+            {
+                resp.Error =
+                    $"Unexpected error in JSON parsing of the error stream. Content-Type of error response: {contentType}. ExceptionType: {e.GetType()} ExceptionMessage: {e.Message}";
+                //Store the actual remote response in a separate variable, since response can have illegal charcaters which will throw exception while setting them to headers
+                resp.RemoteErrorNonJsonResponse = Encoding.UTF8.GetString(errorBytes, 0, errorBytesLength);
             }
         }
     #endregion
@@ -563,7 +608,14 @@ namespace Microsoft.Azure.DataLake.Store
                         resp.Error = "Token is null or empty";
                         return null;
                     }
-                    
+
+                    if (token.Length <= AuthorizationHeaderLengthThreshold)
+                    {
+                        resp.Error = $"Token Length is {token.Length}. Something is wrong with the token.";
+                        return null;
+                    }
+
+                    resp.AuthorizationHeaderLength = token.Length;
                     AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders);
                     if (!op.Method.Equals("GET"))
                     {
@@ -729,8 +781,15 @@ namespace Microsoft.Azure.DataLake.Store
                         resp.Error = "Token is null or empty";
                         return null;
                     }
-                    
 
+
+                    if (token.Length <= AuthorizationHeaderLengthThreshold)
+                    {
+                        resp.Error = $"Token Length is {token.Length}. Something is wrong with the token.";
+                        return null;
+                    }
+
+                    resp.AuthorizationHeaderLength = token.Length;
                     AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders);
                     if (!op.Method.Equals("GET"))
                     {

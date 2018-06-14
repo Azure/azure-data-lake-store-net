@@ -129,18 +129,14 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 SdkVersion = "SDKVersionUnknown";
             }
-            string osInfo = "";
+            string osInfo;
             string dotNetVersion = "";
             try
             {
 #if NET452
-                foreach (var os in new ManagementObjectSearcher("SELECT Caption, Version, OSArchitecture FROM Win32_OperatingSystem").Get())
-                {
-                    var version = os["Version"].ToString();
-                    var productName = os["Caption"].ToString();
-                    var architecture = os["OSArchitecture"].ToString();
-                    osInfo = productName + " " + version + " " + architecture;
-                }
+                // Cannot get Caption/Architecture from Win32_OperatingSystem because they can have localised values
+                osInfo = Environment.OSVersion.VersionString + " " + IntPtr.Size * 8;
+                
                 dotNetVersion = "NET452";
                 int coreCount = 0;
                 foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
@@ -1261,6 +1257,23 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         /// <summary>
+        /// Change Acl (Modify, set and remove) recursively on a directory tree
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="path">The root directory path from where the Acl change will begin</param>
+        /// <param name="aclEntries">Acl entries to add or set or remove depending on the input</param>
+        /// <param name="type">Type of modification <see cref="RequestedAclType"/></param>
+        /// <param name="threadCount">Number of threads to use</param>
+        /// <param name="statusTracker">Tracker to track progress of acl processor</param>
+        /// <param name="cancelToken">CancellationToken</param>
+        /// <returns>Stats- total number of files and directories processed</returns>
+        public virtual AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount, IProgress<AclProcessorStats> statusTracker, CancellationToken cancelToken)
+        {
+            return AclProcessor.RunAclProcessor(path, this, aclEntries, type, threadCount, statusTracker, cancelToken);
+        }
+
+        /// <summary>
         /// Recursively dumps file property of alldirectories or/and files under the given path to a local or adl file. File property can be disk usage or Acl or both.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
@@ -1275,7 +1288,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="hideConsistentAcl">Do not show directory subtree if the ACLs are the same throughout the entire subtree. This 
         ///                                 makes it easier to see only the paths up to which the ACLs differ. For example if all files and folders under /a/b are the same, do not show the subtree under /a/b, and just output /a/b with 'True' in the Consistent ACL column. Cannot be set if IncludeFiles is not set, because consistent Acl cannot be determined without retrieving acls for the files.</param>
         /// <param name="maxDepth">Maximum depth till which we want to view the properties</param>
-        public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue)
+        /// <param name="cancelToken">CancellationToken to cancel the recursive process</param>
+        public virtual void GetFileProperties(string path, bool getAclUsage, string dumpFileName, bool getDiskUsage = true, bool saveToLocal = true, int numThreads = -1, bool displayFiles = false, bool hideConsistentAcl = false, long maxDepth = Int64.MaxValue, CancellationToken cancelToken = default(CancellationToken))
         {
             if (!(getAclUsage || getDiskUsage))
             {
@@ -1287,7 +1301,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException("hideConsistentAcl cannot be true when displayFiles is false because consistent Acl cannot be determined unless we retrieve acls for the files also.");
             }
 
-            PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth);
+            PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth, cancelToken);
         }
 
         #endregion
@@ -1302,11 +1316,13 @@ namespace Microsoft.Azure.DataLake.Store
         {
 
             string exceptionMessage = defaultMessage;
-            exceptionMessage += $"\nOperation: {resp.OpCode} failed with {(resp.HttpStatus > 0 ? "HttpStatus:" + resp.HttpStatus : "")} ";
+            // For unauthorized show the authorization header length
+            exceptionMessage += $"\nOperation: {resp.OpCode} failed with {(resp.HttpStatus > 0 ? "HttpStatus:" + resp.HttpStatus : "")} {(resp.HttpStatus == HttpStatusCode.Unauthorized ? $" Token Length: {resp.AuthorizationHeaderLength}" : "")} ";
 
             if (!string.IsNullOrEmpty(resp.Error))
             {
-                exceptionMessage += "Error: " + resp.Error + ".";
+                // If remote error is nonjson then print the actual error for exception
+                exceptionMessage += "Error: " + resp.Error + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse)? "": $" {resp.RemoteErrorNonJsonResponse}")}.";
             }
             else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
             {
@@ -1314,7 +1330,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             else
             {
-                exceptionMessage += $"Unknown Error: {resp.Ex.Message}.";
+                exceptionMessage += $"Unknown Error: {resp.Ex.Message} Source: {resp.Ex.Source} StackTrace: {resp.Ex.StackTrace}.";
             }
             exceptionMessage += $"\nLast encountered exception thrown after {(resp.Retries + 1)} tries. ";
             if (resp.ExceptionHistory != null) exceptionMessage += "[" + resp.ExceptionHistory + "]";

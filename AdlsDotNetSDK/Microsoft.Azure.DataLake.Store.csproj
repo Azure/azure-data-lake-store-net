@@ -4,13 +4,13 @@
     <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
     <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>1.1.7</Version>
+	  <Version>1.1.8</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>Fix consistent acl computation in recursive acl dump for default acls, add netcore compatibility to unittest</PackageReleaseNotes>
+    <PackageReleaseNotes>Fix FileTransfer upload for relative input path, Fix error message for non-json parsing of remote error, Add check for access token length, add cancellation token for recursive acl change and export fileproperties and add progress tracking to recursvie acl change, Fix overflow of offset in AdlsOutputStream.WriteAsync, Fix encoding of query parameters, Fix useragent to not contain localized values</PackageReleaseNotes>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageLicenseUrl>https://raw.githubusercontent.com/Azure/azure-data-lake-store-net/master/LICENSE</PackageLicenseUrl>
     <PackageIconUrl>http://go.microsoft.com/fwlink/?LinkID=288890</PackageIconUrl>

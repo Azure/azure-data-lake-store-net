@@ -100,6 +100,28 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             };
         }
 
+        internal static List<AclEntry> GetAclEntryDefault()
+        {
+            return new List<AclEntry>()
+            {
+                new AclEntry(AclType.user, SdkUnitTest.NonOwner2ObjectId, AclScope.Default, AclAction.WriteOnly)
+            };
+        }
+
+        [TestMethod]
+        public void TestModifyOnlyDefaultAcl()
+        {
+            List<AclEntry> aclEntries1 = GetAclEntryDefault();
+            var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B0", _adlsClient, aclEntries1,
+                RequestedAclType.ModifyAcl, 25);
+            var aclVerifyStats =
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
+            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
+            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
+            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoriesCorrect);
+        }
+
         /// <summary>
         /// Tests Acl modify
         /// </summary>

@@ -2,7 +2,7 @@
   <appSettings>
     <!--Account domain name. e.g., something.azuredatalakestore.net-->
     <Account></Account>
-    
+    <!--Make sure no default permission is set for root . Default acls/mask messes up the test-->
     <!--Owner should be the owner of the account i.e. super user
         Object Id is the service principal Id
         Client Id is the app Id

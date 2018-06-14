@@ -13,10 +13,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     public class TransferUnitTest
     {
         private static AdlsClient _adlsClient;
-        private static readonly string LocalPath = "C:\\Data" + SdkUnitTest.TestId;
+        private static readonly string LocalRelativePath = @".\" + SdkUnitTest.TestId;
+        private static readonly string LocalPath = Directory.GetCurrentDirectory() + @"\" + SdkUnitTest.TestId;
         private static readonly string RemotePath = "/Test1" + SdkUnitTest.TestId;
         private static readonly string LocalPathUpload1 = $"{LocalPath}\\B";
-        private static readonly string LocalPathUpload2 = $"{LocalPath}\\C";
+        private static readonly string LocalPathUpload2 = $"{LocalRelativePath}\\C";
         private static readonly string RemotePathUpload1 = $"{RemotePath}/Uploader/B";
         private static readonly string RemotePathUpload2 = $"{RemotePath}/Uploader/C";
         private static readonly string RemotePathDownload = $"{RemotePath}/Downloader/A";

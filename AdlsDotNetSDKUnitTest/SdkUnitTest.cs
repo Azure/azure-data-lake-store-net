@@ -311,6 +311,27 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(diren.Type == DirectoryEntryType.FILE);
             Assert.IsTrue(diren.Permission.Equals("732"));
         }
+
+        [TestMethod]
+        public void TestCreateFileWithControlCharacter()
+        {
+            string dir = $"{UnitTestDir}/ControlCharacterDir";
+            // The string below has a delete character in it 7F
+            string unicodeFilename = dir + "/Cnt1-A_€__}_R_€_}_]_‚_ˆ_LA_„_}_L_R_X_‚_Z_]_€I_‚_Y_ƒ_‰_‚_[R_]_€_ƒ_Z_X_ˆ_}_ƒ_‚_LL_X_ˆ_]_‚_Z_.";
+            try
+            {
+                using (_adlsClient.CreateFile(unicodeFilename, IfExists.Overwrite))
+                {
+                    Assert.Fail("This should throw an exception");
+                }
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.BadRequest);
+                Assert.IsTrue(ex.Error.Contains("JsonReaderException"));
+            }
+        }
+        
         /// <summary>
         /// Unit test in creating a file with unicode name. Verify by reading the file.
         /// </summary>
@@ -1153,6 +1174,20 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(overwrite ? output.Equals(srcFileText) : output.Equals(destFileText));
         }
+
+        [TestMethod]
+        public void TestRenameFileEncoding()
+        {
+            string srcFilePath = $"{UnitTestDir}/testSourceRenameFileEncoding.txt";
+            string destFilePath = $"{UnitTestDir}/testDestRenameFileEncoding+,#?.txt";
+            using (_adlsClient.CreateFile(srcFilePath, IfExists.Overwrite, ""))
+            {
+            }
+            bool result = _adlsClient.Rename(srcFilePath, destFilePath);
+            Assert.IsTrue(result);
+            Assert.IsTrue(_adlsClient.CheckExists(destFilePath));
+        }
+
         #endregion
 
         #region Delete

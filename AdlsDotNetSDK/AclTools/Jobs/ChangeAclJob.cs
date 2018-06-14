@@ -7,7 +7,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
         private readonly AclProcessor _aclProcess;
         private readonly string _fullPath;
         private readonly DirectoryEntryType _entryType;
-        internal ChangeAclJob(AclProcessor aclProcess, string fullPath, DirectoryEntryType type):base(1)
+        internal ChangeAclJob(AclProcessor aclProcess, string fullPath, DirectoryEntryType type):base(2)
         {
             _aclProcess = aclProcess;
             _fullPath = fullPath;

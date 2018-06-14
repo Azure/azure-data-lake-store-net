@@ -62,6 +62,16 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// </summary>
         private int NumThreads { get; }
 
+        private readonly CancellationToken _cancelToken;
+        private readonly IProgress<AclProcessorStats> _aclStatusTracker;
+        /// <summary>
+        /// Flag that represents consumer is done- used by stat collection thread
+        /// </summary>
+        private long _consumerDone;
+        /// <summary>
+        /// Stat collecting threads
+        /// </summary>
+        private Thread _threadStats;
         /// <summary>
         /// Array of thread workers
         /// </summary>
@@ -75,28 +85,32 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// </summary>
         internal RequestedAclType Type { get; }
         /// <summary>
-        /// Total Files processed
+        /// Total Files processed, this is updated after enumeration
         /// </summary>
-        private int _filesCount;
+        private long _filesEnumerated;
         /// <summary>
-        /// Total Directories processed
+        /// Total Directories processed, this is updated after enumeration
         /// </summary>
-        private int _directoryCount;
+        private long _directoryEnumerated;
         /// <summary>
         /// Number of files for which Acl change was correct. This is used for internal use.
         /// </summary>
-        private int _filesCorrect;
+        private long _filesCorrect;
         /// <summary>
         /// Number of directories for which Acl change was correct. This is used for internal use.
         /// </summary>
-        private int _directoryCorrect;
-        private AclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount,bool verify=false)
+        private long _directoryCorrect;
+        private AclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount, IProgress<AclProcessorStats> aclStatusTracker, CancellationToken cancelToken, bool verify=false)
         {
             _inputPath = path;
             Client = client;
             NumThreads = threadCount < 0 ? AdlsClient.DefaultNumThreads: threadCount;
             Queue = new PriorityQueueWrapper<BaseJob>(NumThreads);
             _threadWorker = new Thread[NumThreads];
+            if (aclEntries == null || aclEntries.Count == 0)
+            {
+                throw new ArgumentException("Input acl is null or empty");
+            }
             AclEntries = aclEntries;
             FileAclEntries = new List<AclEntry>(AclEntries.Count);
             foreach (var entry in AclEntries)
@@ -106,8 +120,15 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
                     FileAclEntries.Add(entry);
                 }
             }
+
+            if (FileAclEntries.Count == 0 && AclLog.IsDebugEnabled)
+            {
+                AclLog.Debug("AclEntries for file are empty so input acl must be containing default acls");
+            }
             Type = type;
             _isVerify = verify;
+            _aclStatusTracker = aclStatusTracker;
+            _cancelToken = cancelToken;
             if (AclLog.IsDebugEnabled)
             {
                 AclLog.Debug($"AclProcessor, Name: {_inputPath}, Threads: {NumThreads}, AclChangeType: {Type}, InputAcl: {string.Join(":",AclEntries)}{(_isVerify?", RunInVerifyMode":string.Empty)}");
@@ -143,10 +164,12 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// <param name="aclEntries">Acl Entries to change</param>
         /// <param name="type">Type of Acl Job: Acl modify or Acl set or acl remove</param>
         /// <param name="threadCount">Custom number of threads</param>
+        /// <param name="aclStatus">Status of progress</param>
+        /// <param name="cancelToken">Cancellationtoken</param>
         /// <returns></returns>
-        internal static AclProcessorStats RunAclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1)
+        internal static AclProcessorStats RunAclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1, IProgress<AclProcessorStats> aclStatus = null, CancellationToken cancelToken = default(CancellationToken))
         {
-            return new AclProcessor(path,client, aclEntries, type, threadCount).ProcessAcl();
+            return new AclProcessor(path,client, aclEntries, type, threadCount, aclStatus, cancelToken).ProcessAcl();
         }
         /// <summary>
         /// Internal test Api to verify Acl Processor. Runs Acl verifier and returns number of files and directories processed correctly.
@@ -160,7 +183,8 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         internal static AclProcessorStats RunAclVerifier(string path, AdlsClient client, List<AclEntry> aclEntries,
             RequestedAclType type, int threadCount = -1)
         {
-            return new AclProcessor(path, client, aclEntries, type, threadCount,true).ProcessAcl();
+            return new AclProcessor(path, client, aclEntries, type, threadCount, null, default(CancellationToken), true)
+                .ProcessAcl();
         }
         /// <summary>
         /// Starts the Acl Processor threads. Returns the results or throws any exceptions.
@@ -173,31 +197,67 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             {
                 _threadWorker[i] = new Thread(Run);
             }
+
             ProcessDirectoryEntry(dir);
+            if (_cancelToken.IsCancellationRequested)
+            {
+                return new AclProcessorStats(_filesEnumerated, _directoryEnumerated);
+            }
+
+            if (_aclStatusTracker != null)
+            {
+                _threadStats = new Thread(StatsRun)
+                {
+                    Name = "StatsThread"
+                };
+            }
+
             for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Start();
             }
+            
+            //Stats thread should only start after enumeration is done
+            if (_aclStatusTracker != null)
+            {
+                _threadStats.Start();
+            }
+
             for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Join();
             }
+
+            if (_aclStatusTracker != null)
+            {
+                Interlocked.Increment(ref _consumerDone);
+                _threadStats.Join();
+            }
+
             if (GetException() != null)
             {
                 throw GetException();
             }
-            return _isVerify?new AclProcessorStats(_filesCount,_directoryCount,_filesCorrect,_directoryCorrect):new AclProcessorStats(_filesCount, _directoryCount) ;
+
+            return _isVerify
+                ? new AclProcessorStats(_filesEnumerated, _directoryEnumerated, _filesCorrect, _directoryCorrect)
+                : new AclProcessorStats(_filesEnumerated, _directoryEnumerated);
         }
         internal void ProcessDirectoryEntry(DirectoryEntry dir)
         {
             if (dir.Type == DirectoryEntryType.DIRECTORY)
             {
                 Queue.Add(new EnumerateDirectoryChangeAclJob(this, dir.FullName));
-                Interlocked.Increment(ref _directoryCount);
+                Interlocked.Increment(ref _directoryEnumerated);
             }
             else
             {
-                Interlocked.Increment(ref _filesCount);
+                // If the input only contains default acl then the FileAclEntries willl be empty
+                if (FileAclEntries.Count == 0)
+                {
+                    return;
+                }
+                Interlocked.Increment(ref _filesEnumerated);
             }
             if (_isVerify)
             {
@@ -223,6 +283,19 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
                 Interlocked.Increment(ref _filesCorrect);
             }
         }
+
+        /// <summary>
+        /// Delegate method run by stats thread
+        /// </summary>
+        private void StatsRun()
+        {
+            while (Interlocked.Read(ref _consumerDone) == 0)
+            {
+                _aclStatusTracker.Report(new AclProcessorStats(_filesEnumerated, _directoryEnumerated));
+                Thread.Sleep(50);
+            }
+        }
+
         /// <summary>
         /// Method run by a single thread. Polls a directory entry. If job is of type EnumerateDirectory then enumerates contents in it and queues them. 
         /// If job is of type Acl Change then performs the Acl change. If job type is Acl Verify then does acl verification
@@ -231,6 +304,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         {
             while (true)
             {
+                if (_cancelToken.IsCancellationRequested)
+                {
+                    return;
+                }
                 var job = Queue.Poll();
                 if (GetException()!=null||job == null||job is PoisonJob)//Exception or Poision block (all threads are waiting)
                 {
