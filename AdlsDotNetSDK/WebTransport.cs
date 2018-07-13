@@ -290,15 +290,17 @@ namespace Microsoft.Azure.DataLake.Store
                     webReq.Headers[key] = customHeaders[key];
                 }
             }
-#if NET452
+#if NETSTANDARD2_0 || NET452
             webReq.UserAgent = client.GetUserAgent();
+#else
+            webReq.Headers["User-Agent"] = client.GetUserAgent();
+#endif
+#if NET452
             //Setting timeout is only available in NET452
             webReq.ReadWriteTimeout = (int)req.TimeOut.TotalMilliseconds;
             webReq.Timeout = (int)req.TimeOut.TotalMilliseconds;
             webReq.ServicePoint.UseNagleAlgorithm = false;
             webReq.ServicePoint.Expect100Continue = false;
-#else
-            webReq.Headers["User-Agent"] = client.GetUserAgent();
 #endif
             webReq.Headers["x-ms-client-request-id"] = req.RequestId;
             webReq.Method = opMethod;

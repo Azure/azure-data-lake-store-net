@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
+    <TargetFrameworks>net452;netstandard1.4;netstandard2.0;netcoreapp1.1</TargetFrameworks>
     <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
 	  <Version>1.1.8</Version>
@@ -36,6 +36,10 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.4'">
     <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
 	  <PackageReference Include="NLog" Version="4.5.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="10.0.2" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="NLog" Version="4.5.0" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.2" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp1.1'">
