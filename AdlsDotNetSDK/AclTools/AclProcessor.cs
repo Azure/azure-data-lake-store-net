@@ -142,7 +142,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         {
             lock (_thisLock)
             {
-                _clientException = ex;
+                if (_clientException == null)
+                {
+                    _clientException = ex;
+                }
             }
         }
         /// <summary>

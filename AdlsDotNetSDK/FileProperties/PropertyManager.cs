@@ -49,7 +49,10 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
         {
             lock (_lock)
             {
-                _excep = ex;
+                if (_excep == null)
+                {
+                    _excep = ex;
+                }
             }
         }
 

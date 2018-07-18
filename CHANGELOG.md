@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.1.9
+- Fix error handling for chunked error response
+- Allow concat for single source file and add unittest
+- Fix BulkUpload for very large files which reaches the concatenate limit
 ### Version 1.1.8
 - Fix FileTransfer upload for relative input path. Add unittest
 - Fix error message for remote exceptions which does not return json output. 

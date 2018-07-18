@@ -17,6 +17,7 @@ namespace Microsoft.Azure.DataLake.Store
     /// </summary>
     internal class WebTransport
     {
+        private const int MinDataSizeForCompression = 1000;
         /// <summary>
         /// Logger to log VERB, Header of requests and responses headers
         /// </summary>
@@ -41,6 +42,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// Thorw an error if AuthorizationHeader is less than that
         /// </summary>
         private const int AuthorizationHeaderLengthThreshold = 10;
+
+        private static int ErrorResponseDefaultLength = 1000;
         /// <summary>
         /// Method that gets called when CancellationToken is cancelled. It aborts the Http web request.
         /// </summary>
@@ -52,6 +55,18 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         #region Common
+
+        private static Stream GetCompressedStream(Stream inputStream, AdlsClient client, int postRequestLength)
+        {
+            if (client.WrapperStream != null && postRequestLength > MinDataSizeForCompression)
+            {
+ 
+                return client.WrapperStream(inputStream);
+ 
+            }
+            return inputStream;
+        }
+
 
         /// <summary>
         /// Verifies whether the arguments for MakeCall is correct. Throws exception if any argument is null or out of range.
@@ -252,13 +267,20 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="token">Auth token</param>
         /// <param name="opMethod">Operation method (e.g. POST/GET)</param>
         /// <param name="customHeaders">Custom headers</param>
-        private static void AssignCommonHttpHeaders(HttpWebRequest webReq, AdlsClient client, RequestOptions req, string token, string opMethod, IDictionary<string, string> customHeaders)
+        private static void AssignCommonHttpHeaders(HttpWebRequest webReq, AdlsClient client, RequestOptions req, string token, string opMethod, IDictionary<string, string> customHeaders, int postRequestLength)
         {
             webReq.Headers["Authorization"] = token;
             string latencyHeader = LatencyTracker.GetLatency();
             if (!string.IsNullOrEmpty(latencyHeader))
             {
                 webReq.Headers["x-ms-adl-client-latency"] = latencyHeader;
+            }
+
+            if (client.ContentEncoding != null && postRequestLength > MinDataSizeForCompression)
+            {
+
+                webReq.Headers["Content-Encoding"] = client.ContentEncoding;
+
             }
 
             if (client.DipIp != null && !req.IgnoreDip)
@@ -322,12 +344,22 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="webResponse">HttpWebResponse</param>
         /// <param name="responseData">ResponseData structure</param>
+        /// <param name="isResponseError">True when we are initializing error response stream else false</param>
         /// <returns>False if the response is not chunked but the content length is 0 else true</returns>
-        private static bool InitializeResponseData(HttpWebResponse webResponse, ref ByteBuffer responseData)
+        private static bool InitializeResponseData(HttpWebResponse webResponse, ref ByteBuffer responseData, bool isResponseError = false)
         {
             string encoding = webResponse.Headers["Transfer-Encoding"];
             if (!string.IsNullOrEmpty(encoding) && encoding.Equals("chunked"))
             {
+                // If the error response is from our FE, then it wont be chunked. If the error is from IIS
+                // then it may be chunked. So assign a default size of the error response. Even if the remote error 
+                // is not contained in that buffer size, its fine.
+                if (isResponseError)
+                {
+                    responseData.Data = new byte[ErrorResponseDefaultLength];
+                    responseData.Count = ErrorResponseDefaultLength;
+                    responseData.Offset = 0;
+                }
                 //If it is chunked responseData should be instantiated and responseDataLength should be greater than 0, because we dont know the content length
                 if (responseData.Data == null)
                 {
@@ -392,7 +424,7 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                         resp.HttpMessage = errorResponse.StatusDescription;
                         ByteBuffer errorResponseData = default(ByteBuffer);
-                        if (!InitializeResponseData(errorResponse, ref errorResponseData))
+                        if (!InitializeResponseData(errorResponse, ref errorResponseData, true))
                         {
                             throw new ArgumentException("ContentLength of error response stream is not set");
                         }
@@ -580,6 +612,18 @@ namespace Microsoft.Azure.DataLake.Store
                 return null;
             }
 
+            if (client.WrapperStream != null && string.IsNullOrEmpty(client.ContentEncoding))
+            {
+                resp.Error = "WrapperStream is set, but Encoding string is not set";
+                return null;
+            }
+
+            if (client.WrapperStream == null && !string.IsNullOrEmpty(client.ContentEncoding))
+            {
+                resp.Error = "Encoding string is set, but WrapperStream is not set";
+                return null;
+            }
+
             try
             {
                 // Create does not throw WebException
@@ -616,12 +660,12 @@ namespace Microsoft.Azure.DataLake.Store
                     }
 
                     resp.AuthorizationHeaderLength = token.Length;
-                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders);
+                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders, requestData.Count);
                     if (!op.Method.Equals("GET"))
                     {
                         if (op.RequiresBody && requestData.Data != null)
                         {
-                            using (Stream ipStream = await webReq.GetRequestStreamAsync().ConfigureAwait(false))
+                            using (Stream ipStream = GetCompressedStream(await webReq.GetRequestStreamAsync().ConfigureAwait(false), client, requestData.Count))
                             {
                                 await ipStream.WriteAsync(requestData.Data, requestData.Offset, requestData.Count,
                                     cancelToken).ConfigureAwait(false);
@@ -790,15 +834,15 @@ namespace Microsoft.Azure.DataLake.Store
                     }
 
                     resp.AuthorizationHeaderLength = token.Length;
-                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders);
+                    AssignCommonHttpHeaders(webReq, client, req, token, op.Method, customHeaders, requestData.Count);
                     if (!op.Method.Equals("GET"))
                     {
                         if (op.RequiresBody && requestData.Data != null)
                         {
 #if NET452
-                            using (Stream ipStream = webReq.GetRequestStream())
+                            using (Stream ipStream = GetCompressedStream(webReq.GetRequestStream(), client, requestData.Count))
 #else
-                            using (Stream ipStream = webReq.GetRequestStreamAsync().GetAwaiter().GetResult())
+                            using (Stream ipStream = GetCompressedStream(webReq.GetRequestStreamAsync().GetAwaiter().GetResult(), client, requestData.Count))
 #endif
                             {
                                 ipStream.Write(requestData.Data, requestData.Offset, requestData.Count);

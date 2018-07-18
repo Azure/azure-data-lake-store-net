@@ -14,6 +14,7 @@ using Microsoft.Azure.DataLake.Store.FileTransfer;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Rest;
 using NLog;
+using System.IO;
 #if NET452
 using System.Management;
 #endif
@@ -49,6 +50,8 @@ namespace Microsoft.Azure.DataLake.Store
     public class AdlsClient
     {
         #region Properties
+
+        internal static int ConcatenateStreamListThreshold = 100;
         /// <summary>
         /// Logger to log information (debug/error/trace) regarding client
         /// </summary>
@@ -106,6 +109,17 @@ namespace Microsoft.Azure.DataLake.Store
         /// DIP IP
         /// </summary>
         internal string DipIp { get; set; }
+
+
+        /// <summary>
+        /// Delegate that accepts the writestream and wraps it with the compression stream, Only set by client if we 
+        /// </summary>
+        internal Func<Stream, Stream> WrapperStream { get; set; } = null;
+
+        /// <summary>
+        /// ContentEncoding for the compression, if not set then we use default contentencoding
+        /// </summary>
+        internal string ContentEncoding { get; set; } = null;
 
         #endregion
 
@@ -742,6 +756,77 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in concating files {String.Join(",", concatFiles)} to destination {destination}");
             }
         }
+
+        /// <summary>
+        /// Internal API to do parallel concatenate
+        /// </summary>
+        /// <param name="destination">Destintaion</param>
+        /// <param name="concatFiles">Concat Files</param>
+        /// <param name="deleteSource">Whether to delete the source directory</param>
+        /// <param name="cancelToken">Cancellation Token</param>
+        internal virtual async Task ConcatenateFilesParallelAsync(string destination, List<string> concatFiles, bool deleteSource = false,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            string tempDir = destination.Remove(destination.LastIndexOf('/') + 1) + Guid.NewGuid();
+            if (ClientLogger.IsDebugEnabled)
+            {
+                ClientLogger.Debug($"Temporary Concat Directory: {tempDir}");
+            }
+            await ConcatenateFilesParallelAsync(destination, concatFiles, 0, tempDir, deleteSource, cancelToken);
+            await DeleteRecursiveAsync(tempDir, cancelToken);
+        }
+
+        private async Task ConcatenateFilesParallelAsync(string destination, List<string> concatFiles, int recurse, string tempDestination, bool deleteSource = false, CancellationToken cancelToken = default(CancellationToken))
+        {
+            if (concatFiles.Count < ConcatenateStreamListThreshold)
+            {
+                await ConcatenateFilesAsync(destination, concatFiles, recurse != 0 || deleteSource, cancelToken);
+                return;
+            }
+
+            int numberTasks = (int)Math.Ceiling((float)concatFiles.Count / ConcatenateStreamListThreshold);
+            var taskList = new Task[numberTasks];
+            var destinationList = new List<string>(numberTasks);
+            // Parallel concat destination files will be as 0,1,2... under tempDetination\GUID-{recurselevel}. And files under tempDestination\Guid will be the input for 
+            // next recursive concat. Adding recurse level tot he temp directory is helpful for debugging purposes
+            string tempDir = tempDestination + "/" + Guid.NewGuid() + $"-{recurse}";
+            for (int i = 0; i < numberTasks; i++)
+            {
+                destinationList.Add( tempDir + "/"  + i);
+                int start = i * ConcatenateStreamListThreshold;
+                int count = i < (numberTasks - 1)
+                    ? ConcatenateStreamListThreshold
+                    : concatFiles.Count - (numberTasks - 1) * ConcatenateStreamListThreshold;
+                if (ClientLogger.IsDebugEnabled)
+                {
+                    ClientLogger.Debug($"Recurse: {recurse}; TaskId: {i}; SourceFiles: {String.Join(",", concatFiles.GetRange(start, count))}; Destination: {destinationList[i]}");
+                }
+                // Pass false for recurse!=0 also because softdelete will cleanup the folder anyways
+                taskList[i] = ConcatenateFilesAsync(destinationList[i], concatFiles.GetRange(start, count),
+                    false, cancelToken);
+            }
+
+            for (int i = 0; i < numberTasks; i++)
+            {
+                taskList[i].Wait(cancelToken);
+            }
+
+            // Concatenate is always called with deleteSource as false, because parallel concat jobs cannot delete the source folder
+            // Now for other recurse levels if you concatenate all the files of a directory softdelete on the SSS will delete the folder since all the files in the tempguid foldler
+            if (recurse == 0 && deleteSource)
+            {
+                string sourcePath = concatFiles[0].Remove(concatFiles[0].LastIndexOf('/'));
+                if (string.IsNullOrEmpty(sourcePath))
+                {
+                    throw new ArgumentException("The root directory cant be deleted");
+                }
+
+                await DeleteRecursiveAsync(sourcePath, cancelToken);
+            }
+
+            await ConcatenateFilesParallelAsync(destination, destinationList, recurse + 1, tempDestination, deleteSource, cancelToken);
+        }
+
         /// <summary>
         /// Synchronous API to concatenate source files to a destination file
         /// </summary>

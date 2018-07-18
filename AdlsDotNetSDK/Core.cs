@@ -565,10 +565,10 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task ConcatAsync(string path, List<string> sourceFiles, bool deleteSourceDirectory, AdlsClient client,
         RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
-            if (sourceFiles.Count <= 1)
+            if (sourceFiles == null || sourceFiles.Count == 0)
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Does not have more than one File to concatenate";
+                resp.Error = "No source files to concatenate";
                 return;
             }
             HashSet<string> hashSet = new HashSet<string>();//To check whether we have duplciate file names in the list

@@ -22,7 +22,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         internal static readonly string TestId = Guid.NewGuid().ToString();
         private static AdlsClient _adlsClient;
         private static readonly Random Random = new Random();
-        private static IConfigurationRoot Config = new ConfigurationBuilder()
+        private static readonly IConfigurationRoot Config = new ConfigurationBuilder()
                                     .SetBasePath(Directory.GetCurrentDirectory())
                                     .AddXmlFile("appsettings.xml").Build();
         /// <summary>
@@ -218,7 +218,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             return client;
         }
         #endregion
-        
+
         [TestMethod]
         public void TestRequestIdException()
         {
@@ -236,6 +236,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         }
 
         #region TestCreate
+        [TestMethod]
+        [ExpectedException(typeof(AdlsException))]
+        public void TestCreatePathWithColon()
+        {
+            string path = $"{UnitTestDir}/testCreateFile:8080";
+            _adlsClient.CreateDirectory(path);
+        }
+
         /// <summary>
         /// Unit test for creating a directory using ADL SDK
         /// </summary>
@@ -1277,15 +1285,35 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Unit test to try concat one file
         /// </summary>
         [TestMethod]
-        [ExpectedException(typeof(AdlsException))]
-        public void TestConcatException3()
+        public void TestConcatOneFile()
         {
-            string destPath = $"{UnitTestDir}/destPath.txt";
-            List<string> srcList = new List<string>();
-            string srcFile1 = $"{UnitTestDir}/Source/srcPathEx3.txt";
-            srcList.Add(srcFile1);
+            string destPath = $"{UnitTestDir}/destPathOneFile.txt";
+            string srcFile1 = $"{UnitTestDir}/Source/srcPathOneFile.txt";
+            string text1 = RandomString(2 * 1024);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+
+            List<string> srcList = new List<string>
+            {
+                srcFile1
+            };
             _adlsClient.ConcatenateFiles(destPath, srcList);
-            Assert.Fail("Trying to concat one file should throw an exception");
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(destPath))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[2 * 1024];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+
         }
         /// <summary>
         /// Unit test to test failure when the destination is folder
