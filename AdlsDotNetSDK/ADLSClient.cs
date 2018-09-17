@@ -157,6 +157,11 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     coreCount += int.Parse(item["NumberOfCores"].ToString());
                 }
+                if(coreCount <= 0)
+                {
+                    ClientLogger.Debug("Physical core count is returned as 0, changing it to 1");
+                    coreCount = 1;
+                }
                 DefaultNumThreads = DefaultThreadsCalculationFactor * coreCount;
 #else
                 // The below calculation is wrong since Environment.ProcessorCount gives the count of logical processors not cores. 

@@ -1,4 +1,10 @@
 # Changes to the SDK
+### Version 1.1.10
+- Support for Json formatted requests in Request body, e:g MsConcat.
+- Supporting special characters in msconcat api for source files.
+- Updated the server to latest version
+- Fix liststatus response parsing when filestatus object contains array in one field.
+- Fix the default thread calculation, make minimum threads as 1 if number of cores returned is 0.
 ### Version 1.1.9
 - Fix error handling for chunked error response
 - Allow concat for single source file and add unittest

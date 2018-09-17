@@ -572,8 +572,7 @@ namespace Microsoft.Azure.DataLake.Store
                 return;
             }
             HashSet<string> hashSet = new HashSet<string>();//To check whether we have duplciate file names in the list
-            StringBuilder sb = new StringBuilder("sources=");
-            int itemInBuilder = 0;
+            Newtonsoft.Json.Linq.JArray jArray = new Newtonsoft.Json.Linq.JArray();
             foreach (var sourceFile in sourceFiles)
             {
                 if (string.IsNullOrEmpty(sourceFile))
@@ -594,21 +593,20 @@ namespace Microsoft.Azure.DataLake.Store
                     resp.Error = "One of the Files to concatenate is same as another file";
                     return;
                 }
-                if (itemInBuilder > 0) //If first item is already in string builder
-                {
-                    sb.Append(",");
-                }
-                hashSet.Add(sourceFile);
-                itemInBuilder++;
-                sb.Append(sourceFile);
+
+                jArray.Add(sourceFile);
             }
-            byte[] body = Encoding.UTF8.GetBytes(sb.ToString());
+            Newtonsoft.Json.Linq.JObject jObject = new Newtonsoft.Json.Linq.JObject();
+            jObject.Add("sources", jArray);
+            byte[] body = Encoding.UTF8.GetBytes(jObject.ToString(Formatting.None));
             QueryParams qp = new QueryParams();
             if (deleteSourceDirectory)
             {
                 qp.Add("deleteSourceDirectory", "true");
             }
-            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            IDictionary<string, string> headers = new Dictionary<string, string>();
+            headers.Add("Content-Type", "application/json");
+            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken, headers).ConfigureAwait(false);
         }
         /// <summary>
         /// Gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
@@ -864,7 +862,38 @@ namespace Microsoft.Azure.DataLake.Store
                                                 break;
                                         }
                                     }
-                                } while (!jsonReader.TokenType.Equals(JsonToken.EndArray));
+                                    if (jsonReader.TokenType.Equals(JsonToken.EndArray))
+                                    {
+                                        break;
+                                    }
+                                    //Currently none of the object fields we handle have array, so if server returns some object with array, previous logic will break.
+                                    //In future if sdk handles the object field values with array, they must parse the whole value including the start and end array and then below line will be never hit
+                                    // Below array handling will make sdk not break when server starts returning array for some filestatus object.
+                                    else if (jsonReader.TokenType.Equals(JsonToken.StartArray))
+                                    {
+                                        int startArraysEncountered = 0;
+                                        while (true)
+                                        {
+                                            if (!jsonReader.Read())
+                                            {
+                                                break;
+                                            }
+                                            // There can be [[],[]] arrays within arrays
+                                            if (jsonReader.TokenType.Equals(JsonToken.StartArray))
+                                            {
+                                                startArraysEncountered++;
+                                            }
+                                            if (jsonReader.TokenType.Equals(JsonToken.EndArray))
+                                            {
+                                                if (startArraysEncountered-- <= 0)
+                                                {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        // At this point the jp.getcurrenttoken points to the end array corresponding to the initial start array
+                                    }
+                                } while (true);
                             }
                         }
                     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -22,7 +23,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
-        private const int NumTests = 5;
+        private const int NumTests = 7;
         private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
@@ -226,6 +227,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (IOException) { Assert.Fail("This request should have passed"); }
             server.StopServer();
         }
+
         /// <summary>
         /// Unit test to test cancellation
         /// </summary>
@@ -254,7 +256,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsNotNull(state.AdlsClient);
             Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
         }
-
+        
         private void run(object data)
         {
             RequestState state = data as RequestState;
@@ -298,6 +300,50 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             string retResult = AclEntry.ParseAclEntryString(actualString, false).ToString();
             return retResult.Equals(expectedString);
+        }
+
+        [TestMethod]
+        public void TestListStatusWithArrayInResponse()
+        {
+            int port = 8085;
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Share\",\"PartOfShare\"]}]}}";
+            server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
+
+            adlsClient.SetInsecureHttp();
+            HashSet<string> hset = new HashSet<string>();
+            foreach(var entry in adlsClient.EnumerateDirectory("/ShareTest"))
+            {
+                hset.Add(entry.FullName);
+            }
+            Assert.IsTrue(hset.Count == 2);
+            Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
+            Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
+
+        }
+
+        [TestMethod]
+        public void testListStatusWithMultipleArrayInResponse()
+        {
+            int port = 8086;
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[[\"Share\",\"Share1\"],[\"PartOfShare\"]]}]}}";
+            server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
+
+            adlsClient.SetInsecureHttp();
+            HashSet<string> hset = new HashSet<string>();
+            foreach (var entry in adlsClient.EnumerateDirectory("/ShareTest"))
+            {
+                hset.Add(entry.FullName);
+            }
+            Assert.IsTrue(hset.Count == 2);
+            Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
+            Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
+
         }
 
         [ClassCleanup]

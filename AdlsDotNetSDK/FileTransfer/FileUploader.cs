@@ -74,7 +74,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             {
                 srcPath = srcPath.Substring(0, srcPath.Length - 1);
             }
-            if (destPath.EndsWith("/"))
+            // Check the destination path is not root
+            if (destPath.EndsWith("/") && !destPath.Equals("/"))
             {
                 destPath = destPath.Substring(0, destPath.Length - 1);
             }
