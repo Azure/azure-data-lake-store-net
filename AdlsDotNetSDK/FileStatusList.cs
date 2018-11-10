@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
-
+using Microsoft.Azure.DataLake.Store.Serialization;
 
 namespace Microsoft.Azure.DataLake.Store
 {
     /// <summary>
     /// Enumerable that exposes enumerator:FileStatusList
     /// </summary>
-    internal class FileStatusOutput : IEnumerable<DirectoryEntry>
+    internal class FileStatusOutput<T> : IEnumerable<T> where T:DirectoryEntry
     {
         /// <summary>
         /// Number of maximum directory entries to be retrieved from server. If -1 then retrieve all entries
@@ -41,13 +40,15 @@ namespace Microsoft.Azure.DataLake.Store
         /// Path of the directory containing the sub-directories or files
         /// </summary>
         private readonly string _path;
+
+        private readonly IDictionary<string, string> _extraQueryParamsForListStatus;
         /// <summary>
         /// Returns the enumerator
         /// </summary>
         /// <returns></returns>
-        public IEnumerator<DirectoryEntry> GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
-            return new FileStatusList(_listBefore, _listAfter, _maxEntries, _ugr, _client, _path);
+            return new FileStatusList<T>(_listBefore, _listAfter, _maxEntries, _ugr, _client, _path, _extraQueryParamsForListStatus);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -55,7 +56,7 @@ namespace Microsoft.Azure.DataLake.Store
             return GetEnumerator();
         }
 
-        internal FileStatusOutput(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path)
+        internal FileStatusOutput(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, IDictionary<string, string> extraQueryParamsForListStatus = null)
         {
             _listBefore = listBefore;
             _maxEntries = maxEntries;
@@ -63,19 +64,20 @@ namespace Microsoft.Azure.DataLake.Store
             _ugr = ugr;
             _client = client;
             _path = path;
+            _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
         }
     }
     /// <summary>
     /// Encapsulates a collection storing the list of directory entries. Once the collection is traversed, retrieves next set of directory entries from server
     /// This is for internal use only. Made public because we want to cast the enumerator to test enumeration with a smaller page size.
     /// </summary>
-    internal class FileStatusList : IEnumerator<DirectoryEntry>
+    internal class FileStatusList<T> : IEnumerator<T> where T:DirectoryEntry
     {
         /// <summary>
         /// Internal collection storing list of directory entries retrieved from server. This is not the whole list of directory entries.
         /// It's size is less than equal to listSize
         /// </summary>
-        private List<DirectoryEntry> FileStatus { get; set; }
+        private List<T> FileStatus { get; set; }
 
         /// <summary>
         /// Number of maximum directory entries to retrieve from server at one time
@@ -128,10 +130,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// Path of the directory conatianing the sub-directories or files
         /// </summary>
         private string Path { get; }
+
+        private readonly IDictionary<string, string> _extraQueryParamsForListStatus;
         /// <summary>
         /// Represents the current directory entry in the internal collection: FileStatus
         /// </summary>
-        public DirectoryEntry Current
+        public T Current
         {
             get
             {
@@ -194,15 +198,22 @@ namespace Microsoft.Azure.DataLake.Store
             _position = -1;
             OperationResponse resp = new OperationResponse();
             int getListSize = EnumerateAll ? ListSize : Math.Min(ListSize, RemainingEntries);
-            FileStatus = Core.ListStatusAsync(Path, ListAfterNext, ListBefore, getListSize, Ugr, Client, new RequestOptions(new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
+            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
+
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + Path + " after " + ListAfterNext);
             }
+            FileStatus = Core.GetDirectoryEntryListWithFullPath(Path, fileListResult, resp);
+            if (!resp.IsSuccessful)
+            {
+                throw Client.GetExceptionFromResponse(resp, "Unexpected error getting listStatus for path " + Path + " after " + ListAfterNext);
+            }
+            
             return MoveNext();
         }
 
-        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path)
+        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, IDictionary<string, string> extraQueryParamsForListStatus = null)
         {
             ListBefore = listBefore;
             ListAfterNext = _listAfterClient = listAfter;
@@ -214,6 +225,7 @@ namespace Microsoft.Azure.DataLake.Store
             Ugr = ugr;
             Client = client;
             Path = path;
+            _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
         }
         /// <summary>
         /// Clears the internal collection and resets the index, ListAfterNext and remaininig entries of collection

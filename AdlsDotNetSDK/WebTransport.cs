@@ -127,19 +127,23 @@ namespace Microsoft.Azure.DataLake.Store
         {
             DetermineIsSuccessful(resp);//After recieving the response from server determine whether the response is successful
             string error = "";
+            // Make sure latency header error is different from error. Latencyheader error is put in http header so there is restriction on the content characters
+            string latencyHeaderError = "";
             if (!resp.IsSuccessful)
             {
                 if (resp.Ex != null)
                 {
                     error = resp.Ex.Message;
+                    latencyHeaderError = resp.Ex.GetType().Name;
                 }
                 else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
                 {
-                    error = $"{resp.HttpStatus} ( {resp.RemoteExceptionName}  {resp.RemoteExceptionMessage} JavaClassName: {resp.RemoteExceptionJavaClassName} ";
+                    error = $"HTTP {resp.HttpStatus} ( {resp.RemoteExceptionName}  {resp.RemoteExceptionMessage} JavaClassName: {resp.RemoteExceptionJavaClassName} ";
+                    latencyHeaderError = $"HTTP {resp.HttpStatus} ( {resp.RemoteExceptionName} )";
                 }
                 else if (!string.IsNullOrEmpty(resp.Error))
                 {
-                    error = resp.Error;
+                    latencyHeaderError = error = resp.Error;
                 }
                 //This is either unexplained exception or the remote exception returned from server
                 resp.ExceptionHistory = resp.ExceptionHistory == null ? error : resp.ExceptionHistory + "," + error;
@@ -153,7 +157,7 @@ namespace Microsoft.Azure.DataLake.Store
                     $",path:{path},qp:{querParams}{(!req.KeepAlive ? ",keepAlive:false" : "")}{(!req.IgnoreDip && client.DipIp != null ? $",dipIp:{client.DipIp}" : "")}";
                 WebTransportLog.Debug(logLine);
             }
-            LatencyTracker.AddLatency(req.RequestId, numRetries, resp.LastCallLatency, error, opCode,
+            LatencyTracker.AddLatency(req.RequestId, numRetries, resp.LastCallLatency, latencyHeaderError, opCode,
                 requestLength + responseLength, client.ClientId);
         }
         /// <summary>
@@ -242,7 +246,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             catch (UriFormatException ex)
             {
-                resp.Error = "UriFormatException: " + ex.Message;
+                resp.Ex = ex;
                 return null;
             }
             urlString.Append("?");
@@ -253,7 +257,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             catch (UriFormatException ur)
             {
-                resp.Error = "UriFormatException: " + ur.Message;
+                resp.Ex = ur;
                 return null;
             }
             return urlString.ToString();
@@ -536,10 +540,9 @@ namespace Microsoft.Azure.DataLake.Store
             }
             catch (Exception e)
             {
-                resp.Error =
-                    $"Unexpected error in JSON parsing of the error stream. Content-Type of error response: {contentType}. ExceptionType: {e.GetType()} ExceptionMessage: {e.Message}";
+                resp.Ex = e;
                 //Store the actual remote response in a separate variable, since response can have illegal charcaters which will throw exception while setting them to headers
-                resp.RemoteErrorNonJsonResponse = Encoding.UTF8.GetString(errorBytes, 0, errorBytesLength);
+                resp.RemoteErrorNonJsonResponse = $" Content-Type of error response: {contentType}. Error: {Encoding.UTF8.GetString(errorBytes, 0, errorBytesLength)}";
             }
         }
     #endregion
@@ -656,13 +659,13 @@ namespace Microsoft.Azure.DataLake.Store
                     resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
                     if (string.IsNullOrEmpty(token))
                     {
-                        resp.Error = "Token is null or empty";
+                        resp.Ex = new ArgumentException($"Token is null or empty.");
                         return null;
                     }
 
                     if (token.Length <= AuthorizationHeaderLengthThreshold)
                     {
-                        resp.Error = $"Token Length is {token.Length}. Something is wrong with the token.";
+                        resp.Ex = new ArgumentException($"Token Length is {token.Length}. Token is most probably malformed.");
                         return null;
                     }
 
@@ -829,14 +832,13 @@ namespace Microsoft.Azure.DataLake.Store
                     resp.TokenAcquisitionLatency = watch.ElapsedMilliseconds;
                     if (string.IsNullOrEmpty(token))
                     {
-                        resp.Error = "Token is null or empty";
+                        resp.Ex = new ArgumentException($"Token is null or empty.");
                         return null;
                     }
 
-
                     if (token.Length <= AuthorizationHeaderLengthThreshold)
                     {
-                        resp.Error = $"Token Length is {token.Length}. Something is wrong with the token.";
+                        resp.Ex = new ArgumentException($"Token Length is {token.Length}. Token is most probably malformed.");
                         return null;
                     }
 

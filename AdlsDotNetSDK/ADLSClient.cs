@@ -120,7 +120,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// ContentEncoding for the compression, if not set then we use default contentencoding
         /// </summary>
         internal string ContentEncoding { get; set; } = null;
-
+        
         #endregion
 
         #region Constructors
@@ -872,7 +872,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw new ArgumentException("Path is null");
             }
-            return new FileStatusOutput(listBefore, listAfter, maxEntries, userIdFormat, this, path);
+            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path);
         }
 
         #region Access, Acl, Permission
@@ -1217,6 +1217,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Asynchronous API to perform concurrent append at server. The offset at which append will occur is determined by server. Asynchronous operation.
+        /// It is highly recomended to call this api with data size less than equals 4MB. Backend gurantees 4MB atomic appends.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>
@@ -1241,6 +1242,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Synchronous API to perform concurrent append at server. The offset at which append will occur is determined by server.
+        /// It is highly recomended to call this api with data size less than equals 4MB. Backend gurantees 4MB atomic appends.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>

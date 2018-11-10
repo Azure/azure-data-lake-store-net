@@ -1,4 +1,9 @@
 # Changes to the SDK
+### Version 1.1.11
+- Change test framework
+- Refactor ListStatus
+- Throw exception when token is malformed so that retryable requests are retried
+- Fix passing exception messages as a part of latency header
 ### Version 1.1.10
 - Support for Json formatted requests in Request body, e:g MsConcat.
 - Supporting special characters in msconcat api for source files.

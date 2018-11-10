@@ -1,1 +1,4 @@
+App.config
 appsettings.xml
+# Use your actual definitions of the parameters for test in the below file instead of template.runsettings so that you do not check in credentials by mistake
+Localrun.runsettings

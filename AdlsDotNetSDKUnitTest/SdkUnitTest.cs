@@ -12,7 +12,6 @@ using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Microsoft.Rest.Azure.Authentication;
 using Microsoft.Rest;
 using System.Threading;
-using Microsoft.Extensions.Configuration;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -22,9 +21,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         internal static readonly string TestId = Guid.NewGuid().ToString();
         private static AdlsClient _adlsClient;
         private static readonly Random Random = new Random();
-        private static readonly IConfigurationRoot Config = new ConfigurationBuilder()
-                                    .SetBasePath(Directory.GetCurrentDirectory())
-                                    .AddXmlFile("appsettings.xml").Build();
         /// <summary>
         /// Full Account domain name
         /// </summary>
@@ -88,6 +84,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private static string _dogFoodAuthEndPoint;
 
+        private static bool _isAccountTieredStore;
+
         private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
@@ -96,37 +94,29 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 .Select(s => s[Random.Next(s.Length)]).ToArray());
         }
         /// <summary>
-        /// Reads the app configuration
-        /// </summary>
-        /// <param name="settingName">Value of the setting in appsettings</param>
-        /// <returns></returns>
-        internal static string ReadSetting(string settingName)
-        {
-            return Config.GetSection("AppSettings:" + settingName).Value;
-        }
-        /// <summary>
         /// Sets up the unit test
         /// </summary>
         /// <param name="context"></param>
         [AssemblyInitialize]
         public static void SetupUnitTest(TestContext context)
         {
-            _accntName = ReadSetting("Account");
-            _ownerObjectId = ReadSetting("AccountOwnerObjectId");
-            _ownerClientId = ReadSetting("AccountOwnerClientId");
-            _ownerClientSecret = ReadSetting("AccountOwnerClientSecret");
-            NonOwner1ObjectId = ReadSetting("NonOwner1ObjectId");
-            _nonOwner1ClientId = ReadSetting("NonOwner1ClientId");
-            _nonOwner1ClientSecret = ReadSetting("NonOwner1ClientSecret");
-            NonOwner2ObjectId = ReadSetting("NonOwner2ObjectId");
-            _nonOwner2ClientId = ReadSetting("NonOwner2ClientId");
-            _nonOwner2ClientSecret = ReadSetting("NonOwner2ClientSecret");
-            _nonOwner3ObjectId = ReadSetting("NonOwner3ObjectId");
-            _nonOwner3ClientId = ReadSetting("NonOwner3ClientId");
-            _nonOwner3ClientSecret = ReadSetting("NonOwner3ClientSecret");
-            Group1Id = ReadSetting("Group1Id");
-            _domain = ReadSetting("Domain");
-            _dogFoodAuthEndPoint = ReadSetting("DogFoodAuthenticationEndPoint");
+            _accntName = (string)context.Properties["Account"];
+            _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
+            _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
+            _ownerClientSecret = (string)context.Properties["AccountOwnerClientSecret"];
+            NonOwner1ObjectId = (string)context.Properties["NonOwner1ObjectId"];
+            _nonOwner1ClientId = (string)context.Properties["NonOwner1ClientId"];
+            _nonOwner1ClientSecret = (string)context.Properties["NonOwner1ClientSecret"];
+            NonOwner2ObjectId = (string)context.Properties["NonOwner2ObjectId"];
+            _nonOwner2ClientId = (string)context.Properties["NonOwner2ClientId"];
+            _nonOwner2ClientSecret = (string)context.Properties["NonOwner2ClientSecret"];
+            _nonOwner3ObjectId = (string)context.Properties["NonOwner3ObjectId"];
+            _nonOwner3ClientId = (string)context.Properties["NonOwner3ClientId"];
+            _nonOwner3ClientSecret = (string)context.Properties["NonOwner3ClientSecret"];
+            Group1Id = (string)context.Properties["Group1Id"];
+            _domain = (string)context.Properties["Domain"];
+            _dogFoodAuthEndPoint = (string)context.Properties["DogFoodAuthenticationEndPoint"];
+            _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
         }
         /// <summary>
@@ -336,7 +326,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (AdlsException ex)
             {
                 Assert.IsTrue(ex.HttpStatus == HttpStatusCode.BadRequest);
-                Assert.IsTrue(ex.Error.Contains("JsonReaderException"));
+                Assert.IsTrue(ex.Ex.GetType().Name.Contains("JsonReaderException"));
             }
         }
         
@@ -1341,10 +1331,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.ConcatenateFiles(destPath, srcList);
         }
 
+        /// <summary>
+        /// This test is to test stream is sealed after concat. This is valid behavior only in tieredstore.
+        /// </summary>
         [TestMethod]
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException5()
         {
+            if (_isAccountTieredStore)
+            {
+                throw new AdlsException("Ignore this test, since stream is not sealed after concat in tiered store");
+            }
             string destPath = $"{UnitTestDir}/destPathEx2.txt";
             List<string> srcList = new List<string>()
             {
@@ -2563,68 +2560,76 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string filePrefix = "";
             int setListSize = 120;
             HashSet<string> hSet = new HashSet<string>();
+            HashSet<string> hFullNameSet = new HashSet<string>();
+            // DataCreator creates new folder/file with 
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, 0, 0, 0, 0, false, filePrefix);
-            TestGetFileStatus(path, 0, hSet, 0, setListSize);
-            TestGetFileStatus(path, 1, hSet, 0, setListSize);
+            TestGetFileStatus(path, 0, hSet, hFullNameSet, 0, setListSize);
+            TestGetFileStatus(path, 1, hSet, hFullNameSet, 0, setListSize);
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 1, hSet, 1, setListSize);
-            TestGetFileStatus(path, 2, hSet, 1, setListSize);
+            TestGetFileStatus(path, 1, hSet, hFullNameSet, 1, setListSize);
+            TestGetFileStatus(path, 2, hSet, hFullNameSet, 1, setListSize);
             totFiles = 99;
             filePrefix = "A1";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 50, hSet, 50, setListSize);
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, 100, setListSize);
+            TestGetFileStatus(path, 50, hSet, hFullNameSet, 50, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, 100, setListSize);
             totFiles = 20;
             filePrefix = "A2";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, setListSize - 1, hSet, setListSize - 1, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, setListSize + 1, hSet, setListSize, setListSize);
+            TestGetFileStatus(path, setListSize - 1, hSet, hFullNameSet, setListSize - 1, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, setListSize + 1, hSet, hFullNameSet, setListSize, setListSize);
             totFiles = 80;
             filePrefix = "A3";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, 200, hSet, 200, setListSize);
-            TestGetFileStatus(path, 201, hSet, 200, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, 200, hSet, hFullNameSet, 200, setListSize);
+            TestGetFileStatus(path, 201, hSet, hFullNameSet, 200, setListSize);
             totFiles = 100;
             filePrefix = "A4";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, 200, hSet, 200, setListSize);
-            TestGetFileStatus(path, 2 * setListSize, hSet, 2 * setListSize, setListSize);
-            TestGetFileStatus(path, 300, hSet, 300, setListSize);
-            TestGetFileStatus(path, 400, hSet, 300, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, 200, hSet, hFullNameSet, 200, setListSize);
+            TestGetFileStatus(path, 2 * setListSize, hSet, hFullNameSet, 2 * setListSize, setListSize);
+            TestGetFileStatus(path, 300, hSet, hFullNameSet, 300, setListSize);
+            TestGetFileStatus(path, 400, hSet, hFullNameSet, 300, setListSize);
+            TestListStatusUsingCore(path, 400, hSet, hFullNameSet, 300);
         }
 
-        public static void TestGetFileStatus(string path, int maxEntries, HashSet<string> hSet, int expectedEntries, int setListSize = 100)
+        public static void TestGetFileStatus(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
         {
             int count = 0;
             var fop = _adlsClient.EnumerateDirectory(path, maxEntries, "", "");
             var en = fop.GetEnumerator();
-            ((FileStatusList)en).ListSize = setListSize;
+            ((FileStatusList<DirectoryEntry>)en).ListSize = setListSize;
 
             while (en.MoveNext())
             {
@@ -2632,6 +2637,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 if (!hSet.Contains(dir.Name))
                 {
                     Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
                 }
                 if (dir.Type != DirectoryEntryType.FILE)
                 {
@@ -2641,6 +2650,31 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(count == expectedEntries);
         }
+
+        internal static void TestListStatusUsingCore(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries)
+        {
+            int count = 0;
+            var resp = new OperationResponse();
+            var entries = Core.ListStatusAsync(path, "", "", maxEntries, UserGroupRepresentation.ObjectID, _adlsClient, new RequestOptions(), resp).GetAwaiter().GetResult();
+            foreach(var dir in entries)
+            {
+                if (!hSet.Contains(dir.Name))
+                {
+                    Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
+                }
+                if (dir.Type != DirectoryEntryType.FILE)
+                {
+                    Assert.Fail(dir.Name + " should be file");
+                }
+                count++;
+            }
+            Assert.IsTrue(count == expectedEntries);
+        }
+
         [ClassCleanup]
         public static void CleanTests()
         {

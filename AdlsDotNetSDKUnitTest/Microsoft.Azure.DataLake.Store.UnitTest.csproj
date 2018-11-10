@@ -19,8 +19,6 @@
     <PackageReference Include="Microsoft.Rest.ClientRuntime.Azure.Authentication" Version="2.3.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="1.1.18" />
     <PackageReference Include="MSTest.TestFramework" Version="1.1.18" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="1.1.2" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Xml" Version="1.1.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,7 +29,7 @@
 
   
   <ItemGroup>
-    <None Update="appsettings.xml">
+    <None Update="template.runsettings">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
