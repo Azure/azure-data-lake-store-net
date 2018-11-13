@@ -846,7 +846,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
         /// <summary>
         /// Returns a enumerable that enumerates the sub-directories or files contained in a directory.
-        /// By default listAfter and listBefore is empty and we enuerate all the directory entries.
+        /// By default listAfter and listBefore is empty and we enumerate all the directory entries.
         /// </summary>
         /// <param name="path">Path of the directory</param>
         /// <param name="userIdFormat">Way the user or group object will be represented</param>
