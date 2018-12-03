@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Azure.DataLake.Store.Serialization;
 
@@ -42,13 +43,14 @@ namespace Microsoft.Azure.DataLake.Store
         private readonly string _path;
 
         private readonly IDictionary<string, string> _extraQueryParamsForListStatus;
+        private readonly CancellationToken _cancelToken;
         /// <summary>
         /// Returns the enumerator
         /// </summary>
         /// <returns></returns>
         public IEnumerator<T> GetEnumerator()
         {
-            return new FileStatusList<T>(_listBefore, _listAfter, _maxEntries, _ugr, _client, _path, _extraQueryParamsForListStatus);
+            return new FileStatusList<T>(_listBefore, _listAfter, _maxEntries, _ugr, _client, _path, _cancelToken, _extraQueryParamsForListStatus);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -56,7 +58,7 @@ namespace Microsoft.Azure.DataLake.Store
             return GetEnumerator();
         }
 
-        internal FileStatusOutput(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, IDictionary<string, string> extraQueryParamsForListStatus = null)
+        internal FileStatusOutput(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, CancellationToken cancelToken, IDictionary<string, string> extraQueryParamsForListStatus = null)
         {
             _listBefore = listBefore;
             _maxEntries = maxEntries;
@@ -64,6 +66,7 @@ namespace Microsoft.Azure.DataLake.Store
             _ugr = ugr;
             _client = client;
             _path = path;
+            _cancelToken = cancelToken;
             _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
         }
     }
@@ -130,7 +133,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// Path of the directory conatianing the sub-directories or files
         /// </summary>
         private string Path { get; }
-
+        private readonly CancellationToken _cancelToken;
         private readonly IDictionary<string, string> _extraQueryParamsForListStatus;
         /// <summary>
         /// Represents the current directory entry in the internal collection: FileStatus
@@ -166,6 +169,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>True if there is a next element to enumerate else false</returns>
         public bool MoveNext()
         {
+            if (_cancelToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException();
+            }
             //Not called for first time, first time when this is called ListAfterNext will be whatever client has passed
             if (FileStatus != null)
             {
@@ -198,7 +205,7 @@ namespace Microsoft.Azure.DataLake.Store
             _position = -1;
             OperationResponse resp = new OperationResponse();
             int getListSize = EnumerateAll ? ListSize : Math.Min(ListSize, RemainingEntries);
-            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
+            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
 
             if (!resp.IsSuccessful)
             {
@@ -213,7 +220,7 @@ namespace Microsoft.Azure.DataLake.Store
             return MoveNext();
         }
 
-        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, IDictionary<string, string> extraQueryParamsForListStatus = null)
+        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, CancellationToken cancelToken, IDictionary<string, string> extraQueryParamsForListStatus = null)
         {
             ListBefore = listBefore;
             ListAfterNext = _listAfterClient = listAfter;
@@ -225,6 +232,7 @@ namespace Microsoft.Azure.DataLake.Store
             Ugr = ugr;
             Client = client;
             Path = path;
+            _cancelToken = cancelToken;
             _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
         }
         /// <summary>

@@ -75,7 +75,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             DumpFileName = saveFileName;
             GetSizeProperty = getDiskUsage;
             GetAclProperty = getAclProperty;
-            _numThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
+            _numThreads = numThreads <= 0 ? AdlsClient.DefaultNumThreads : numThreads;
             DisplayFiles = displayFiles;
             HideConsistentAclTree = GetAclProperty && displayConsistentAcl;
             MaxDepth = maxDepth;

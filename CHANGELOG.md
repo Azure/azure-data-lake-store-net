@@ -1,4 +1,12 @@
 # Changes to the SDK
+### Version 1.1.12
+- Increase the default thread count if physical cores is 0, Fix threadcount to be defaultthreadcount if input is 0
+- Enable getconsistent length in getfilestatus
+- Fix cancellation support in Enumerate
+- Fix timeout for async, netcore
+- Add unittests for timeout and connection broken
+- Fix mockclient account validation, ChangeAcl api
+- Fix priorityqueue parent calculation
 ### Version 1.1.11
 - Change test framework
 - Refactor ListStatus

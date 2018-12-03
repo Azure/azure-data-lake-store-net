@@ -104,7 +104,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         {
             _inputPath = path;
             Client = client;
-            NumThreads = threadCount < 0 ? AdlsClient.DefaultNumThreads: threadCount;
+            NumThreads = threadCount <= 0 ? AdlsClient.DefaultNumThreads: threadCount;
             Queue = new PriorityQueueWrapper<BaseJob>(NumThreads);
             _threadWorker = new Thread[NumThreads];
             if (aclEntries == null || aclEntries.Count == 0)
@@ -250,6 +250,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         {
             if (dir.Type == DirectoryEntryType.DIRECTORY)
             {
+                if (AclLog.IsDebugEnabled)
+                {
+                    AclLog.Debug($"Enumerate job submitted for: {dir.FullName}");
+                }
                 Queue.Add(new EnumerateDirectoryChangeAclJob(this, dir.FullName));
                 Interlocked.Increment(ref _directoryEnumerated);
             }
@@ -268,6 +272,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             }
             else
             {
+                if (AclLog.IsDebugEnabled)
+                {
+                    AclLog.Debug($"ChangeAcl job submitted for: {dir.FullName}");
+                }
                 Queue.Add(new ChangeAclJob(this, dir.FullName, dir.Type));
             }
         }

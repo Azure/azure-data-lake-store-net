@@ -3,6 +3,9 @@ using Microsoft.Azure.DataLake.Store.AclTools;
 using System.Text;
 using System.IO;
 using Microsoft.Azure.DataLake.Store.AclTools.Jobs;
+using Microsoft.Azure.DataLake.Store.MockAdlsFileSystem;
+using System;
+using System.Threading;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -28,16 +31,23 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         }
 
         [TestMethod]
+        [ExpectedException(typeof(ArgumentException))]
+        public void TestMockClientAccountValidation()
+        {
+            MockAdlsClient.GetMockClient("rdutta.azuredatalakestore.net/");
+        }
+
+        [TestMethod]
         public void TestModifyAndRemoveAclRecursively()
         {
             var acls=FilePropertiesUnitTest.GetAclEntryForModifyAndRemove();
-            var stats = _adlsClient.ChangeAcl(rootPath, acls, RequestedAclType.ModifyAcl);
+            var stats = _adlsClient.ChangeAcl(rootPath, acls, RequestedAclType.ModifyAcl, 1, null, default(CancellationToken));
             Assert.IsTrue(stats.DirectoryProcessed == 3);
             Assert.IsTrue(stats.FilesProcessed == 1);
             Assert.IsTrue(VerifyChangeAclJob.CheckAclListContains(_adlsClient.GetAclStatus(rootPath).Entries, acls));
             Assert.IsTrue(VerifyChangeAclJob.CheckAclListContains(_adlsClient.GetAclStatus(rootPath + "/b0/c0").Entries, acls));
             Assert.IsTrue(VerifyChangeAclJob.CheckAclListContains(_adlsClient.GetAclStatus(rootPath + "/bFile01").Entries, acls));
-            stats = _adlsClient.ChangeAcl(rootPath, acls, RequestedAclType.RemoveAcl);
+            stats = _adlsClient.ChangeAcl(rootPath, acls, RequestedAclType.RemoveAcl, 1, null, default(CancellationToken));
             Assert.IsTrue(stats.DirectoryProcessed == 3);
             Assert.IsTrue(stats.FilesProcessed == 1);
             Assert.IsTrue(VerifyChangeAclJob.CheckAclListContains(_adlsClient.GetAclStatus(rootPath).Entries, acls, true));

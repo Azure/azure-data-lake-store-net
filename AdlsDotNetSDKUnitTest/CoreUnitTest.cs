@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using Microsoft.Azure.DataLake.Store.Acl;
@@ -88,7 +89,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestPathMissingRootSeparator()
         {
-            string path = "CorePathMissingRootSeparator"+SdkUnitTest.TestId;
+            string path = "CorePathMissingRootSeparator" + SdkUnitTest.TestId;
             string direcPath = path + "/directory";
             Assert.IsTrue(_adlsClient.CreateDirectory(direcPath));
             string filePath = path + "/file";
@@ -100,7 +101,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             using (var reader = new StreamReader(_adlsClient.GetReadStream(filePath)))
             {
-                string output=reader.ReadToEnd();
+                string output = reader.ReadToEnd();
                 Assert.IsTrue(text.Equals(output));
             }
 
@@ -232,7 +233,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Unit test to test cancellation
         /// </summary>
         [TestMethod]
-        public void TestCancelation()
+        public void TestCancellation()
         {
             int port = 8084;
             MockWebServer server = new MockWebServer(port);
@@ -247,16 +248,69 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             };
             Thread worker = new Thread(run);
             worker.Start(state);
-            Thread.Sleep(60000);
+            Thread.Sleep(10000);
+            Stopwatch watch = Stopwatch.StartNew();
             source.Cancel();
+            worker.Join();
+            watch.Stop();
+            Assert.IsTrue(watch.ElapsedMilliseconds < 1000);
+            Assert.IsNotNull(state.AdlsClient);
+            Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
+            server.StopAbruptly();
+        }
+#if NET452
+        [TestMethod]
+        public void TestTimeout()
+        {
+            int port = 8085;
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            server.EnqueMockResponse(new MockResponse(200, "OK"));
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            CancellationTokenSource source = new CancellationTokenSource();
+            RequestState state = new RequestState()
+            {
+                AdlsClient = adlsClient,
+                CancelToken = source.Token,
+                Timeout = 5,
+                IsRetry = false
+            };
+            Thread worker = new Thread(run);
+            worker.Start(state);
             Stopwatch watch = Stopwatch.StartNew();
             worker.Join();
             watch.Stop();
-            Assert.IsTrue(watch.ElapsedMilliseconds < 10000);
+            Assert.IsTrue(watch.ElapsedMilliseconds < 7000);
             Assert.IsNotNull(state.AdlsClient);
             Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
+            Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
+            server.StopAbruptly();
         }
-        
+#endif
+        [TestMethod]
+        public void TestConnectionBroken()
+        {
+            int port = 8086;
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            server.EnqueMockResponse(new MockResponse(200, "OK"));
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            CancellationTokenSource source = new CancellationTokenSource();
+            RequestState state = new RequestState()
+            {
+                AdlsClient = adlsClient,
+                CancelToken = source.Token,
+                IsRetry = false
+            };
+            Thread worker = new Thread(run);
+            worker.Start(state);
+            Thread.Sleep(5000);
+            server.StopAbruptly();
+            worker.Join();
+            Assert.IsNotNull(state.AdlsClient);
+            Assert.IsTrue(state.IsConnectionFailure);
+        }
+
         private void run(object data)
         {
             RequestState state = data as RequestState;
@@ -266,13 +320,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 return;
             }
             AdlsClient adlsClient = state.AdlsClient;
-            RequestOptions req = new RequestOptions(new ExponentialRetryPolicy());
             OperationResponse resp = new OperationResponse();
             adlsClient.SetInsecureHttp();
+            RequestOptions req = null;
+            if (state.Timeout != -1)
+            {
+                req = new RequestOptions(Guid.NewGuid().ToString(), new TimeSpan(0, 0, state.Timeout), state.IsRetry ? new ExponentialRetryPolicy() : (RetryPolicy)new NoRetryPolicy());
+            }
+            else
+            {
+                req = new RequestOptions(state.IsRetry ? new ExponentialRetryPolicy() : (RetryPolicy)new NoRetryPolicy());
+            }
             byte[] ip = Encoding.UTF8.GetBytes("wait:300");
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter()
-                .GetResult();
+            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter().GetResult();
             state.Ex = resp.Ex;
+            state.IsConnectionFailure = resp.ConnectionFailure;
         }
 
         private class RequestState
@@ -280,6 +342,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             public AdlsClient AdlsClient { set; get; }
             public Exception Ex { set; get; }
             public CancellationToken CancelToken { get; set; }
+            public int Timeout { get; set; } = -1; // In seconds
+            public bool IsRetry { get; set; } = true;
+            public bool IsConnectionFailure { get; set; } = false;
         }
         /// <summary>
         /// Unit test serializing and deserializing Acl
@@ -305,7 +370,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestListStatusWithArrayInResponse()
         {
-            int port = 8085;
+            int port = 8087;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -314,20 +379,20 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             adlsClient.SetInsecureHttp();
             HashSet<string> hset = new HashSet<string>();
-            foreach(var entry in adlsClient.EnumerateDirectory("/ShareTest"))
+            foreach (var entry in adlsClient.EnumerateDirectory("/ShareTest"))
             {
                 hset.Add(entry.FullName);
             }
             Assert.IsTrue(hset.Count == 2);
             Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
             Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
-
+            server.StopServer();
         }
 
         [TestMethod]
         public void testListStatusWithMultipleArrayInResponse()
         {
-            int port = 8086;
+            int port = 8088;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -343,7 +408,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(hset.Count == 2);
             Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
             Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
-
+            server.StopServer();
         }
 
         [ClassCleanup]

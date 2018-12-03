@@ -27,7 +27,7 @@ namespace Microsoft.Azure.DataLake.Store.QueueTools
 
         private int Parent(int index)
         {
-            return index / 2;
+            return (index - 1) / 2;
         }
 
         private int Left(int index)

@@ -104,6 +104,7 @@ namespace Microsoft.Azure.DataLake.Store
         public static int DefaultNumThreads { get; internal set; }
 
         internal const int DefaultThreadsCalculationFactor = 8;
+        internal const int DefaultCoreCount = 8;
 
         /// <summary>
         /// DIP IP
@@ -159,8 +160,8 @@ namespace Microsoft.Azure.DataLake.Store
                 }
                 if(coreCount <= 0)
                 {
-                    ClientLogger.Debug("Physical core count is returned as 0, changing it to 1");
-                    coreCount = 1;
+                    ClientLogger.Debug("Physical core count is returned as 0, changing it to 8");
+                    coreCount = DefaultCoreCount;
                 }
                 DefaultNumThreads = DefaultThreadsCalculationFactor * coreCount;
 #else
@@ -191,7 +192,7 @@ namespace Microsoft.Azure.DataLake.Store
             
         }
 
-        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
+        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -199,21 +200,19 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
             }
             ClientId = clientId;
-            AccessToken = token;
             if (ClientLogger.IsTraceEnabled)
             {
                 ClientLogger.Trace($"AdlsStoreClient, {ClientId} created for account {AccountFQDN} for SDK version {SdkVersion}");
             }
         }
 
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false)
+        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
         {
-            AccountFQDN = accnt.Trim();
-            if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
-            {
-                throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
-            }
-            ClientId = clientId;
+            AccessToken = token;
+        }
+
+        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        {
             AccessProvider = creds;
         }
 
@@ -434,7 +433,7 @@ namespace Microsoft.Azure.DataLake.Store
             // Pass getConsistentlength so that we get the updated length of stream
             DirectoryEntry diren = await Core
                 .GetFileStatusAsync(filename, UserGroupRepresentation.ObjectID, this,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken, true).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error opening a Read Stream for file {filename}.");
@@ -872,7 +871,7 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw new ArgumentException("Path is null");
             }
-            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path);
+            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path, cancelToken);
         }
 
         #region Access, Acl, Permission
@@ -1295,8 +1294,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// By default files are uploaded at new line boundaries. However if files does not have newline within 4MB chunks,
+        /// the transfer will fail. In that case it is required to pass true to <paramref name="isBinary"/> to avoid uploads at newline boundaries.
         /// </summary>
         /// <param name="srcPath">Local source path</param>
         /// <param name="destPath">Remote destination path - It should always be a directory.</param>
@@ -1305,7 +1308,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
         /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration</param>
         /// <param name="resume">If true then we want to resume from last transfer</param>
-        /// <param name="isBinary">If false then writes files to data lake at newline boundaries. If true, then this is not guranteed but the upload will be faster.</param>
+        /// <param name="isBinary">If false then writes files to data lake at newline boundaries, however if the file has no newline within 4MB chunks it will throw exception.
+        /// If true, then upload at new line boundaries is not guranteed but the upload will be faster. By default false, if file has no newlines within 4MB chunks true should be apssed</param>
         /// <param name="cancelToken">Cancellation token</param>
         /// <returns>Transfer Status encapsulating the details of upload</returns>
         public virtual TransferStatus BulkUpload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, bool isBinary = false, CancellationToken cancelToken = default(CancellationToken))
@@ -1316,6 +1320,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Download directory or file from remote server to local. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>

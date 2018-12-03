@@ -102,7 +102,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             DoOverwrite = ingressOrEgressTest ? IfExists.Overwrite : doOverwrite;
             ProgressTracker = progressTracker;
             IngressOrEgressTest = ingressOrEgressTest;
-            NumConsumerThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
+            NumConsumerThreads = numThreads <= 0 ? AdlsClient.DefaultNumThreads : numThreads;
             ChunkSize = chunkSize;
             NotRecurse = notRecurse;
             metaDataInfo = string.IsNullOrEmpty(metaDataInfo) ? ChunkSize.ToString() : metaDataInfo + $",ChunkSize:{chunkSize},{(NotRecurse ? "NotRecurse" : "Recurse")}";

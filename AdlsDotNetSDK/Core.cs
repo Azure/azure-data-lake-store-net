@@ -620,11 +620,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        /// <param name="getConsistentFileLength"> True if we want to get consistent and updated length</param>
+        /// <param name="getConsistentFileLength"> True if we want to get updated length.</param>
         /// <returns>Returns the metadata of the file or directory</returns>
         public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken), bool getConsistentFileLength=false)
         {
-            var getfileStatusResult = await GetFileStatusAsync<DirectoryEntryResult<DirectoryEntry>>(path,userIdFormat, null, client, req, resp,cancelToken).ConfigureAwait(false);
+            var getfileStatusResult = await GetFileStatusAsync<DirectoryEntryResult<DirectoryEntry>>(path,userIdFormat, null, client, req, resp, getConsistentFileLength, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 return null;
@@ -655,16 +655,15 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="client">ADLS Client</param>
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
-        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <param name="getConsistentFileLength"> True if we want to get consistent and updated length</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns></returns>
 
-        internal static async Task<T> GetFileStatusAsync<T>(string path, UserGroupRepresentation? userIdFormat, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken), bool getConsistentFileLength = false) where T : class
+        internal static async Task<T> GetFileStatusAsync<T>(string path, UserGroupRepresentation? userIdFormat, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, bool getConsistentFileLength = false, CancellationToken cancelToken = default(CancellationToken)) where T : class
         {
             QueryParams qp = new QueryParams();
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
-            // Currently disabled
             if (getConsistentFileLength)
             {
                 qp.Add("getconsistentlength", "true");

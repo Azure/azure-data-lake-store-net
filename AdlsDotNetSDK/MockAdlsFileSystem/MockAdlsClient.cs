@@ -26,7 +26,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         private static readonly string Owner = Guid.NewGuid().ToString();
         private static readonly string Group = Guid.NewGuid().ToString();
 
-        private MockAdlsClient()
+        private MockAdlsClient(string accountNm) : base(accountNm, 1)
         {
             _directoryEntries = new Dictionary<string, DirectoryEntryMetaData>();
             // The root directory is there
@@ -40,8 +40,18 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns>Mock ADls Client</returns>
         public static MockAdlsClient GetMockClient()
         {
-            return new MockAdlsClient();
+            return new MockAdlsClient("test.azuredatalakestore.net");
         }
+
+        /// <summary>
+        /// Factory method that returns an instance of Mock adls client
+        /// </summary>
+        /// <returns>Mock ADls Client</returns>
+        public static MockAdlsClient GetMockClient(string account)
+        {
+            return new MockAdlsClient(account);
+        }
+
         // Creates an entry for a new file or directory. 
         private DirectoryEntryMetaData CreateMetaData(string entryName,DirectoryEntryType type,string octalPermission)
         {
@@ -876,6 +886,22 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             return new TransferStatus();
         }
+
+        /// <summary>
+        /// Currently the recursive entities need to be created separately for mock testing
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="aclEntries"></param>
+        /// <param name="type"></param>
+        /// <param name="threadCount"></param>
+        /// <param name="statusTracker"></param>
+        /// <param name="cancelToken"></param>
+        /// <returns></returns>
+        public override AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount, IProgress<AclProcessorStats> statusTracker, CancellationToken cancelToken)
+        {
+            return ChangeAcl(path, aclEntries, type, threadCount);
+        }
+
         /// <summary>
         /// Currently the recursive entities need to be created separately for mock testing
         /// </summary>

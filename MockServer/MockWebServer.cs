@@ -131,6 +131,11 @@ namespace MockServer
                 Thread.Sleep(waitTime * 1000);
             }
         }
+
+        public void StopAbruptly()
+        {
+            _webListener.Dispose();
+        }
     }
     /// <summary>
     /// Custom Http response that the mock server uses to set the response of a request
