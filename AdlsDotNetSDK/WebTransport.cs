@@ -421,7 +421,8 @@ namespace Microsoft.Azure.DataLake.Store
             // The status property will be set to RequestCanceled after Abort.
             if (timeoutCancelToken.IsCancellationRequested)
             {
-                resp.Ex = new OperationCanceledException("Operation timed out", timeoutCancelToken);
+                // Type should not be of operationcancelledexception otherwise this wont be retried
+                resp.Ex = new Exception("Operation timed out");
             }
             else if (actualCancelToken.IsCancellationRequested)
             {

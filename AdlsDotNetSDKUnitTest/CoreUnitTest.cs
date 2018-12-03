@@ -258,7 +258,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
             server.StopAbruptly();
         }
-#if NET452
+
         [TestMethod]
         public void TestTimeout()
         {
@@ -282,11 +282,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             watch.Stop();
             Assert.IsTrue(watch.ElapsedMilliseconds < 7000);
             Assert.IsNotNull(state.AdlsClient);
-            Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
+            Assert.IsInstanceOfType(state.Ex, typeof(Exception));
             Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
             server.StopAbruptly();
         }
-#endif
+
         [TestMethod]
         public void TestConnectionBroken()
         {

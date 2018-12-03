@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.1.13
+- Fix timeouts not getting retried 
 ### Version 1.1.12
 - Increase the default thread count if physical cores is 0, Fix threadcount to be defaultthreadcount if input is 0
 - Enable getconsistent length in getfilestatus
