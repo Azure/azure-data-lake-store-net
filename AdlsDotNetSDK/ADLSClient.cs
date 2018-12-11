@@ -121,7 +121,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// ContentEncoding for the compression, if not set then we use default contentencoding
         /// </summary>
         internal string ContentEncoding { get; set; } = null;
-        
+
         #endregion
 
         #region Constructors
@@ -151,14 +151,14 @@ namespace Microsoft.Azure.DataLake.Store
 #if NET452
                 // Cannot get Caption/Architecture from Win32_OperatingSystem because they can have localised values
                 osInfo = Environment.OSVersion.VersionString + " " + IntPtr.Size * 8;
-                
+
                 dotNetVersion = "NET452";
                 int coreCount = 0;
                 foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
                 {
                     coreCount += int.Parse(item["NumberOfCores"].ToString());
                 }
-                if(coreCount <= 0)
+                if (coreCount <= 0)
                 {
                     ClientLogger.Debug("Physical core count is returned as 0, changing it to 8");
                     coreCount = DefaultCoreCount;
@@ -172,6 +172,8 @@ namespace Microsoft.Azure.DataLake.Store
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
 #if NETSTANDARD1_4
                 dotNetVersion = "NETSTANDARD1_4";
+#elif NETSTANDARD2_0
+                dotNetVersion = "NETSTANDARD2_0";
 #else
                 dotNetVersion="NETCOREAPP1_1";
 #endif
@@ -189,7 +191,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         protected AdlsClient()
         {
-            
+
         }
 
         internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false)
@@ -524,7 +526,7 @@ namespace Microsoft.Azure.DataLake.Store
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
             RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
-            
+
             OperationResponse resp = new OperationResponse();
             await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
@@ -562,8 +564,8 @@ namespace Microsoft.Azure.DataLake.Store
             string leaseId = Guid.NewGuid().ToString();
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            RetryPolicy policy = overwrite ?  new ExponentialRetryPolicy() : (RetryPolicy) new NonIdempotentRetryPolicy();
-            
+            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
+
             OperationResponse resp = new OperationResponse();
             Core.Create(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp);
             if (!resp.IsSuccessful)
@@ -796,7 +798,7 @@ namespace Microsoft.Azure.DataLake.Store
             string tempDir = tempDestination + "/" + Guid.NewGuid() + $"-{recurse}";
             for (int i = 0; i < numberTasks; i++)
             {
-                destinationList.Add( tempDir + "/"  + i);
+                destinationList.Add(tempDir + "/" + i);
                 int start = i * ConcatenateStreamListThreshold;
                 int count = i < (numberTasks - 1)
                     ? ConcatenateStreamListThreshold
@@ -875,7 +877,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         #region Access, Acl, Permission
-        
+
         /// <summary>
         /// Asynchronously sets the expiry time
         /// </summary>
@@ -1420,7 +1422,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (!string.IsNullOrEmpty(resp.Error))
             {
                 // If remote error is nonjson then print the actual error for exception
-                exceptionMessage += "Error: " + resp.Error + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse)? "": $" {resp.RemoteErrorNonJsonResponse}")}.";
+                exceptionMessage += "Error: " + resp.Error + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse) ? "" : $" {resp.RemoteErrorNonJsonResponse}")}.";
             }
             else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
             {
