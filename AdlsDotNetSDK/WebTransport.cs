@@ -323,13 +323,17 @@ namespace Microsoft.Azure.DataLake.Store
                     webReq.Headers[key] = customHeaders[key];
                 }
             }
-#if NET452
+#if NETSTANDARD2_0 || NET452
             webReq.UserAgent = client.GetUserAgent();
-            webReq.ServicePoint.UseNagleAlgorithm = false;
-            webReq.ServicePoint.Expect100Continue = false;
 #else
             webReq.Headers["User-Agent"] = client.GetUserAgent();
 #endif
+
+#if NET452
+            webReq.ServicePoint.UseNagleAlgorithm = false;
+            webReq.ServicePoint.Expect100Continue = false;
+#endif
+
             webReq.Headers["x-ms-client-request-id"] = req.RequestId;
             webReq.Method = opMethod;
         }
@@ -340,7 +344,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="count">Content length</param>
         private static void SetWebRequestContentLength(HttpWebRequest webReq, int count)
         {
-#if NET452
+#if NETSTANDARD2_0 || NET452
             webReq.ContentLength = count;
 #else
             // Set the ContentLength property of the WebRequest.  
