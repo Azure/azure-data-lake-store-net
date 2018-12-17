@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -18,17 +19,17 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         internal DateTime CreationTime;
     }
     /// <summary>
-    /// Mock Adls Client. All the operations are done in memory.
+    /// Mock Adls Client. All the operations are done in memory. This is not a accurate immplementation of actual adlsclient. The immplementations are best effort only.
     /// </summary>
     public sealed class MockAdlsClient : AdlsClient
     {
-        private readonly Dictionary<string, DirectoryEntryMetaData> _directoryEntries;
+        private readonly IDictionary<string, DirectoryEntryMetaData> _directoryEntries;
         private static readonly string Owner = Guid.NewGuid().ToString();
         private static readonly string Group = Guid.NewGuid().ToString();
 
         private MockAdlsClient(string accountNm) : base(accountNm, 1)
         {
-            _directoryEntries = new Dictionary<string, DirectoryEntryMetaData>();
+            _directoryEntries = new ConcurrentDictionary<string, DirectoryEntryMetaData>();
             // The root directory is there
             CreateDirectory("/");
             ModifyAclEntries("/",new List<AclEntry>(){new AclEntry(AclType.user,Owner,AclScope.Access, AclAction.All)});
@@ -187,7 +188,10 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                 {
                     throw new AdlsException("The file exists");
                 }
-
+                if (mode == IfExists.Overwrite && _directoryEntries.ContainsKey(filename))
+                {
+                    _directoryEntries.Remove(filename);
+                }
                 var metaData = CreateMetaData(filename, DirectoryEntryType.FILE, octalPermission);
                 _directoryEntries.Add(filename, metaData);
                 return new MockAdlsOutputStream(metaData.DataStream, metaData.Entry);

@@ -1,4 +1,9 @@
 # Changes to the SDK
+### Version 1.1.14
+- Add SDk support for enumerate and restore APIs for deleted items
+- Fix handling of negative acesstime and modificationtime for getfilestatus and liststatus
+- Fix async cancellation token
+- Minor fixes: Fix MockADlsClient Create with overwrite, Fix HasAcl in copy constructor
 ### Version 1.1.13
 - Fix timeouts not getting retried 
 ### Version 1.1.12

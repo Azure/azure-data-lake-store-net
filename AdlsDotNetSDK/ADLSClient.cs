@@ -15,6 +15,8 @@ using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Rest;
 using NLog;
 using System.IO;
+using System.Linq;
+
 #if NET452
 using System.Management;
 #endif
@@ -151,7 +153,7 @@ namespace Microsoft.Azure.DataLake.Store
 #if NET452
                 // Cannot get Caption/Architecture from Win32_OperatingSystem because they can have localised values
                 osInfo = Environment.OSVersion.VersionString + " " + IntPtr.Size * 8;
-                
+
                 dotNetVersion = "NET452";
                 int coreCount = 0;
                 foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
@@ -189,7 +191,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         protected AdlsClient()
         {
-            
+
         }
 
         internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false)
@@ -524,7 +526,7 @@ namespace Microsoft.Azure.DataLake.Store
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
             RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
-            
+
             OperationResponse resp = new OperationResponse();
             await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
@@ -562,8 +564,8 @@ namespace Microsoft.Azure.DataLake.Store
             string leaseId = Guid.NewGuid().ToString();
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            RetryPolicy policy = overwrite ?  new ExponentialRetryPolicy() : (RetryPolicy) new NonIdempotentRetryPolicy();
-            
+            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
+
             OperationResponse resp = new OperationResponse();
             Core.Create(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp);
             if (!resp.IsSuccessful)
@@ -796,7 +798,7 @@ namespace Microsoft.Azure.DataLake.Store
             string tempDir = tempDestination + "/" + Guid.NewGuid() + $"-{recurse}";
             for (int i = 0; i < numberTasks; i++)
             {
-                destinationList.Add( tempDir + "/"  + i);
+                destinationList.Add(tempDir + "/" + i);
                 int start = i * ConcatenateStreamListThreshold;
                 int count = i < (numberTasks - 1)
                     ? ConcatenateStreamListThreshold
@@ -875,7 +877,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         #region Access, Acl, Permission
-        
+
         /// <summary>
         /// Asynchronously sets the expiry time
         /// </summary>
@@ -1197,6 +1199,122 @@ namespace Microsoft.Azure.DataLake.Store
         public virtual AclStatus GetAclStatus(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             return GetAclStatusAsync(path, userIdFormat, cancelToken).GetAwaiter().GetResult();
+        }
+
+        #endregion
+
+        #region Trash Enumerate, Restore
+        /// <summary>
+        /// Search trash under a account with hint and a starting point. This is a long running operation,
+        /// and user is updated with progress periodically.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual IEnumerable<TrashEntry> EnumerateDeletedItems(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDeletedItemsAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously gets the trash entries
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            List<TrashEntry> trashEntries = new List<TrashEntry>();
+            string nextListAfter = listAfter;
+            long numSearched = 0;
+            int numFound = 0;
+
+            if (numResults > 4000 || numResults < 0)
+            {
+                numResults = 4000;
+            }
+
+            while (true)
+            {
+                OperationResponse resp = new OperationResponse();
+
+                // TODO : pass the timeout programmatically instead of hard-coding here
+                TrashStatus trashstatus = await Core.EnumerateDeletedItemsAsync(hint, nextListAfter, numResults - numFound, this, new RequestOptions(null, new TimeSpan(0, 0, 135), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+                if (!resp.IsSuccessful)
+                {
+                    if (!(resp.Ex is OperationCanceledException))
+                    {
+                        throw GetExceptionFromResponse(resp, $"Error in EnumerateDeletedItemsAsync hint:{hint}, listAfter:{listAfter}, numResults:{numResults}.");
+                    }
+                }
+
+                if (trashstatus != null)
+                {
+                    numSearched += trashstatus.NumSearched;
+
+                    if (trashstatus.TrashEntries != null)
+                    {
+                        trashEntries.AddRange(trashstatus.TrashEntries);
+                        numFound += trashstatus.NumFound;
+                    }
+
+                    if (progressTracker != null)
+                    {
+                        EnumerateDeletedItemsProgress progress = new EnumerateDeletedItemsProgress { NumFound = numFound, NumSearched = numSearched, NextListAfter = trashstatus.NextListAfter };
+                        progressTracker.Report(progress);
+                    }
+
+                    // empty NextListAfter implies search is complete. Break when serach is complete
+                    // or when we have found requisite number of entries
+                    if (String.IsNullOrEmpty(trashstatus.NextListAfter) || numFound >= numResults)
+                    {
+                        break;
+                    }
+
+                    nextListAfter = trashstatus.NextListAfter;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return trashEntries;
+        }
+
+        /// <summary>
+        /// Synchronously Restores trash entry
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual void RestoreDeletedItems(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            RestoreDeletedItemsAsync(pathOfFileToRestoreInTrash, restoreDestination, type, restoreAction, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously Restores trash entry
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual async Task RestoreDeletedItemsAsync(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            OperationResponse resp = new OperationResponse();
+            await Core.RestoreDeletedItemsAsync(pathOfFileToRestoreInTrash, restoreDestination, type, restoreAction, this, new RequestOptions(), resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                throw GetExceptionFromResponse(resp, $"Error in RestoreDeletedItemsAsync pathOfFileToRestoreInTrash:{pathOfFileToRestoreInTrash}, restoreDestination:{restoreDestination}, type:{type}, restoreAction:{restoreAction}");
+            }
         }
 
         #endregion

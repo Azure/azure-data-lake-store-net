@@ -1,17 +1,17 @@
-﻿using System;
+﻿using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.Rest;
+using Microsoft.Rest.Azure.Authentication;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Azure.DataLake.Store.Acl;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
-using Microsoft.Rest.Azure.Authentication;
-using Microsoft.Rest;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -93,6 +93,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             return new string(Enumerable.Repeat(chars, length)
                 .Select(s => s[Random.Next(s.Length)]).ToArray());
         }
+
         /// <summary>
         /// Sets up the unit test
         /// </summary>
@@ -100,6 +101,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [AssemblyInitialize]
         public static void SetupUnitTest(TestContext context)
         {
+            
             _accntName = (string)context.Properties["Account"];
             _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
             _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
@@ -127,6 +129,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public static void SetupTest(TestContext context)
         {
             _adlsClient = SetupSuperClient();
+            
             _adlsClient.DeleteRecursive(UnitTestDir);
             _adlsClient.CreateDirectory(UnitTestDir);
             var nonOwnerAclSpec = new List<AclEntry>
@@ -207,6 +210,47 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             return client;
         }
+
+        private static string GetFileOrFolderName(string type)
+        {
+            var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            Random random = new Random();
+            string name = "";
+            for (int i = 0; i < 16; i++)
+            {
+                name += chars[random.Next(chars.Length)];
+            }
+            
+            if(type.Contains("file"))
+            {
+                name = "file_" + name + ".txt";
+            }
+            else if(type.Contains("directory"))
+            {
+                name = "dir_" + name;
+            }
+
+            return name;
+        }
+
+        private static void SetupTrashFile(string name, string type)
+        {
+            string path = $"{UnitTestDir}/" + name;
+            bool result;
+            if (type.Contains("file"))
+            {
+                _adlsClient.CreateFile(path, IfExists.Overwrite, "732");
+            }
+            else
+            {
+                result = _adlsClient.CreateDirectory(path, "777" );
+                Assert.IsTrue(result);
+            }
+   
+            result = _adlsClient.Delete(path);
+            Assert.IsTrue(result);
+        }
+
         #endregion
 
         [TestMethod]
@@ -2514,6 +2558,340 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.ReadExecute)));
         }
         #endregion
+
+        #region TrashEnumerateRestore
+        private Tuple<EnumerateDeletedItemsProgress, Progress<EnumerateDeletedItemsProgress>> GetProgressTracker()
+        {
+            var progressTracker = new Progress<EnumerateDeletedItemsProgress>();
+            EnumerateDeletedItemsProgress progress = new EnumerateDeletedItemsProgress();
+
+            progressTracker.ProgressChanged += (s, e) =>
+            {
+                lock (progress)
+                {
+                    progress.NumSearched = e.NumSearched;
+                    progress.NumFound = e.NumFound;
+                    progress.NextListAfter = e.NextListAfter;
+                }
+            };
+            return Tuple.Create<EnumerateDeletedItemsProgress, Progress<EnumerateDeletedItemsProgress>>(progress,progressTracker);
+        }
+        [TestMethod]
+        public void TestRestoreDeletedItemsToOriginalDestination()
+        {
+            // Restore file
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            // Enumerate goes to Alki secondaries, so sleep to let them catch up.
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+
+            // Get file status on restored entry
+            string path = $"{UnitTestDir}/" + streamName;
+            DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+            
+            // Restore directory
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            // Enumerate goes to Alki secondaries, so sleep to let them catch up.
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+
+            // Get file status on restored entry
+            path = $"{UnitTestDir}/" + dirName;
+            diren = _adlsClient.GetDirectoryEntry(path);
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsToNewDestination()
+        {
+            // Restore file
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            string path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite);
+
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+            
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            destPath.Substring(0, destPath.LastIndexOf('/') + 1);
+            String newName = GetFileOrFolderName("file");
+            destPath += newName;
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+
+            // Get file status on restored entry
+            path.Substring(0, path.LastIndexOf('/') + 1);
+            path += newName;
+            DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+
+            // Restore Directory
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            path = $"{UnitTestDir}/" + dirName;
+            bool result = _adlsClient.CreateDirectory(path);
+            Assert.IsTrue(result);
+
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+            
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            destPath.Substring(0, destPath.LastIndexOf('/') + 1);
+            newName = GetFileOrFolderName("file");
+            destPath += newName;
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+
+            // Get file status on restored entry
+            path.Substring(0, path.LastIndexOf('/') + 1);
+            path += newName;
+            diren = _adlsClient.GetDirectoryEntry(path);
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsFileWithOverwriteOrCopy()
+        {
+            // Test copy
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            string path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite);
+
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file", "copy");
+            
+            // Test overwrite
+            streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite, "777");
+
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file", "overwrite");
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsDirectoryWithCopy()
+        {
+            // Test copy
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            string path = $"{UnitTestDir}/" + dirName;
+            bool result = _adlsClient.CreateDirectory(path);
+            Assert.IsTrue(result);
+
+            Thread.Sleep(3000);
+            
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory", "copy");
+
+            // directory restores with overwrites not supported yet
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateCancellationToken()
+        {
+            CancellationTokenSource source = new CancellationTokenSource();
+            CancellationToken token = source.Token;
+
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            source.Cancel();
+            var tuple = GetProgressTracker();
+           
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, tuple.Item2, token);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(tuple.Item1.NumSearched == 0);
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForMultipleFileSearch()
+        {
+            string prefix = GetFileOrFolderName("file");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string streamName = prefix + "_" + GetFileOrFolderName("file");
+                SetupTrashFile(streamName, "file");
+            }
+
+            Thread.Sleep(3000);
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(prefix, null, N, progresstuple.Item2);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == N);
+            for (int i = 0; i < N; i++)
+            {
+                Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.FILE);
+            }
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForZeroFileSearch()
+        {
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems("zzzzz", null, 1, progresstuple.Item2);
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == 0);
+            Assert.IsTrue(string.IsNullOrEmpty(progresstuple.Item1.NextListAfter));
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForEmptyHint()
+        {
+            try
+            {
+                IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems("", null, 1, null);
+                Assert.IsTrue(false);
+            }
+            catch(Exception ex)
+            {
+                if(ex is ArgumentException)
+                {
+                    Assert.IsTrue(true);
+                }
+                else
+                {
+                    Assert.IsTrue(false);
+                }
+
+                return;
+            }
+
+            Assert.IsTrue(false);
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForMultipleDirectorySearch()
+        {
+            string prefix = GetFileOrFolderName("directory");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string dirName = prefix + "_" + GetFileOrFolderName("directory");
+                SetupTrashFile(dirName, "directory");
+            }
+
+            Thread.Sleep(3000);
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(prefix, null, N, progresstuple.Item2);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == N);
+            for (int i = 0; i < N; i++)
+            {
+                Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.DIRECTORY);
+            }
+        }
+        
+        #endregion
+
         private bool VerifyGuid(string objectId)
         {
             return Regex.IsMatch(objectId, @"^[{(]?[0-9A-Fa-f]{8}[-]?([0-9A-Fa-f]{4}[-]?){3}[0-9A-Fa-f]{12}[)}]?$");

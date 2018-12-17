@@ -102,7 +102,7 @@ namespace Microsoft.Azure.DataLake.Store
             LastModifiedTime = dir.LastModifiedTime;
             Type = dir.Type;
             Permission = dir.Permission;
-            HasAcl = HasAcl;
+            HasAcl = dir.HasAcl;
             ExpiryTime = dir.ExpiryTime;
         }
         /// <summary>

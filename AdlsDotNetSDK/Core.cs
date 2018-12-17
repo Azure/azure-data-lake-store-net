@@ -1,4 +1,5 @@
-﻿
+﻿using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.Azure.DataLake.Store.Serialization;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -7,8 +8,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Azure.DataLake.Store.Acl;
-using Microsoft.Azure.DataLake.Store.Serialization;
 
 namespace Microsoft.Azure.DataLake.Store
 {
@@ -845,6 +844,183 @@ namespace Microsoft.Azure.DataLake.Store
             return null;
 
         }
+
+        /// <summary>
+        /// Lists the deleted streams or directories in the trash matching the hint
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults.</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>List of deleted entries</returns>
+        public static async Task<TrashStatus> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            QueryParams qp = new QueryParams();
+            if (!string.IsNullOrEmpty(hint) && !string.IsNullOrWhiteSpace(hint))
+            {
+                qp.Add("hint", hint);
+            }
+            else
+            {
+                throw new ArgumentException($"Hint cannot be skipped or be empty or a whitespace. Please provide a specific hint");
+            }
+
+            if (!string.IsNullOrWhiteSpace(listAfter))
+            {
+                qp.Add("listAfter", listAfter);
+            }
+
+            if (numResults > 4000 || numResults <= 0)
+            {
+                numResults = 4000;
+            }
+
+            qp.Add("listSize", Convert.ToString(numResults));
+            qp.Add("api-version", "2018-08-01");
+
+            var responseTuple = await WebTransport.MakeCallAsync("ENUMERATEDELETEDITEMS", "/", default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                return null;
+            }
+
+            if (responseTuple != null)
+            {
+                try
+                {
+                    TrashStatus trashStatus = new TrashStatus();
+                    List<TrashEntry> trashEntries = new List<TrashEntry>();
+                    using (MemoryStream stream = new MemoryStream(responseTuple.Item1))
+                    {
+                        using (StreamReader stReader = new StreamReader(stream))
+                        {
+                            using (var jsonReader = new JsonTextReader(stReader))
+                            {
+                                jsonReader.Read(); //Start Object{
+                                jsonReader.Read(); //TrashDir
+                                jsonReader.Read(); //Start object
+                                jsonReader.Read(); //TrashDirEntry
+                                jsonReader.Read(); //StartArray
+                                String originalPath = "";
+                                String trashDirPath = "";
+                                string type = "";
+                                long creationTime = -1;
+
+                                do
+                                {
+                                    jsonReader.Read();
+                                    if (jsonReader.TokenType.Equals(JsonToken.EndObject))
+                                    {
+                                        TrashEntry entry =
+                                            new TrashEntry(originalPath, trashDirPath, type, creationTime);
+                                        trashEntries.Add(entry);
+                                    }
+                                    else if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
+                                    {
+                                        switch ((string)jsonReader.Value)
+                                        {
+                                            case "originalPath":
+                                                jsonReader.Read();
+                                                originalPath = (string)jsonReader.Value;
+                                                break;
+                                            case "trashDirPath":
+                                                jsonReader.Read();
+                                                trashDirPath = (string)jsonReader.Value;
+                                                break;
+                                            case "type":
+                                                jsonReader.Read();
+                                                type = (string)jsonReader.Value;
+                                                break;
+                                            case "creationTime":
+                                                jsonReader.Read();
+                                                creationTime = (long)jsonReader.Value;
+                                                break;
+                                        }
+                                    }
+                                } while (!jsonReader.TokenType.Equals(JsonToken.EndArray));
+
+                                // Add the continuation token
+                                jsonReader.Read();
+                                if (((string)jsonReader.Value).Equals("nextListAfter", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    jsonReader.Read();
+                                    trashStatus.NextListAfter = (string)jsonReader.Value;
+                                }
+
+                                // Add the number of entries searched
+                                jsonReader.Read();
+                                if (((string)jsonReader.Value).Equals("numSearched", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    jsonReader.Read();
+                                    trashStatus.NumSearched = (long)jsonReader.Value;
+                                }
+                            }
+                        }
+                    }
+
+                    trashStatus.TrashEntries = trashEntries;
+                    trashStatus.NumFound = trashEntries.Count;
+
+                    return trashStatus;
+                }
+                catch (Exception ex)
+                {
+                    resp.IsSuccessful = false;
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
+                }
+            }
+            else
+            {
+                resp.IsSuccessful = false;
+                resp.Error = "Output is not as expected";
+            }
+
+
+            return null;
+        }
+
+        /// <summary>
+        /// Restore a stream or directory from trash to user space. This is a synchronous operation.
+        /// Not threadsafe when Restore is called for same path from different threads. 
+        /// </summary>
+        /// <param name="restoreToken">restore token of the entry to be restored. This is the trash directory path in enumeratedeleteditems response</param>
+        /// <param name="restoreDestination">Path to which the entry should be restored</param>
+        /// <param name="type">Type of the entry which is being restored</param>
+        /// <param name="restoreAction">Action to take during destination name conflicts - overwrite or copy</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        public static Task RestoreDeletedItemsAsync(string restoreToken, string restoreDestination, string type, string restoreAction, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            QueryParams qp = new QueryParams();
+            if (!string.IsNullOrWhiteSpace(restoreToken))
+            {
+                qp.Add("restoreToken", restoreToken);
+            }
+
+            if (!string.IsNullOrWhiteSpace(restoreDestination))
+            {
+                qp.Add("restoreDestination", restoreDestination);
+            }
+
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                qp.Add("type", type);
+            }
+
+            if (!string.IsNullOrWhiteSpace(restoreAction))
+            {
+                qp.Add("restoreAction", restoreAction);
+            }
+
+            qp.Add("api-version", "2018-08-01");
+
+            return WebTransport.MakeCallAsync("RESTOREDELETEDITEMS", "/", default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken);
+        }
+
         #endregion
 
         /// <summary>

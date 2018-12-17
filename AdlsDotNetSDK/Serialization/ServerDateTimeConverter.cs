@@ -17,6 +17,10 @@ namespace Microsoft.Azure.DataLake.Store.Serialization
 
             var ticks = (long)reader.Value;
 
+            if(ticks < 0)
+            {
+                return null;
+            }
             return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Add(new TimeSpan(ticks * 10000));
 
         }

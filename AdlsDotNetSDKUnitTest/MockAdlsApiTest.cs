@@ -74,5 +74,15 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.GetFileProperties(rootPath, true, "/Data/logFile", true, false);
             Assert.IsTrue(_adlsClient.GetDirectoryEntry("/Data/logFile") != null);
         }
+
+        [TestMethod]
+        public void TestCreateWithOverwrite()
+        {
+            var pathname = "/filename";
+            _adlsClient.CreateFile(pathname, IfExists.Fail);
+            Assert.IsTrue(_adlsClient.GetDirectoryEntry(pathname) != null);
+            _adlsClient.CreateFile(pathname, IfExists.Overwrite);
+            Assert.IsTrue(_adlsClient.GetDirectoryEntry(pathname) != null);
+        }
     }
 }

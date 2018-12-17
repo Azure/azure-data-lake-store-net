@@ -697,7 +697,7 @@ namespace Microsoft.Azure.DataLake.Store
                                     using (Stream ipStream = GetCompressedStream(await webReq.GetRequestStreamAsync().ConfigureAwait(false), client, requestData.Count))
                                     {
                                         await ipStream.WriteAsync(requestData.Data, requestData.Offset, requestData.Count,
-                                            cancelToken).ConfigureAwait(false);
+                                            linkedCts.Token).ConfigureAwait(false);
                                     }
                                 }
                                 else
@@ -730,7 +730,7 @@ namespace Microsoft.Azure.DataLake.Store
                                         do
                                         {
                                             noBytes = await opStream.ReadAsync(responseData.Data, responseData.Offset,
-                                                totalLengthToRead, cancelToken).ConfigureAwait(false);
+                                                totalLengthToRead, linkedCts.Token).ConfigureAwait(false);
                                             totalBytes += noBytes;
                                             responseData.Offset += noBytes;
                                             totalLengthToRead -= noBytes;
