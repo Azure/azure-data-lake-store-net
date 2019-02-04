@@ -118,8 +118,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
-            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
-            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoriesCorrect);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectFileCount);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectDirectoryCount);
         }
 
         /// <summary>
@@ -141,8 +141,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
-            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
-            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoriesCorrect);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectFileCount);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectDirectoryCount);
             _modifyAclRun = true;
             SemModifyAcl.Release();
         }
@@ -157,11 +157,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B0", _adlsClient, aclEntries1,
                 RequestedAclType.RemoveAcl, 10);
             var aclVerifyStats =
-                AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.RemoveAcl, 10);
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B0", _adlsClient, aclEntries1, RequestedAclType.RemoveAcl, 25);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
-            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
-            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoriesCorrect);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectFileCount);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectDirectoryCount);
         }
         /// <summary>
         /// Tests set acl
@@ -186,11 +186,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B1", _adlsClient, aclEntries3,
                 RequestedAclType.SetAcl, 25);
             var aclVerifyStats =
-                AclProcessor.RunAclVerifier(UnitTestPath + "/B1", _adlsClient, aclEntries2, RequestedAclType.SetAcl, 10);
+                AclProcessor.RunAclVerifier(UnitTestPath + "/B1", _adlsClient, aclEntries2, RequestedAclType.SetAcl, 25);
             Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesProcessed);
             Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoryProcessed);
-            Assert.IsTrue(aclStats.FilesProcessed == aclVerifyStats.FilesCorrect);
-            Assert.IsTrue(aclStats.DirectoryProcessed == aclVerifyStats.DirectoriesCorrect);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectFileCount);
+            Assert.IsTrue(0 == aclVerifyStats.IncorrectDirectoryCount);
             _setAclRun = true;
             SemSetAcl.Release();
         }
@@ -211,6 +211,47 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(node.TotChildFiles == 0);
             Assert.IsTrue(node.DirectChildDirec == 0);
             Assert.IsTrue(node.DirectChildFiles == 0);
+        }
+
+        /// <summary>
+        /// Test Acl dump and file properties
+        /// </summary>
+        [TestMethod]
+        public void TestSetAclVerification()
+        {
+            string path = UnitTestPath + "/B2";
+            List<AclEntry> aclEntries1 = GetAclEntryForModifyAndRemove();
+            GetExpectedOutput(_oneLevelDirCount, _oneLevelFileCnt, _recurseLevel - 1, _oneFileSize, out var expectedFileCount, out var expectedDirCount, out var expectedFileSize);
+            expectedDirCount += 1;
+            var status = AclProcessor.RunAclVerifier(path, _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+            Assert.IsTrue(status.FilesProcessed == expectedFileCount);
+            Assert.IsTrue(status.DirectoryProcessed == expectedDirCount);
+            Assert.IsTrue(status.IncorrectFileCount == expectedFileCount);
+            Assert.IsTrue(status.IncorrectDirectoryCount == expectedDirCount);
+            _adlsClient.ModifyAclEntries(path, aclEntries1);
+            status = AclProcessor.RunAclVerifier(path, _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+            Assert.IsTrue(status.FilesProcessed == expectedFileCount);
+            Assert.IsTrue(status.DirectoryProcessed == expectedDirCount);
+            Assert.IsTrue(status.IncorrectFileCount == expectedFileCount);
+            Assert.IsTrue(status.IncorrectDirectoryCount == expectedDirCount-1);
+
+            var aclStats = AclProcessor.RunAclProcessor(UnitTestPath + "/B2/C0", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+            GetExpectedOutput(_oneLevelDirCount, _oneLevelFileCnt, _recurseLevel - 2, _oneFileSize, out var expectedFileCountSub, out var expectedDirCountSub, out var expectedFileSizeSub);
+            expectedDirCountSub += 1;
+
+            status = AclProcessor.RunAclVerifier(path, _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25, LocalPath + @"\verificationfile");
+            Assert.IsTrue(status.FilesProcessed == expectedFileCount);
+            Assert.IsTrue(status.DirectoryProcessed == expectedDirCount);
+            Assert.IsTrue(status.IncorrectFileCount == expectedFileCount-expectedFileCountSub);
+            Assert.IsTrue(status.IncorrectDirectoryCount == expectedDirCount - 1 - expectedDirCountSub);
+
+            AclProcessor.RunAclProcessor(UnitTestPath + "/B2/C1", _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25);
+
+            status = AclProcessor.RunAclVerifier(path, _adlsClient, aclEntries1, RequestedAclType.ModifyAcl, 25, LocalPath + @"\verificationfile1");
+            Assert.IsTrue(status.FilesProcessed == expectedFileCount);
+            Assert.IsTrue(status.DirectoryProcessed == expectedDirCount);
+            Assert.IsTrue(status.IncorrectFileCount == expectedFileCount - 2*expectedFileCountSub);
+            Assert.IsTrue(status.IncorrectDirectoryCount == expectedDirCount - 1 - 2*expectedDirCountSub);
         }
 
         /// <summary>
@@ -266,7 +307,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public static void CleanClient()
         {
             _adlsClient.DeleteRecursive(RemotePath);
-            Directory.Delete(LocalPath, true);
+            if (Directory.Exists(LocalPath))
+            {
+                Directory.Delete(LocalPath, true);
+            }
         }
     }
 }

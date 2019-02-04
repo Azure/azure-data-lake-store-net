@@ -3001,6 +3001,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         public static void TestGetFileStatus(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
         {
+            TestGetFileStatusStandard(path, maxEntries, hSet, fullNamehSet, expectedEntries, setListSize);
+            TestGetFileStatusMinimal(path, maxEntries, hSet, fullNamehSet, expectedEntries, setListSize);
+        }
+
+
+        public static void TestGetFileStatusStandard(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
+        {
             int count = 0;
             var fop = _adlsClient.EnumerateDirectory(path, maxEntries, "", "");
             var en = fop.GetEnumerator();
@@ -3045,6 +3052,41 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 {
                     Assert.Fail(dir.Name + " should be file");
                 }
+                count++;
+            }
+            Assert.IsTrue(count == expectedEntries);
+        }
+
+        internal static void TestGetFileStatusMinimal(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
+        {
+            int count = 0;
+            var fop = _adlsClient.EnumerateDirectory(path, maxEntries, "", "", selection: Selection.Minimal);
+            var en = fop.GetEnumerator();
+            ((FileStatusList<DirectoryEntry>)en).ListSize = setListSize;
+
+            while (en.MoveNext())
+            {
+                var dir = en.Current;
+                if (!hSet.Contains(dir.Name))
+                {
+                    Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
+                }
+                if (dir.Type != DirectoryEntryType.FILE)
+                {
+                    Assert.Fail(dir.Name + " should be file");
+                }
+                Assert.AreEqual(dir.ExpiryTime, null);
+                Assert.AreEqual(dir.Group, null);
+                Assert.AreEqual(dir.HasAcl, false);
+                Assert.AreEqual(dir.LastAccessTime, null);
+                Assert.AreEqual(dir.LastModifiedTime, null);
+                Assert.AreEqual(dir.Length, 0);
+                Assert.AreEqual(dir.Permission, null);
+                Assert.AreEqual(dir.User, null);
                 count++;
             }
             Assert.IsTrue(count == expectedEntries);

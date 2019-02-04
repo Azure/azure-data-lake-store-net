@@ -12,7 +12,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     {
         internal void VerifyFileStatus(DirectoryEntry entry, string name, int length, DirectoryEntryType type, DateTime? accessTime, DateTime? modificationTime, DateTime? expireTime, string permission, string group, string owner)
         {
-            Assert.IsTrue(entry.Name==name);
+            Assert.IsTrue(entry.Name == name);
             Assert.IsTrue(entry.Type.Equals(type));
             if (accessTime == null)
             {
@@ -40,14 +40,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(permission == entry.Permission);
             Assert.IsTrue(group == entry.Group);
-            Assert.IsTrue(owner== entry.User);
+            Assert.IsTrue(owner == entry.User);
         }
         [TestMethod]
         public void TestGetFileStatusSerialization1()
         {
             string fileStatusOutput = "{\"FileStatus\":{\"length\":23,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"modificationTime\":1528320362596,\"msExpirationTime\":1528320362391,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true,\"attributes\":[\"Share\",\"PartOfShare\"],\"newperm\":\"sdsds\"}}";
             var jsonSettings = new JsonSerializerSettings();
-            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All,"ParentDir");
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
             var entry = JsonCustomConvert.DeserializeObject<DirectoryEntryResult<DirectoryEntry>>(new MemoryStream(Encoding.UTF8.GetBytes(fileStatusOutput)), jsonSettings);
             Assert.IsTrue(entry != null);
             VerifyFileStatus(entry.FileStatus, "Test01", 23, DirectoryEntryType.DIRECTORY, null, DirectoryEntry.GetDateTimeFromServerTime(1528320362596), DirectoryEntry.GetDateTimeFromServerTime(1528320362391), "770", "ownergroup1", "owner1");
@@ -154,6 +154,40 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             VerifyFileStatus(entry.FileStatuses.FileStatus[0], "Test01", 0, DirectoryEntryType.DIRECTORY, null, null, DirectoryEntry.GetDateTimeFromServerTime(1528320362391), "770", "ownergroup1", "owner1");
             VerifyFileStatus(entry.FileStatuses.FileStatus[1], "Test02", 0, DirectoryEntryType.DIRECTORY, DirectoryEntry.GetDateTimeFromServerTime(1531515372559), DirectoryEntry.GetDateTimeFromServerTime(1531523888360), null, null, "ownergroup2", "owner2");
         }
+        [TestMethod]
+        public void TestTrashEnumerateSerialization1()
+        {
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_feace1a1-ce0f-4576-82da-a2427aaf35b3\"}],\"nextListAfter\":\"something\"}}";
+            var jsonSettings = new JsonSerializerSettings();
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
 
+            var entry = JsonCustomConvert.DeserializeObject<TrashStatusResult>(new MemoryStream(Encoding.UTF8.GetBytes(trashOutput)), jsonSettings);
+            Assert.IsTrue(entry.TrashStatusRes.NumSearched == 0);
+            Assert.IsTrue(!string.IsNullOrEmpty(entry.TrashStatusRes.NextListAfter));
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateSerialization2()
+        {
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"}]}}";
+            var jsonSettings = new JsonSerializerSettings();
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
+
+            var entry = JsonCustomConvert.DeserializeObject<TrashStatusResult>(new MemoryStream(Encoding.UTF8.GetBytes(trashOutput)), jsonSettings);
+            Assert.IsTrue(entry.TrashStatusRes.NumSearched == 0);
+            Assert.IsTrue(string.IsNullOrEmpty(entry.TrashStatusRes.NextListAfter));
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateSerialization3()
+        {
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\"}],\"numSearched\":\"23\"}}";
+            var jsonSettings = new JsonSerializerSettings();
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
+
+            var entry = JsonCustomConvert.DeserializeObject<TrashStatusResult>(new MemoryStream(Encoding.UTF8.GetBytes(trashOutput)), jsonSettings);
+            Assert.IsTrue(entry.TrashStatusRes.NumSearched == 23);
+            Assert.IsTrue(string.IsNullOrEmpty(entry.TrashStatusRes.NextListAfter));
+        }
     }
 }

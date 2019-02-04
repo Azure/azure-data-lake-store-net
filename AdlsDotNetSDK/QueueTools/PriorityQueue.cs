@@ -79,6 +79,7 @@ namespace Microsoft.Azure.DataLake.Store.QueueTools
             T ret;
             ret = _heap[0];
             _heap[0] = _heap[--_heapSize];
+            _heap[_heapSize] = default(T); // Set it null to get cleaned by GC
             MaxHeapify(0);
             return ret;
         }

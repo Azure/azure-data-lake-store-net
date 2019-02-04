@@ -855,8 +855,24 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Enumerable that enumerates over the contents</returns>
         public virtual IEnumerable<DirectoryEntry> EnumerateDirectory(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return EnumerateDirectory(path, -1, "", "", userIdFormat, cancelToken);
+            return EnumerateDirectory(path, -1, "", "", Selection.Standard, userIdFormat, cancelToken);
         }
+
+        /// <summary>
+        /// Returns a enumerable that enumerates the sub-directories or files contained in a directory.
+        /// By default listAfter and listBefore is empty and we enuerate all the directory entries.
+        /// </summary>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>Enumerable that enumerates over the contents</returns>
+        internal virtual IEnumerable<DirectoryEntry> EnumerateDirectory(string path, Selection selection, UserGroupRepresentation? userIdFormat,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDirectory(path, -1, "", "", selection, userIdFormat, cancelToken);
+        }
+
         /// <summary>
         /// Returns a enumerable that enumerates the sub-directories or files contained in a directory
         /// </summary>
@@ -864,16 +880,18 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="maxEntries">List size to obtain from server</param>
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
         /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
-        /// <param name="userIdFormat">Way the user or group object will be represented</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Enumerable that enumerates over the contents</returns>
-        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
+        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore,
+            Selection selection = Selection.Standard, UserGroupRepresentation? userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
                 throw new ArgumentException("Path is null");
             }
-            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path, cancelToken);
+            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path, selection, cancelToken);
         }
 
         #region Access, Acl, Permission
@@ -1207,6 +1225,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Search trash under a account with hint and a starting point. This is a long running operation,
         /// and user is updated with progress periodically.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="hint">String to match</param>
         /// <param name="listAfter">Token returned by system in the previous API invocation</param>
@@ -1220,6 +1239,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Asynchronously gets the trash entries
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="hint">String to match. Cannot be empty.</param>
         /// <param name="listAfter">Token returned by system in the previous API invocation</param>
@@ -1288,6 +1308,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Synchronously Restores trash entry
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
         /// <param name="restoreDestination">Destination for restore</param>
@@ -1301,6 +1322,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Asynchronously Restores trash entry
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
         /// <param name="restoreDestination">Destination for restore</param>
@@ -1537,8 +1559,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (!string.IsNullOrEmpty(resp.Error))
             {
-                // If remote error is nonjson then print the actual error for exception
-                exceptionMessage += "Error: " + resp.Error + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse)? "": $" {resp.RemoteErrorNonJsonResponse}")}.";
+                exceptionMessage += "Error: " + resp.Error;
             }
             else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
             {
@@ -1546,7 +1567,8 @@ namespace Microsoft.Azure.DataLake.Store
             }
             else
             {
-                exceptionMessage += $"Unknown Error: {resp.Ex.Message} Source: {resp.Ex.Source} StackTrace: {resp.Ex.StackTrace}.";
+                // If remote error is nonjson then print the actual error for exception
+                exceptionMessage += $"Unknown Error: {resp.Ex.Message} Source: {resp.Ex.Source} StackTrace: {resp.Ex.StackTrace}.\n" + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse) ? "" : $"RemoteJsonErrorResponse: {resp.RemoteErrorNonJsonResponse}")}.";
             }
             exceptionMessage += $"\nLast encountered exception thrown after {(resp.Retries + 1)} tries. ";
             if (resp.ExceptionHistory != null) exceptionMessage += "[" + resp.ExceptionHistory + "]";

@@ -7,5 +7,7 @@ namespace Microsoft.Azure.DataLake.Store.Serialization
     {
         [JsonProperty(PropertyName = "fileStatus")]
         internal List<T> FileStatus { get; private set; }
+        [JsonProperty(PropertyName = "continuationToken")]
+        public string ContinuationToken { get; internal set; }
     }
 }

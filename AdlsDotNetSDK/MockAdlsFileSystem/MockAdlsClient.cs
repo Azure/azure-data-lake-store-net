@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,18 +19,25 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         internal AclStatus AclData;
         internal DateTime CreationTime;
     }
+
     /// <summary>
     /// Mock Adls Client. All the operations are done in memory. This is not a accurate immplementation of actual adlsclient. The immplementations are best effort only.
     /// </summary>
     public sealed class MockAdlsClient : AdlsClient
     {
         private readonly IDictionary<string, DirectoryEntryMetaData> _directoryEntries;
+        private readonly IDictionary<string, DirectoryEntryMetaData> _trashDirectoryEntries;  // contains trashPath->deletedEntry mapping
+        
         private static readonly string Owner = Guid.NewGuid().ToString();
         private static readonly string Group = Guid.NewGuid().ToString();
+
+        private static string accountName;
+        private static Random random = new Random();
 
         private MockAdlsClient(string accountNm) : base(accountNm, 1)
         {
             _directoryEntries = new ConcurrentDictionary<string, DirectoryEntryMetaData>();
+            _trashDirectoryEntries = new ConcurrentDictionary<string, DirectoryEntryMetaData>();
             // The root directory is there
             CreateDirectory("/");
             ModifyAclEntries("/",new List<AclEntry>(){new AclEntry(AclType.user,Owner,AclScope.Access, AclAction.All)});
@@ -41,7 +49,8 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         /// <returns>Mock ADls Client</returns>
         public static MockAdlsClient GetMockClient()
         {
-            return new MockAdlsClient("test.azuredatalakestore.net");
+            accountName = "test.azuredatalakestore.net";
+            return new MockAdlsClient(accountName);
         }
 
         /// <summary>
@@ -230,7 +239,24 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                     }
                 }
 
-                return _directoryEntries.Remove(path);
+                bool ret = false;
+
+                if(_directoryEntries.ContainsKey(path))
+                {
+                    var dirEntry = _directoryEntries[path];
+                    ret = _directoryEntries.Remove(path);
+                    var originalPath = dirEntry.Entry.FullName;
+                    //string trashPath = "/$temp/trash/123456789/local/" + originalPath.Substring(1);
+                    string trashPath = "/deleted/local/" + random.Next(10000000);
+
+                    // Add it to the list of items in trash
+                    lock (_trashDirectoryEntries)
+                    {
+                        _trashDirectoryEntries.Add(trashPath, dirEntry);
+                    }
+                }
+
+                return ret;
             }, cancelToken);
         }
 
@@ -285,6 +311,175 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override bool DeleteRecursive(string path, CancellationToken cancelToken = default(CancellationToken))
         {
             return DeleteRecursiveAsync(path, cancelToken).GetAwaiter().GetResult();
+        }
+ 
+        /// <summary>
+        /// Asynchronously gets the trash entries
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            return await Task.Run(() =>
+            {
+                List<TrashEntry> trashEntries = new List<TrashEntry>();
+                var matchingPaths = new List<string>();
+                int numSearched = 0;
+                int numFound = 0;
+                string nextListAfter = "";
+                var enumerator = _trashDirectoryEntries.GetEnumerator();
+
+                // Search after "listafter" element
+                if (!string.IsNullOrEmpty(listAfter))
+                {
+                    while (enumerator.MoveNext())
+                    {
+                        if (enumerator.Current.Key.Equals(listAfter))
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                // Start hint comparison now
+                while (enumerator.MoveNext())
+                {
+                    numSearched++;
+                    if (enumerator.Current.Value.Entry.FullName.Contains(hint))
+                    {
+                        numFound++;
+                        matchingPaths.Add(enumerator.Current.Key);
+                    }
+
+                    if(numFound == numResults)
+                    {
+                        nextListAfter = enumerator.Current.Key;
+                        break;
+                    }
+                }
+
+                foreach(var trashPath in matchingPaths)
+                {
+                    var dirEntry = _trashDirectoryEntries[trashPath];
+                    //convert to fsurls
+                    TrashEntry trashEntry = new TrashEntry();
+                    trashEntry.OriginalPath = "adl://" + accountName + dirEntry.Entry.FullName;
+                    trashEntry.TrashDirPath = "adl://" + accountName + trashPath;
+                    trashEntry.CreationTime = dirEntry.CreationTime;
+                    trashEntry.Type = (dirEntry.Entry.Type == DirectoryEntryType.DIRECTORY ? TrashEntryType.DIRECTORY : TrashEntryType.FILE);
+                    trashEntries.Add(trashEntry);
+                }
+
+                if (progressTracker != null)
+                {
+                    EnumerateDeletedItemsProgress progress = new EnumerateDeletedItemsProgress { NumFound = numFound, NumSearched = numSearched, NextListAfter = nextListAfter };
+                    progressTracker.Report(progress);
+                }
+
+                return trashEntries;
+            }, cancelToken);
+        }
+
+        /// <summary>
+        /// Search trash under a account with hint and a starting point. This is a long running operation,
+        /// and user is updated with progress periodically.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override IEnumerable<TrashEntry> EnumerateDeletedItems(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDeletedItemsAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Synchronously Restores trash entry
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override void RestoreDeletedItems(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            RestoreDeletedItemsAsync(pathOfFileToRestoreInTrash, restoreDestination, type, restoreAction, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously Restores trash entry
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public override async Task RestoreDeletedItemsAsync(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            await Task.Run(() =>
+            {
+                // convert FsUrls back to relative paths
+                pathOfFileToRestoreInTrash = pathOfFileToRestoreInTrash.Substring(("adl://" + accountName).Length);
+                restoreDestination = restoreDestination.Substring(("adl://" + accountName).Length);
+ 
+                if (!_trashDirectoryEntries.Keys.Contains(pathOfFileToRestoreInTrash))
+                {
+                    throw new ArgumentException();
+                }
+
+                var enumerator = _trashDirectoryEntries.GetEnumerator();
+                while(enumerator.MoveNext())
+                {
+                    if(enumerator.Current.Key.Equals(pathOfFileToRestoreInTrash))
+                    {
+                        var deletedEntry = _trashDirectoryEntries[pathOfFileToRestoreInTrash];
+                        var entryType = deletedEntry.Entry.Type;
+
+                        if(String.IsNullOrEmpty(type) || !(type.Equals("file") || type.Equals("folder")))
+                        {
+                            throw new ArgumentException();
+                        }
+
+                        if((type.Equals("file") ? DirectoryEntryType.FILE : DirectoryEntryType.DIRECTORY) != entryType)
+                        {
+                            throw new ArgumentException();
+                        }
+
+                        // Make sure there is no conflict
+                        if (_directoryEntries.ContainsKey(restoreDestination))
+                        {
+                            if (String.Equals(restoreAction, "copy", StringComparison.OrdinalIgnoreCase))
+                            {
+                                restoreDestination += "_" + random.Next(10000000);
+                            }
+                            else if (String.Equals(restoreAction, "overwrite", StringComparison.OrdinalIgnoreCase)) // TODO: type is stream
+                            {
+                                if (String.Equals(type, "folder", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    throw new ArgumentException();
+                                }
+                            }
+                        }
+
+                        // Start the restore;
+                        deletedEntry.Entry.FullName = restoreDestination;
+                        deletedEntry.Entry.Name = restoreDestination.Substring(restoreDestination.LastIndexOf("/") + 1); // TODO: fix name
+                        
+                        // Add it back
+                        _directoryEntries.Add(restoreDestination, deletedEntry);
+
+                        // Remove it from trash items
+                        _trashDirectoryEntries.Remove(pathOfFileToRestoreInTrash);
+                        break;
+                    }
+                }
+
+                return;
+            }, cancelToken);
         }
 
         private void MoveOneEntry(string src, string dest)

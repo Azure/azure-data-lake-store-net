@@ -1,4 +1,11 @@
 # Changes to the SDK
+### Version 1.1.15
+- Use minimal flag for liststatus in recursive acl. This improves the performance.
+- Fix remote json response that is not parsable in the exception message
+- Improve the enumerate logic for recursive acl tool, this prevents high heap consumption for very large directories
+- Set null to the array element of the priority queue that is dequeued
+- Use continutation token internally for enumerate
+- Fix json parsing of EnumerateDeletedItems
 ### Version 1.1.14
 - Add SDk support for enumerate and restore APIs for deleted items
 - Fix handling of negative acesstime and modificationtime for getfilestatus and liststatus

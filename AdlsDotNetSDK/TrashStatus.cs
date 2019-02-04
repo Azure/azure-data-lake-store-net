@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using Microsoft.Azure.DataLake.Store.Serialization;
 
 namespace Microsoft.Azure.DataLake.Store
 {
@@ -21,6 +23,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// ContinuationToken for next API call to enumerate remaining trash entries
         /// </summary>
+        [JsonProperty(PropertyName = "nextListAfter")]
         public string NextListAfter
         {
             get;
@@ -30,6 +33,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Number of entries searched
         /// </summary>
+        [JsonProperty(PropertyName = "numSearched")]
         public long NumSearched
         {
             get;
@@ -54,6 +58,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Trash status response to enumeratedeleteditems
         /// </summary>
+        [JsonProperty(PropertyName = "trashDirEntry")]
         public IEnumerable<TrashEntry> TrashEntries
         {
             get;
@@ -80,20 +85,26 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Original path of the entry
         /// </summary>
+        [JsonProperty(PropertyName = "originalPath")]
         public String OriginalPath { get; internal set; }
 
         /// <summary>
         /// Full Path of the trash entry
         /// </summary>
+        [JsonProperty(PropertyName = "trashDirPath")]
         public String TrashDirPath { get; internal set; }
 
         /// <summary>
         /// Type of entry - file or folder
         /// </summary>
+        [JsonProperty(PropertyName = "type")]
+        [JsonConverter(typeof(TrashTypeEnumConverter))]
         public TrashEntryType Type { get; internal set; }
         /// <summary>
         /// Group owner of the file or directory
         /// </summary>
+        [JsonProperty(PropertyName = "creationTime")]
+        [JsonConverter(typeof(ServerDateTimeConverter))]
         public DateTime? CreationTime { get; internal set; }
         /// <summary>
         /// User owner of the file or directory 

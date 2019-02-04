@@ -42,6 +42,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         private readonly string _path;
 
+        /// <summary>
+        /// selection
+        /// </summary>
+        private readonly Selection _selection;
+
         private readonly IDictionary<string, string> _extraQueryParamsForListStatus;
         private readonly CancellationToken _cancelToken;
         /// <summary>
@@ -50,7 +55,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns></returns>
         public IEnumerator<T> GetEnumerator()
         {
-            return new FileStatusList<T>(_listBefore, _listAfter, _maxEntries, _ugr, _client, _path, _cancelToken, _extraQueryParamsForListStatus);
+            return new FileStatusList<T>(_listBefore, _listAfter, _maxEntries, _ugr, _client, _selection, _path, _cancelToken, _extraQueryParamsForListStatus);
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -66,6 +71,18 @@ namespace Microsoft.Azure.DataLake.Store
             _ugr = ugr;
             _client = client;
             _path = path;
+            _cancelToken = cancelToken;
+            _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
+        }
+        internal FileStatusOutput(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, Selection selection, CancellationToken cancelToken, IDictionary<string, string> extraQueryParamsForListStatus = null)
+        {
+            _listBefore = listBefore;
+            _maxEntries = maxEntries;
+            _listAfter = listAfter;
+            _ugr = ugr;
+            _client = client;
+            _path = path;
+            _selection = selection;
             _cancelToken = cancelToken;
             _extraQueryParamsForListStatus = extraQueryParamsForListStatus;
         }
@@ -125,6 +142,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// ADLS Client
         /// </summary>
         private AdlsClient Client { get; }
+        
+        /// <summary>
+        /// selection
+        /// </summary>
+        private Selection Selection { get; }
+
         /// <summary>
         /// Way the user or group object will be represented
         /// </summary>
@@ -138,6 +161,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Represents the current directory entry in the internal collection: FileStatus
         /// </summary>
+        
         public T Current
         {
             get
@@ -160,6 +184,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// Immplemented interface property
         /// </summary>
         object IEnumerator.Current => Current;
+
+        /// <summary>
+        /// Represent the continationToken for ListStatus
+        /// </summary>
+        private string continuationToken;
 
         /// <summary>
         /// Advances the enumerator to the next element in the internal collection.
@@ -192,21 +221,41 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     return false;
                 }
-                //position has reached end of the internal list. But number of directory entries retrieved from last server call is less
-                //than list size so no more entries are left on server. So even though RemainingEntries is positive, but there is no data in server only.
-                if (_position < ListSize)
+
+                // Older behavior for Selection == Minimal. Remove this if else when API is updated.
+                if (Selection == Selection.Minimal)
                 {
-                    return false;
+                       if (_position < ListSize)
+                    {
+                        //position has reached end of the internal list. But number of directory entries retrieved from last server call is less than list 
+                        //size so no more entries are left on server. So even though RemainingEntries is positive, but there is no data in server. Return false
+                        return false;
+                    }
+                    //Else we have to look in server to see if we still have any more directory entries to enumerate
+                    //Obtain the last enumerated entry name so that we can retrieve files after that from server
+                    ListAfterNext = FileStatus[_position - 1].Name;
                 }
-                //Else we have to look in server to see if we still have any more directory entries to enumerate
-                //Obtain the last enumerated entry name so that we can retrieve files after that from server
-                ListAfterNext = FileStatus[_position - 1].Name;
+                else
+                {
+                    if (string.IsNullOrEmpty(continuationToken))
+                    {
+                        //Continuation token is blank or null. No more entries.
+                        return false;
+                    }
+                    else
+                    {
+                        //Obtain the last enumerated entry name so that we can retrieve files after that from server
+                        ListAfterNext = continuationToken;
+                    }
+                }
+                                
             }
             _position = -1;
             OperationResponse resp = new OperationResponse();
             int getListSize = EnumerateAll ? ListSize : Math.Min(ListSize, RemainingEntries);
-            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
-
+            // EnumerateDirectoryChangeAclJob also calls core separately. If you change logic here, consider changing there also
+            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, Selection, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
+            continuationToken = fileListResult.FileStatuses.ContinuationToken;
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + Path + " after " + ListAfterNext);
@@ -220,7 +269,7 @@ namespace Microsoft.Azure.DataLake.Store
             return MoveNext();
         }
 
-        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, string path, CancellationToken cancelToken, IDictionary<string, string> extraQueryParamsForListStatus = null)
+        internal FileStatusList(string listBefore, string listAfter, int maxEntries, UserGroupRepresentation? ugr, AdlsClient client, Selection selection, string path, CancellationToken cancelToken, IDictionary<string, string> extraQueryParamsForListStatus = null)
         {
             ListBefore = listBefore;
             ListAfterNext = _listAfterClient = listAfter;
@@ -231,6 +280,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             Ugr = ugr;
             Client = client;
+            Selection = selection;
             Path = path;
             _cancelToken = cancelToken;
             _extraQueryParamsForListStatus = extraQueryParamsForListStatus;

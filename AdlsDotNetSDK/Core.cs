@@ -740,12 +740,31 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>List of directoryentries</returns>
         public static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
-            var getListStatusResult = await ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(path, listAfter,listBefore,listSize, userIdFormat, null, client, req, resp, cancelToken).ConfigureAwait(false);
+            return await ListStatusAsync(path, listAfter, listBefore, listSize, userIdFormat, Selection.Standard, client, req, resp, cancelToken);
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
+        /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
+        /// <param name="listSize">List size to obtain from server</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>List of directoryentries</returns>
+        /// <returns></returns>
+        internal static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, Selection selection, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            var getListStatusResult = await ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(path, listAfter, listBefore, listSize, userIdFormat, selection, null, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 return null;
             }
-            return GetDirectoryEntryListWithFullPath<DirectoryEntry>(path, getListStatusResult, resp); ;
+            return GetDirectoryEntryListWithFullPath<DirectoryEntry>(path, getListStatusResult, resp);
         }
 
         /// <summary>
@@ -785,7 +804,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
         /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
         /// <param name="listSize">List size to obtain from server</param>
-        /// <param name="userIdFormat">Way the user or group object will be represented</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="selection">Define data to return for each entry</param>
         /// <param name="extraQueryParams">Dictionary containing extra query params</param>
         /// <param name="client">ADLS Client</param>
         /// <param name="req">Options to change behavior of the Http request </param>
@@ -793,7 +813,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>List of directoryentries</returns>
         /// <returns></returns>
-        internal static async Task<T> ListStatusAsync<T>(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken)) where T : class
+        internal static async Task<T> ListStatusAsync<T>(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, Selection selection, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken)) where T : class
         {
             QueryParams qp = new QueryParams();
             if (!string.IsNullOrWhiteSpace(listAfter))
@@ -809,7 +829,16 @@ namespace Microsoft.Azure.DataLake.Store
                 qp.Add("listSize", Convert.ToString(listSize));
             }
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
-            qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
+            
+            if (selection != Selection.Minimal)
+            {
+                qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
+            }
+
+            if (selection != Selection.Standard)
+            {
+                qp.Add("select", selection.ToString());
+            }
 
             if (extraQueryParams != null)
             {
@@ -846,7 +875,8 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         /// <summary>
-        /// Lists the deleted streams or directories in the trash matching the hint
+        /// Lists the deleted streams or directories in the trash matching the hint.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="hint">String to match</param>
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
@@ -856,6 +886,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>List of deleted entries</returns>
+
         public static async Task<TrashStatus> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
@@ -882,89 +913,21 @@ namespace Microsoft.Azure.DataLake.Store
             qp.Add("api-version", "2018-08-01");
 
             var responseTuple = await WebTransport.MakeCallAsync("ENUMERATEDELETEDITEMS", "/", default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
-            if (!resp.IsSuccessful)
-            {
-                return null;
-            }
-
+            if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {
                 try
                 {
-                    TrashStatus trashStatus = new TrashStatus();
-                    List<TrashEntry> trashEntries = new List<TrashEntry>();
+
                     using (MemoryStream stream = new MemoryStream(responseTuple.Item1))
                     {
-                        using (StreamReader stReader = new StreamReader(stream))
+                        var trashStatus = JsonCustomConvert.DeserializeObject<TrashStatusResult>(stream, new JsonSerializerSettings()).TrashStatusRes;
+                        if (trashStatus.TrashEntries != null && ((List<TrashEntry>)trashStatus.TrashEntries) != null)
                         {
-                            using (var jsonReader = new JsonTextReader(stReader))
-                            {
-                                jsonReader.Read(); //Start Object{
-                                jsonReader.Read(); //TrashDir
-                                jsonReader.Read(); //Start object
-                                jsonReader.Read(); //TrashDirEntry
-                                jsonReader.Read(); //StartArray
-                                String originalPath = "";
-                                String trashDirPath = "";
-                                string type = "";
-                                long creationTime = -1;
-
-                                do
-                                {
-                                    jsonReader.Read();
-                                    if (jsonReader.TokenType.Equals(JsonToken.EndObject))
-                                    {
-                                        TrashEntry entry =
-                                            new TrashEntry(originalPath, trashDirPath, type, creationTime);
-                                        trashEntries.Add(entry);
-                                    }
-                                    else if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
-                                    {
-                                        switch ((string)jsonReader.Value)
-                                        {
-                                            case "originalPath":
-                                                jsonReader.Read();
-                                                originalPath = (string)jsonReader.Value;
-                                                break;
-                                            case "trashDirPath":
-                                                jsonReader.Read();
-                                                trashDirPath = (string)jsonReader.Value;
-                                                break;
-                                            case "type":
-                                                jsonReader.Read();
-                                                type = (string)jsonReader.Value;
-                                                break;
-                                            case "creationTime":
-                                                jsonReader.Read();
-                                                creationTime = (long)jsonReader.Value;
-                                                break;
-                                        }
-                                    }
-                                } while (!jsonReader.TokenType.Equals(JsonToken.EndArray));
-
-                                // Add the continuation token
-                                jsonReader.Read();
-                                if (((string)jsonReader.Value).Equals("nextListAfter", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    jsonReader.Read();
-                                    trashStatus.NextListAfter = (string)jsonReader.Value;
-                                }
-
-                                // Add the number of entries searched
-                                jsonReader.Read();
-                                if (((string)jsonReader.Value).Equals("numSearched", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    jsonReader.Read();
-                                    trashStatus.NumSearched = (long)jsonReader.Value;
-                                }
-                            }
+                            trashStatus.NumFound = ((List<TrashEntry>)trashStatus.TrashEntries).Count;
                         }
+                        return trashStatus;
                     }
-
-                    trashStatus.TrashEntries = trashEntries;
-                    trashStatus.NumFound = trashEntries.Count;
-
-                    return trashStatus;
                 }
                 catch (Exception ex)
                 {
@@ -975,16 +938,15 @@ namespace Microsoft.Azure.DataLake.Store
             else
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Output is not as expected";
+                resp.Error = "Output is not expected";
             }
-
-
             return null;
         }
 
         /// <summary>
         /// Restore a stream or directory from trash to user space. This is a synchronous operation.
         /// Not threadsafe when Restore is called for same path from different threads. 
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
         /// <param name="restoreToken">restore token of the entry to be restored. This is the trash directory path in enumeratedeleteditems response</param>
         /// <param name="restoreDestination">Path to which the entry should be restored</param>
