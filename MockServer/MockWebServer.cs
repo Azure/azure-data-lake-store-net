@@ -34,9 +34,16 @@ namespace MockServer
         /// Initializes the Httplistener to listen to a particular port of localhost
         /// </summary>
         /// <param name="port"></param>
-        public MockWebServer(int port)
+        public MockWebServer(int port, bool readDelegate = false)
         {
-            _threadWorker = new Thread(Run);
+            if (readDelegate)
+            {
+                _threadWorker = new Thread(RunRead);
+            }
+            else
+            {
+                _threadWorker = new Thread(Run);
+            }
             _list = new Queue<MockResponse>();
             var settings = new WebListenerSettings();
             settings.UrlPrefixes.Add("http://" + Host + ":" + port + "/");
@@ -115,6 +122,44 @@ namespace MockServer
                 }
             }
         }
+
+        /// <summary>
+        /// Runs the server. Polls for a mockresponse from the queue, waits for the request to come in and then sets the response of the request.
+        /// Keeps doing this till the server is topped.
+        /// </summary>
+        internal void RunRead()
+        {
+            _webListener.Start();
+            while (true)
+            {
+                MockResponse resp = GetMockResponse();
+                if (resp == null)
+                {
+                    _webListener.Dispose();
+                    return;
+                }
+                using (var context = _webListener.AcceptAsync().GetAwaiter().GetResult())
+                {
+                    
+                    context.Response.StatusCode = (int)resp.StatusCode.Value;
+                    context.Response.ReasonPhrase = resp.StatusDescription;
+                    if (resp.ResponseBody != null)
+                    {
+                        var mockResponse = Encoding.UTF8.GetBytes(resp.ResponseBody);
+                        byte[] bytes = new byte[4 * 1024];
+                        context.Response.ContentType = "application/json";
+                        context.Response.Body.WriteAsync(bytes, 0, bytes.Length).Wait();
+                        int i = 0;
+                        while (i ++< 2)
+                        {
+                            Wait(new MemoryStream(mockResponse));
+                            context.Response.Body.WriteAsync(bytes, 0, bytes.Length).Wait();
+                        }
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Waits for a specified amount of time. Used to test cancellation token. 
         /// </summary>

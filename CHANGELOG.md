@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.2.0-alpha
+- Use HttpClient at transport layer
 ### Version 1.1.15
 - Use minimal flag for liststatus in recursive acl. This improves the performance.
 - Fix remote json response that is not parsable in the exception message

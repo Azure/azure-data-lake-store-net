@@ -11,7 +11,7 @@ namespace Microsoft.Azure.DataLake.Store
     {
         internal bool KeepAlive = true;
         internal bool IgnoreDip = false;
-        internal X509Certificate ClientCert = null;
+        internal bool UseCert = false;
 
         private string _requestId;
         /// <summary>

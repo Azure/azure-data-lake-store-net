@@ -30,9 +30,6 @@ namespace Microsoft.Azure.DataLake.Store
     /// <summary>
     /// Core is a stateless class. It contains thread safe methods for REST APIs. For each rest api command it sends a HTTP request to server. 
     /// Every API is threadsafe with some exceptions in Create and Append (Listed in the documentation of the respective apis).
-    /// We have both async and sync versions of CREATE, APPEND, OPEN, CONCURRENTAPPEND. The reason we have that is if the application is doing these operations heavily using explicit threads,
-    /// then using async-await internally creates unecessary threads in threadpool and performance degrades due to context switching. Application can create explicit threads in cases of uploader and downloader.
-    /// All these operation also call sync versions of MakeCall in WebTransport layer.
     /// </summary>
     public class Core
     {
@@ -124,12 +121,31 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task CreateAsync(string path, bool overwrite, string octalPermission, string leaseId, string sessionId, bool createParent, SyncFlag flag, byte[] dataBytes, int offset, int length, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
-            if (!SetQueryParamForCreate(overwrite, octalPermission, leaseId, sessionId, createParent, flag, qp, resp))
+            if (!string.IsNullOrEmpty(octalPermission))
             {
-                return;
+                if (!IsValidOctal(octalPermission))
+                {
+                    resp.IsSuccessful = false;
+                    resp.Error = "Octal Permission not valid";
+                    return;
+                }
+                qp.Add("permission", Convert.ToString(octalPermission));
             }
+            qp.Add("overwrite", Convert.ToString(overwrite));
+            if (!string.IsNullOrEmpty(leaseId))
+            {
+                qp.Add("leaseid", leaseId);
+            }
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                qp.Add("filesessionid", sessionId);
+            }
+            qp.Add("CreateParent", Convert.ToString(createParent));
+            qp.Add("write", "true");//Suppress redirect
+            qp.Add("syncFlag", Enum.GetName(typeof(SyncFlag), flag));
             await WebTransport.MakeCallAsync("CREATE", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
+
         /// <summary>
         /// Create a new file. This is a synchronous operation.
         /// 
@@ -153,54 +169,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         public static void Create(string path, bool overwrite, string octalPermission, string leaseId, string sessionId, bool createParent, SyncFlag flag, byte[] dataBytes, int offset, int length, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
-            QueryParams qp = new QueryParams();
-            if (!SetQueryParamForCreate(overwrite, octalPermission, leaseId, sessionId, createParent, flag, qp, resp))
-            {
-                return;
-            }
-            WebTransport.MakeCall("CREATE", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            CreateAsync(path, overwrite, octalPermission, leaseId, sessionId, createParent, flag, dataBytes, offset, length, client, req, resp).GetAwaiter().GetResult();
         }
-        /// <summary>
-        /// Sets the queryparams for create operation.
-        /// </summary>
-        /// <param name="overwrite">Overwrites the existing file if the flag is true</param>
-        /// <param name="octalPermission">Octal permission string</param>
-        /// <param name="leaseId">String containing the lease ID, when a client obtains a lease on a file no other client can make edits to the file </param>
-        /// <param name="sessionId">UUID that is used to obtain the file handler (stream) easily at server</param>
-        /// <param name="createParent">If true creates any non-existing parent directories</param>
-        /// <param name="flag">Pass SyncFlag.DATA when writing bytes of data
-        ///                    Pass SyncFlag.METADATA when metadata of the file like length, modified instant needs to be updated to be consistent
-        ///                    with the actual data of file. After passing SyncFlag.METADATA GetFileStatus and ListStatus returns consistent data.
-        ///                    Pass SyncFlag.CLOSE when no more data needs to be appended, file metadata is updated, lease is released and the stream is closed  </param>
-        /// <param name="qp">QueryParams</param>
-        /// <param name="resp">Stores the response/ouput of the Http request </param>
-        /// <returns>True if operationresponse is set correctly else false</returns>
-        private static bool SetQueryParamForCreate(bool overwrite, string octalPermission, string leaseId, string sessionId, bool createParent, SyncFlag flag, QueryParams qp, OperationResponse resp)
-        {
-            if (!string.IsNullOrEmpty(octalPermission))
-            {
-                if (!IsValidOctal(octalPermission))
-                {
-                    resp.IsSuccessful = false;
-                    resp.Error = "Octal Permission not valid";
-                    return false;
-                }
-                qp.Add("permission", Convert.ToString(octalPermission));
-            }
-            qp.Add("overwrite", Convert.ToString(overwrite));
-            if (!string.IsNullOrEmpty(leaseId))
-            {
-                qp.Add("leaseid", leaseId);
-            }
-            if (!string.IsNullOrEmpty(sessionId))
-            {
-                qp.Add("filesessionid", sessionId);
-            }
-            qp.Add("CreateParent", Convert.ToString(createParent));
-            qp.Add("write", "true");//Suppress redirect
-            qp.Add("syncFlag", Enum.GetName(typeof(SyncFlag), flag));
-            return true;
-        }
+
         /// <summary>
         /// Append data to file. This is an asynchronous operation.
         /// 
@@ -224,10 +195,24 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task AppendAsync(string path, string leaseId, string sessionId, SyncFlag flag, long offsetFile, byte[] dataBytes, int offset, int length, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
-            if (!SetQueryParamForAppend(leaseId, sessionId, flag, offsetFile, qp, resp))
+            if (offsetFile < 0)
             {
+                resp.IsSuccessful = false;
+                resp.Error = "Offset of file is negative";
                 return;
             }
+            if (!string.IsNullOrEmpty(leaseId))
+            {
+                qp.Add("leaseid", leaseId);
+            }
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                qp.Add("filesessionid", sessionId);
+            }
+
+            qp.Add("append", "true");//Avoid redirect
+            qp.Add("offset", Convert.ToString(offsetFile));
+            qp.Add("syncFlag", Enum.GetName(typeof(SyncFlag), flag));
             await WebTransport.MakeCallAsync("APPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
         }
         /// <summary>
@@ -251,49 +236,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         public static void Append(string path, string leaseId, string sessionId, SyncFlag flag, long offsetFile, byte[] dataBytes, int offset, int length, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
-            QueryParams qp = new QueryParams();
-            if (!SetQueryParamForAppend(leaseId, sessionId, flag, offsetFile, qp, resp))
-            {
-                return;
-            }
-            WebTransport.MakeCall("APPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            AppendAsync(path, leaseId, sessionId, flag, offsetFile, dataBytes, offset, length, client, req, resp, default(CancellationToken)).GetAwaiter().GetResult();
         }
-        /// <summary>
-        /// Sets the queryparams for create operation.
-        /// </summary>
-        /// <param name="leaseId">String containing the lease ID, when a client obtains a lease on a file no other client can make edits to the file </param>
-        /// <param name="sessionId">UUID that is used to obtain the file handler (stream) easily at server</param>
-        /// <param name="flag">Pass SyncFlag.DATA when writing bytes of data
-        ///                    Pass SyncFlag.METADATA when metadata of the file like length, modified instant needs to be updated to be consistent
-        ///                    with the actual data of file. After passing SyncFlag.METADATA GetFileStatus and ListStatus returns consistent data.
-        ///                    Pass SyncFlag.CLOSE when no more data needs to be appended, file metadata is updated, lease is released and the stream is closed  </param>
-        /// <param name="offsetFile">Offset in the file at which data will be appended</param>
-        /// <param name="qp">QueryParams</param>
-        /// <param name="resp">Stores the response/ouput of the Http request </param>
-        /// <returns></returns>
-        private static bool SetQueryParamForAppend(string leaseId, string sessionId, SyncFlag flag, long offsetFile, QueryParams qp, OperationResponse resp)
-        {
-            if (offsetFile < 0)
-            {
-                resp.IsSuccessful = false;
-                resp.Error = "Offset of file is negative";
-                return false;
-            }
-            if (!string.IsNullOrEmpty(leaseId))
-            {
-                qp.Add("leaseid", leaseId);
-            }
-            if (!string.IsNullOrEmpty(sessionId))
-            {
-                qp.Add("filesessionid", sessionId);
-            }
-
-            qp.Add("append", "true");//Avoid redirect
-            qp.Add("offset", Convert.ToString(offsetFile));
-
-            qp.Add("syncFlag", Enum.GetName(typeof(SyncFlag), flag));
-            return true;
-        }
+        
         /// <summary>
         /// Performs concurrent append asynchronously at server. The offset at which append will occur is determined by server
         /// </summary>
@@ -328,12 +273,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         public static void ConcurrentAppend(string path, bool autoCreate, byte[] dataBytes, int offset, int length, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
-            QueryParams qp = new QueryParams();
-            if (autoCreate)
-            {
-                qp.Add("appendMode", "autocreate");
-            }
-            WebTransport.MakeCall("CONCURRENTAPPEND", path, new ByteBuffer(dataBytes, offset, length), default(ByteBuffer), qp, client, req, resp);
+            ConcurrentAppendAsync(path, autoCreate, dataBytes, offset, length, client, req, resp, default(CancellationToken)).GetAwaiter().GetResult();
         }
         /// <summary>
         /// Reads a file from server. This is an asynchronous operation.
@@ -352,10 +292,25 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task<int> OpenAsync(string path, string sessionId, long offsetFile, byte[] buffer, int offset, int lengthFile, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
             QueryParams qp = new QueryParams();
-            if (!SetQueryParamForOpen(sessionId, offsetFile, lengthFile, qp, resp))
+            if (offsetFile < 0)
             {
+                resp.IsSuccessful = false;
+                resp.Error = "Offset of file is negative";
                 return 0;
             }
+            if (lengthFile < 0)
+            {
+                resp.IsSuccessful = false;
+                resp.Error = "Length of file is negative";
+                return 0;
+            }
+            qp.Add("read", "true");//Avoid redirect
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                qp.Add("filesessionid", sessionId);
+            }
+            qp.Add("offset", Convert.ToString(offsetFile));
+            qp.Add("length", Convert.ToString(lengthFile));
             var responseTuple = await WebTransport.MakeCallAsync("OPEN", path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             return responseTuple?.Item2 ?? 0;
         }
@@ -374,46 +329,9 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Number of bytes read</returns>
         public static int Open(string path, string sessionId, long offsetFile, byte[] buffer, int offset, int lengthFile, AdlsClient client, RequestOptions req, OperationResponse resp)
         {
-            QueryParams qp = new QueryParams();
-            if (!SetQueryParamForOpen(sessionId, offsetFile, lengthFile, qp, resp))
-            {
-                return 0;
-            }
-            var responseTuple = WebTransport.MakeCall("OPEN", path, default(ByteBuffer), new ByteBuffer(buffer, offset, lengthFile), qp, client, req, resp);
-            return responseTuple?.Item2 ?? 0;
+            return OpenAsync(path, sessionId, offsetFile, buffer, offset, lengthFile, client, req, resp, default(CancellationToken)).GetAwaiter().GetResult();
         }
-        /// <summary>
-        /// Sets the queryparams for Open.
-        /// </summary>
-        /// <param name="sessionId">UUID that is used to obtain the file handler (stream) easily at server</param>
-        /// <param name="offsetFile">Offset in the file at which data will be read from</param>
-        /// <param name="lengthFile">Length of the data to be read</param>
-        /// <param name="qp">QueryParams</param>
-        /// <param name="resp">Stores the response/ouput of the Http request </param>
-        /// <returns>True if the queryparams are set else false</returns>
-        private static bool SetQueryParamForOpen(string sessionId, long offsetFile, int lengthFile, QueryParams qp, OperationResponse resp)
-        {
-            if (offsetFile < 0)
-            {
-                resp.IsSuccessful = false;
-                resp.Error = "Offset of file is negative";
-                return false;
-            }
-            if (lengthFile < 0)
-            {
-                resp.IsSuccessful = false;
-                resp.Error = "Length of file is negative";
-                return false;
-            }
-            qp.Add("read", "true");//Avoid redirect
-            if (!string.IsNullOrEmpty(sessionId))
-            {
-                qp.Add("filesessionid", sessionId);
-            }
-            qp.Add("offset", Convert.ToString(offsetFile));
-            qp.Add("length", Convert.ToString(lengthFile));
-            return true;
-        }
+        
         /// <summary>
         /// Deletes a file or directory
         /// </summary>

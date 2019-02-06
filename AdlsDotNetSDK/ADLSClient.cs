@@ -17,9 +17,11 @@ using NLog;
 using System.IO;
 using System.Linq;
 
+using System.Security.Cryptography.X509Certificates;
 #if NET452
 using System.Management;
 #endif
+
 [assembly: InternalsVisibleTo("Microsoft.Azure.DataLake.InternalStoreSDK, PublicKey=" +
                               "0024000004800000940000000602000000240000525341310004000001000100b5fc90e7027f67" +
                               "871e773a8fde8938c81dd402ba65b9201d60593e96c492651e889cc13f1415ebb53fac1131ae0b" +
@@ -103,11 +105,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// Default number of threads used by tools like uploader/downloader, recursive acl change and other multi-threaded tools using the SDK.
         /// Can be used to set ServicePointManager.DefaultConnectionLimit if you want the SDK to decide number of threads it uses for multi-threaded tools.
         /// </summary>
-        public static int DefaultNumThreads { get; internal set; }
+        public static int DefaultNumThreads { get; internal set; } = -1;
 
         internal const int DefaultThreadsCalculationFactor = 8;
+        internal const int DefaultThreadsCalculationFactorForNetCore = 4;
         internal const int DefaultCoreCount = 8;
-
         /// <summary>
         /// DIP IP
         /// </summary>
@@ -123,7 +125,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// ContentEncoding for the compression, if not set then we use default contentencoding
         /// </summary>
         internal string ContentEncoding { get; set; } = null;
-        
+
+        internal HttpClient AdlsHttpClient { get; set; }
+
+        internal X509Certificate ClientCert = null;
+
         #endregion
 
         #region Constructors
@@ -169,7 +175,7 @@ namespace Microsoft.Azure.DataLake.Store
 #else
                 // The below calculation is wrong since Environment.ProcessorCount gives the count of logical processors not cores. 
                 // Currently there is no way to calculate that for .net standard
-                DefaultNumThreads = DefaultThreadsCalculationFactor * Environment.ProcessorCount;
+                DefaultNumThreads = DefaultThreadsCalculationFactorForNetCore * Environment.ProcessorCount;
                 osInfo = System.Runtime.InteropServices.RuntimeInformation.OSDescription + " " +
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
 #if NETSTANDARD1_4
@@ -185,16 +191,32 @@ namespace Microsoft.Azure.DataLake.Store
             }
             UserAgent = $"{adlsSdkName};{SdkVersion}/{osInfo}/{dotNetVersion}";
         }
-
         /// <summary>
         /// Protected constructor for moq tests
         /// </summary>
-        protected AdlsClient()
+        protected AdlsClient() : this(-1)
         {
 
         }
 
-        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false)
+        /// <summary>
+        /// Constructor for initializing the httpclient, We pass in a concurrency parameter for netcore, for net452 we can control parallel connections using servicepointmanager
+        /// </summary>
+        internal AdlsClient(int concurrency)
+        {
+#if NET452
+            ServicePointManager.UseNagleAlgorithm = false;
+            ServicePointManager.Expect100Continue = false;
+#endif
+            HttpClientHandler handler = GetHttpClientHandler();
+#if !NET452
+            handler.MaxConnectionsPerServer = concurrency == -1 ? DefaultNumThreads : concurrency;
+#endif
+            AdlsHttpClient = new HttpClient(handler, false);
+        }
+
+        //Concurrency is used for netcore only
+        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false, int concurrency = -1) : this(concurrency)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -208,12 +230,14 @@ namespace Microsoft.Azure.DataLake.Store
             }
         }
 
-        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        //Concurrency is used for netcore only
+        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false, int concurrency = -1) : this(accnt, clientId, skipAccntValidation, concurrency)
         {
             AccessToken = token;
         }
 
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        //Concurrency is used for netcore only
+        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false, int concurrency = -1) : this(accnt, clientId, skipAccntValidation, concurrency)
         {
             AccessProvider = creds;
         }
@@ -222,9 +246,9 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return Regex.IsMatch(accnt, @"^[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-][a-zA-Z0-9.\-]*$");
         }
-        #endregion
+#endregion
 
-        #region FactoryMethods
+#region FactoryMethods
         /// <summary>
         /// Internal factory method that returns a AdlsClient without Account validation. For testing purposes
         /// </summary>
@@ -257,13 +281,78 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
         /// <returns>AdlsClient</returns>
+
         public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds)
         {
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds);
         }
+
+#if !NET452
+        /// <summary>
+        /// Factory method that creates an instance AdlsClient using the token key. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="token">Full authorization Token e.g. Bearer abcddsfere.....</param>
+        /// <param name="concurrency">Controls the number of parrallel connections to the server</param>
+        /// <returns>AdlsClient</returns>
+        public static AdlsClient CreateClient(string accountFqdn, string token, int concurrency)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), token, false, concurrency);
+        }
+
+        /// <summary>
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <param name="concurrency">Controls the number of parrallel connections to the server</param>
+        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds, int concurrency)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, false, concurrency);
+        }
+#endif
         #endregion
 
         #region Thread Safe Getter Setters
+
+        private HttpClientHandler GetHttpClientHandler()
+        {
+#if NET452
+            return new WebRequestHandler() ;
+#else
+            return new HttpClientHandler();
+#endif
+        }
+
+        /// <summary>
+        /// This method needs to be overriden by inheriting class to provide a ideal solution of reusing httclients. 
+        /// Inheriting class has to dispose of the previous httpclient and then get a new httpclient
+        /// </summary>
+        /// <returns></returns>
+        protected virtual HttpClient GetHttpClientForCert()
+        {
+            if (ClientCert != null)
+            {
+                var handler = GetHttpClientHandler();
+#if NET452
+                ((WebRequestHandler)handler).ClientCertificates.Add(ClientCert);
+#else
+                handler.ClientCertificates.Add(ClientCert);
+#endif
+                return new HttpClient(handler);
+            }
+            return null;
+        }
+
+        internal HttpClient GetHttpClient(bool useCert)
+        {
+            return useCert ? GetHttpClientForCert() : AdlsHttpClient;
+        }
+
         /// <summary>
         /// Update the DipIp
         /// </summary>
@@ -354,9 +443,9 @@ namespace Microsoft.Azure.DataLake.Store
                 AccessToken = "Bearer " + accessToken;
             }
         }
-        #endregion
+#endregion
 
-        #region REST API 
+#region REST API 
         /// <summary>
         /// Asynchronous API to create a directory.
         /// </summary>
@@ -1428,9 +1517,9 @@ namespace Microsoft.Azure.DataLake.Store
             return true;
         }
 
-        #endregion
+#endregion
 
-        #region SDKTools
+#region SDKTools
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
@@ -1542,7 +1631,7 @@ namespace Microsoft.Azure.DataLake.Store
             PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth, cancelToken);
         }
 
-        #endregion
+#endregion
 
         /// <summary>
         /// Returns a ADLS Exception based on response from the server

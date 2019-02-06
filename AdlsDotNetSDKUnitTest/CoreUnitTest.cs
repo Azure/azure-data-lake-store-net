@@ -24,7 +24,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
-        private const int NumTests = 7;
+        private const int NumTests = 8;
         private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
@@ -286,11 +286,28 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
             server.StopAbruptly();
         }
-
+#if NET452
+        [TestMethod]
+        public void TestTimeoutNet452Issue()
+        {
+            int port = 8086;
+            MockWebServer server = new MockWebServer(port, true);
+            server.StartServer();
+            server.EnqueMockResponse(new MockResponse(200, "OK", "wait:30"));
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            adlsClient.SetInsecureHttp();
+            byte[] buff = new byte[4*1024*1024];
+            var resp = new OperationResponse();
+            Stopwatch watch = Stopwatch.StartNew();
+            Core.OpenAsync("/test", null, 0, buff, 0, 4 * 1024 * 1024, adlsClient, new RequestOptions(null, new TimeSpan(0, 0, 10), new NoRetryPolicy()), resp).GetAwaiter().GetResult();
+            watch.Stop();
+            Assert.IsTrue(watch.ElapsedMilliseconds > 30000);
+        }
+#endif
         [TestMethod]
         public void TestConnectionBroken()
         {
-            int port = 8086;
+            int port = 8087;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(200, "OK"));
