@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.2.1-alpha
+- Increase the timeout of httpclient to 3 minutes to allow higher request timeouts of trash apis
+- Exception handling for operation cancelled in webtransport.makesinglecallasync
+- Expose delegationhandler in adlsclient for mock testing
 ### Version 1.2.0-alpha
 - Use HttpClient at transport layer
 ### Version 1.1.15

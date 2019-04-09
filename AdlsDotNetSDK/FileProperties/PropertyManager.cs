@@ -85,7 +85,7 @@ namespace Microsoft.Azure.DataLake.Store.FileProperties
             Stream underLyingStream;
             if (saveToLocal)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(DumpFileName));
+                Utils.CreateParentDirectory(DumpFileName);
                 underLyingStream = new FileStream(DumpFileName, FileMode.Create, FileAccess.ReadWrite);
             }
             else

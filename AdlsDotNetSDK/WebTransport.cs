@@ -694,7 +694,7 @@ namespace Microsoft.Azure.DataLake.Store
                                     // Its good to set it true for timeout
                                     resp.ConnectionFailure = true;
                                 }
-                                else if (cancelToken.IsCancellationRequested)
+                                else
                                 {
                                     resp.Ex = e;
                                 }

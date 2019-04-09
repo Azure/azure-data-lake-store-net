@@ -24,11 +24,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <summary>
         /// Full Account domain name
         /// </summary>
-        private static string _accntName;
+        internal static string AccntName;
         /// <summary>
         /// Owner service principal object Id
         /// </summary>
-        private static string _ownerObjectId;
+        internal static string OwnerObjectId;
         /// <summary>
         /// Owner App Id
         /// </summary>
@@ -102,8 +102,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public static void SetupUnitTest(TestContext context)
         {
             
-            _accntName = (string)context.Properties["Account"];
-            _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
+            AccntName = (string)context.Properties["Account"];
+            OwnerObjectId = (string)context.Properties["AccountOwnerObjectId"];
             _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
             _ownerClientSecret = (string)context.Properties["AccountOwnerClientSecret"];
             NonOwner1ObjectId = (string)context.Properties["NonOwner1ObjectId"];
@@ -191,7 +191,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <returns></returns>
         private static AdlsClient SetupCommonClient(string clientId, string clientSecret)
         {
-            string clientAccountPath = _accntName;
+            string clientAccountPath = AccntName;
             var creds = new ClientCredential(clientId, clientSecret);
             AdlsClient client;
             if (clientAccountPath.EndsWith("azuredatalakestore.net"))
@@ -2552,7 +2552,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string path = $"{UnitTestDir}/TestGetAclStatus";
             TestModifyAcl(path);
             AclStatus status = _adlsClient.GetAclStatus(path);
-            Assert.IsTrue(status.Owner.Equals(_ownerObjectId));
+            Assert.IsTrue(status.Owner.Equals(OwnerObjectId));
             Assert.IsTrue(status.Permission.Equals("770"));
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, NonOwner1ObjectId, AclScope.Access, AclAction.ReadWrite)));
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.ReadExecute)));

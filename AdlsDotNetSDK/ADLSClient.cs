@@ -130,6 +130,10 @@ namespace Microsoft.Azure.DataLake.Store
 
         internal X509Certificate ClientCert = null;
 
+        // A higher timeout because of trash enumerate apis
+
+        private static TimeSpan HttpCLientTimeout = new TimeSpan(0, 3, 0);
+
         #endregion
 
         #region Constructors
@@ -202,7 +206,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Constructor for initializing the httpclient, We pass in a concurrency parameter for netcore, for net452 we can control parallel connections using servicepointmanager
         /// </summary>
-        internal AdlsClient(int concurrency)
+        internal AdlsClient(int concurrency, params DelegatingHandler[] customHandler)
         {
 #if NET452
             ServicePointManager.UseNagleAlgorithm = false;
@@ -212,11 +216,19 @@ namespace Microsoft.Azure.DataLake.Store
 #if !NET452
             handler.MaxConnectionsPerServer = concurrency == -1 ? DefaultNumThreads : concurrency;
 #endif
-            AdlsHttpClient = new HttpClient(handler, false);
+            if (customHandler != null && customHandler.Length > 0)
+            {
+                AdlsHttpClient = new HttpClient(CreateDelegatingHandler(handler, customHandler), false);
+            }
+            else
+            {
+                AdlsHttpClient = new HttpClient(handler, false);
+            }
+            AdlsHttpClient.Timeout = HttpCLientTimeout;
         }
 
         //Concurrency is used for netcore only
-        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false, int concurrency = -1) : this(concurrency)
+        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false, int concurrency = -1, params DelegatingHandler[] customHandlers) : this(concurrency, customHandlers)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -237,7 +249,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
 
         //Concurrency is used for netcore only
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false, int concurrency = -1) : this(accnt, clientId, skipAccntValidation, concurrency)
+        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false, int concurrency = -1, params DelegatingHandler[] customHandlers) : this(accnt, clientId, skipAccntValidation, concurrency, customHandlers)
         {
             AccessProvider = creds;
         }
@@ -287,6 +299,21 @@ namespace Microsoft.Azure.DataLake.Store
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds);
         }
 
+        /// <summary>
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <param name="customHandlers">Custom handlers for httpclient</param>
+        /// <returns>AdlsClient</returns>
+
+        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds, params DelegatingHandler[] customHandlers)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, false, -1, customHandlers);
+        }
+
 #if !NET452
         /// <summary>
         /// Factory method that creates an instance AdlsClient using the token key. If an application wants to perform multi-threaded operations using this SDK
@@ -314,11 +341,48 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, false, concurrency);
         }
+
+        /// <summary>
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <param name="concurrency">Controls the number of parrallel connections to the server</param>
+        /// <param name="customHandlers">Custom handlers for httpclient</param>
+        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds, int concurrency, params DelegatingHandler[] customHandlers)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, false, concurrency, customHandlers);
+        }
 #endif
         #endregion
 
         #region Thread Safe Getter Setters
-
+        /// <summary>
+        /// Based on Microsoft.Rest.ServiceCLient immplementation. USed for mock framework's delegation handler
+        /// </summary>
+        /// <param name="clientHandler"></param>
+        /// <param name="handlers"></param>
+        /// <returns></returns>
+        protected DelegatingHandler CreateDelegatingHandler(HttpClientHandler clientHandler, params DelegatingHandler[] handlers)
+        {
+            DelegatingHandler topHandler = new BasicDelegatingHandler(clientHandler);
+            if (handlers != null)
+            {
+                for (int i = handlers.Length - 1; i >= 0; --i)
+                {
+                    DelegatingHandler handler = handlers[i];
+                    while (handler.InnerHandler is DelegatingHandler)
+                    {
+                        handler = handler.InnerHandler as DelegatingHandler;
+                    }
+                    handler.InnerHandler = topHandler;
+                    topHandler = handler;
+                }
+            }
+            return topHandler;
+        }
         private HttpClientHandler GetHttpClientHandler()
         {
 #if NET452
@@ -445,7 +509,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
 #endregion
 
-#region REST API 
+        #region REST API 
         /// <summary>
         /// Asynchronous API to create a directory.
         /// </summary>
@@ -1517,9 +1581,9 @@ namespace Microsoft.Azure.DataLake.Store
             return true;
         }
 
-#endregion
+        #endregion
 
-#region SDKTools
+        #region SDKTools
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
@@ -1631,7 +1695,7 @@ namespace Microsoft.Azure.DataLake.Store
             PropertyManager.GetFileProperty(path, this, getAclUsage, getDiskUsage, dumpFileName, saveToLocal, numThreads, displayFiles, hideConsistentAcl, maxDepth, cancelToken);
         }
 
-#endregion
+        #endregion
 
         /// <summary>
         /// Returns a ADLS Exception based on response from the server

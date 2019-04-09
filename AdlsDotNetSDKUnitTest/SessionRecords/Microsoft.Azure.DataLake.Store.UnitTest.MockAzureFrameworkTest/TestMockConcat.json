@@ -1,0 +1,672 @@
+{
+  "Entries": [
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile1?op=CREATE&permission=770&overwrite=True&leaseid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&filesessionid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&CreateParent=True&write=true&syncFlag=DATA&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMT9vcD1DUkVBVEUmcGVybWlzc2lvbj03NzAmb3ZlcndyaXRlPVRydWUmbGVhc2VpZD1hZWJlZWQ1ZS0yY2EwLTQ1ZGItYmY5NS1mYWQ0NGY1NGU3M2ImZmlsZXNlc3Npb25pZD1hZWJlZWQ1ZS0yY2EwLTQ1ZGItYmY5NS1mYWQ0NGY1NGU3M2ImQ3JlYXRlUGFyZW50PVRydWUmd3JpdGU9dHJ1ZSZzeW5jRmxhZz1EQVRBJmFwaS12ZXJzaW9uPTIwMTgtMDktMDE=",
+      "RequestMethod": "PUT",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "4b5d4c50-276a-4603-b799-3f3411b8ff3d.0.1,95,HTTP NotFound ( FileNotFoundException ),GETFILESTATUS,0,4"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "434c1803-e4b1-4239-b9be-6df628792965.0"
+        ],
+        "Content-Length": [
+          "0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "cb465cea-e388-4bcd-b08b-b8e858cdaa7f"
+        ],
+        "ContentLength": [
+          "0"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Location": [
+          "https://rduttaadlus02.caboaccountdogfood.net/webhdfs/v1/TestAzure/srcfile1?op=CREATE&permission=770&overwrite=True&leaseid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&filesessionid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&CreateParent=True&write=true&syncFlag=DATA&api-version=2018-09-01"
+        ],
+        "Content-Length": [
+          "0"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "",
+      "StatusCode": 201
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile1?op=APPEND&leaseid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&filesessionid=aebeed5e-2ca0-45db-bf95-fad44f54e73b&append=true&offset=0&syncFlag=CLOSE&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMT9vcD1BUFBFTkQmbGVhc2VpZD1hZWJlZWQ1ZS0yY2EwLTQ1ZGItYmY5NS1mYWQ0NGY1NGU3M2ImZmlsZXNlc3Npb25pZD1hZWJlZWQ1ZS0yY2EwLTQ1ZGItYmY5NS1mYWQ0NGY1NGU3M2ImYXBwZW5kPXRydWUmb2Zmc2V0PTAmc3luY0ZsYWc9Q0xPU0UmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "POST",
+      "RequestBody": "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "434c1803-e4b1-4239-b9be-6df628792965.0.0,373,,CREATE,0,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "7de7931f-046b-4e53-bdd4-85b2474ece56.0"
+        ],
+        "Content-Length": [
+          "147"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "933454ea-f723-42ed-a916-9d33cf6be9db"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Content-Length": [
+          "0"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile2?op=CREATE&permission=770&overwrite=True&leaseid=dd5f806f-686d-4766-b85b-99037fb53ae0&filesessionid=dd5f806f-686d-4766-b85b-99037fb53ae0&CreateParent=True&write=true&syncFlag=DATA&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMj9vcD1DUkVBVEUmcGVybWlzc2lvbj03NzAmb3ZlcndyaXRlPVRydWUmbGVhc2VpZD1kZDVmODA2Zi02ODZkLTQ3NjYtYjg1Yi05OTAzN2ZiNTNhZTAmZmlsZXNlc3Npb25pZD1kZDVmODA2Zi02ODZkLTQ3NjYtYjg1Yi05OTAzN2ZiNTNhZTAmQ3JlYXRlUGFyZW50PVRydWUmd3JpdGU9dHJ1ZSZzeW5jRmxhZz1EQVRBJmFwaS12ZXJzaW9uPTIwMTgtMDktMDE=",
+      "RequestMethod": "PUT",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "7de7931f-046b-4e53-bdd4-85b2474ece56.0.0,160,,APPEND,147,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "e25b567e-7a81-4164-9675-e74887db6e65.0"
+        ],
+        "Content-Length": [
+          "0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "a0e8e0b4-6839-483e-b17f-7f7aaef9c32a"
+        ],
+        "ContentLength": [
+          "0"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Location": [
+          "https://rduttaadlus02.caboaccountdogfood.net/webhdfs/v1/TestAzure/srcfile2?op=CREATE&permission=770&overwrite=True&leaseid=dd5f806f-686d-4766-b85b-99037fb53ae0&filesessionid=dd5f806f-686d-4766-b85b-99037fb53ae0&CreateParent=True&write=true&syncFlag=DATA&api-version=2018-09-01"
+        ],
+        "Content-Length": [
+          "0"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "",
+      "StatusCode": 201
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile2?op=APPEND&leaseid=dd5f806f-686d-4766-b85b-99037fb53ae0&filesessionid=dd5f806f-686d-4766-b85b-99037fb53ae0&append=true&offset=0&syncFlag=CLOSE&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMj9vcD1BUFBFTkQmbGVhc2VpZD1kZDVmODA2Zi02ODZkLTQ3NjYtYjg1Yi05OTAzN2ZiNTNhZTAmZmlsZXNlc3Npb25pZD1kZDVmODA2Zi02ODZkLTQ3NjYtYjg1Yi05OTAzN2ZiNTNhZTAmYXBwZW5kPXRydWUmb2Zmc2V0PTAmc3luY0ZsYWc9Q0xPU0UmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "POST",
+      "RequestBody": "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "e25b567e-7a81-4164-9675-e74887db6e65.0.0,114,,CREATE,0,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "32267800-9f67-4c65-8a6f-2676e7961f0e.0"
+        ],
+        "Content-Length": [
+          "147"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "b54aa77e-e9b4-4687-9c30-52a161f7a326"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Content-Length": [
+          "0"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=MSCONCAT&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1NU0NPTkNBVCZhcGktdmVyc2lvbj0yMDE4LTA5LTAx",
+      "RequestMethod": "POST",
+      "RequestBody": "{\r\n  \"sources\": [\r\n    \"/TestAzure/srcfile1\",\r\n    \"/TestAzure/srcfile2\"\r\n  ]\r\n}",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "32267800-9f67-4c65-8a6f-2676e7961f0e.0.0,155,,APPEND,147,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "c9a2389c-38e4-4671-836d-ac073322288b.0"
+        ],
+        "Content-Type": [
+          "application/json"
+        ],
+        "Content-Length": [
+          "57"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "4769bde9-2969-45b2-b45b-3b95b566a610"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Content-Length": [
+          "0"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile1?op=GETFILESTATUS&tooid=True&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMT9vcD1HRVRGSUxFU1RBVFVTJnRvb2lkPVRydWUmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "c9a2389c-38e4-4671-836d-ac073322288b.0.0,187,,MSCONCAT,57,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "2e8d7e40-7ce6-4972-9dac-cf267ff48e2b.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "325b3f4e-4b0b-4787-85ad-b218276426c1"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x8309000A"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:12 GMT"
+        ],
+        "Content-Length": [
+          "239"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"RemoteException\": {\r\n    \"exception\": \"FileNotFoundException\",\r\n    \"message\": \"File/Folder does not exist: /TestAzure/srcfile1 [325b3f4e-4b0b-4787-85ad-b218276426c1][2019-04-08T20:34:13.2767648-07:00]\",\r\n    \"javaClassName\": \"java.io.FileNotFoundException\"\r\n  }\r\n}",
+      "StatusCode": 404
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fsrcfile2?op=GETFILESTATUS&tooid=True&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZzcmNmaWxlMj9vcD1HRVRGSUxFU1RBVFVTJnRvb2lkPVRydWUmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "2e8d7e40-7ce6-4972-9dac-cf267ff48e2b.0.1,93,HTTP NotFound ( FileNotFoundException ),GETFILESTATUS,0,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "f8e386e2-6937-4471-8db7-a75c77e5d391.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "74d3f7c0-f678-4ed3-ae5a-af9830b228cc"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x8309000A"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Length": [
+          "239"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"RemoteException\": {\r\n    \"exception\": \"FileNotFoundException\",\r\n    \"message\": \"File/Folder does not exist: /TestAzure/srcfile2 [74d3f7c0-f678-4ed3-ae5a-af9830b228cc][2019-04-08T20:34:13.3705357-07:00]\",\r\n    \"javaClassName\": \"java.io.FileNotFoundException\"\r\n  }\r\n}",
+      "StatusCode": 404
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=GETFILESTATUS&tooid=True&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1HRVRGSUxFU1RBVFVTJnRvb2lkPVRydWUmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "f8e386e2-6937-4471-8db7-a75c77e5d391.0.1,91,HTTP NotFound ( FileNotFoundException ),GETFILESTATUS,0,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "e9a51141-bb67-416a-b4de-1b9ff8f1e246.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "3b078667-47e4-49fd-be3c-53588352e9e9"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Length": [
+          "306"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"FileStatus\": {\r\n    \"length\": 294,\r\n    \"pathSuffix\": \"\",\r\n    \"type\": \"FILE\",\r\n    \"blockSize\": 268435456,\r\n    \"accessTime\": 1554780853098,\r\n    \"modificationTime\": 1554780852956,\r\n    \"replication\": 1,\r\n    \"permission\": \"770\",\r\n    \"owner\": \"c3a586ce-94db-4ca2-af6c-32b484f0b009\",\r\n    \"group\": \"00000000-0000-0000-0000-000000000000\",\r\n    \"msExpirationTime\": 0,\r\n    \"aclBit\": false\r\n  }\r\n}",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=GETFILESTATUS&tooid=True&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1HRVRGSUxFU1RBVFVTJnRvb2lkPVRydWUmYXBpLXZlcnNpb249MjAxOC0wOS0wMQ==",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "aefd725c-9f7c-4d99-b721-f16b0a38744a.0.0,116,,DELETE,16,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "5a8745e2-1cdb-4a51-8b32-85e50b12d234.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "dd0da757-e4a5-4b02-8642-983d7891b214"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x8309000A"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Length": [
+          "239"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"RemoteException\": {\r\n    \"exception\": \"FileNotFoundException\",\r\n    \"message\": \"File/Folder does not exist: /TestAzure/destfile [dd0da757-e4a5-4b02-8642-983d7891b214][2019-04-08T20:34:13.9643140-07:00]\",\r\n    \"javaClassName\": \"java.io.FileNotFoundException\"\r\n  }\r\n}",
+      "StatusCode": 404
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=GETFILESTATUS&tooid=True&getconsistentlength=true&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1HRVRGSUxFU1RBVFVTJnRvb2lkPVRydWUmZ2V0Y29uc2lzdGVudGxlbmd0aD10cnVlJmFwaS12ZXJzaW9uPTIwMTgtMDktMDE=",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "e9a51141-bb67-416a-b4de-1b9ff8f1e246.0.0,95,,GETFILESTATUS,306,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "8b7326c9-c584-4c30-a7c2-415b7de8a222.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "51863c72-e29a-4c15-b1e2-58eb524cbeac"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Length": [
+          "306"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"FileStatus\": {\r\n    \"length\": 294,\r\n    \"pathSuffix\": \"\",\r\n    \"type\": \"FILE\",\r\n    \"blockSize\": 268435456,\r\n    \"accessTime\": 1554780853098,\r\n    \"modificationTime\": 1554780852956,\r\n    \"replication\": 1,\r\n    \"permission\": \"770\",\r\n    \"owner\": \"c3a586ce-94db-4ca2-af6c-32b484f0b009\",\r\n    \"group\": \"00000000-0000-0000-0000-000000000000\",\r\n    \"msExpirationTime\": 0,\r\n    \"aclBit\": false\r\n  }\r\n}",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=OPEN&read=true&filesessionid=18a6594b-94f6-4239-8b84-4ff1da9ad425&offset=0&length=4194304&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1PUEVOJnJlYWQ9dHJ1ZSZmaWxlc2Vzc2lvbmlkPTE4YTY1OTRiLTk0ZjYtNDIzOS04Yjg0LTRmZjFkYTlhZDQyNSZvZmZzZXQ9MCZsZW5ndGg9NDE5NDMwNCZhcGktdmVyc2lvbj0yMDE4LTA5LTAx",
+      "RequestMethod": "GET",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "8b7326c9-c584-4c30-a7c2-415b7de8a222.0.0,96,,GETFILESTATUS,306,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "250687ee-2daa-4aa4-ac25-8a3658243252.0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "Transfer-Encoding": [
+          "chunked"
+        ],
+        "x-ms-request-id": [
+          "0937a936-2f28-49cd-9ec6-d33d9427740c"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Type": [
+          "application/octet-stream"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "SSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUuSSBhbSB0aGUgc2Vjb25kIGxpbmUu",
+      "StatusCode": 200
+    },
+    {
+      "RequestUri": "/webhdfs/v1%2FTestAzure%2Fdestfile?op=DELETE&recursive=False&api-version=2018-09-01",
+      "EncodedRequestUri": "L3dlYmhkZnMvdjElMkZUZXN0QXp1cmUlMkZkZXN0ZmlsZT9vcD1ERUxFVEUmcmVjdXJzaXZlPUZhbHNlJmFwaS12ZXJzaW9uPTIwMTgtMDktMDE=",
+      "RequestMethod": "DELETE",
+      "RequestBody": "",
+      "RequestHeaders": {
+        "x-ms-adl-client-latency": [
+          "250687ee-2daa-4aa4-ac25-8a3658243252.0.0,138,,OPEN,294,5"
+        ],
+        "User-Agent": [
+          "Microsoft.Azure.DataLake.Store;1.2.1-alpha/Microsoft Windows NT 10.0.14393.0 32/NET452"
+        ],
+        "x-ms-client-request-id": [
+          "aefd725c-9f7c-4d99-b721-f16b0a38744a.0"
+        ],
+        "Content-Length": [
+          "0"
+        ]
+      },
+      "ResponseHeaders": {
+        "Pragma": [
+          "no-cache"
+        ],
+        "x-ms-request-id": [
+          "c688f4b5-7173-4c20-912f-79b62d31df5b"
+        ],
+        "x-ms-webhdfs-version": [
+          "17.04.24.00"
+        ],
+        "Status": [
+          "0x0"
+        ],
+        "X-Content-Type-Options": [
+          "nosniff"
+        ],
+        "Strict-Transport-Security": [
+          "max-age=15724800; includeSubDomains"
+        ],
+        "Cache-Control": [
+          "no-store, no-cache, max-age=0"
+        ],
+        "Date": [
+          "Tue, 09 Apr 2019 03:34:13 GMT"
+        ],
+        "Content-Length": [
+          "16"
+        ],
+        "Content-Type": [
+          "application/json; charset=utf-8"
+        ],
+        "Expires": [
+          "-1"
+        ]
+      },
+      "ResponseBody": "{\r\n  \"boolean\": true\r\n}",
+      "StatusCode": 200
+    }
+  ],
+  "Names": {},
+  "Variables": {}
+}

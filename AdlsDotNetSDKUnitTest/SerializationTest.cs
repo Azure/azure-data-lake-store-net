@@ -157,7 +157,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateSerialization1()
         {
-            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_feace1a1-ce0f-4576-82da-a2427aaf35b3\"}],\"nextListAfter\":\"something\"}}";
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_feace1a1-ce0f-4576-82da-a2427aaf35b3\"}],\"nextListAfter\":\"something\"}}";
             var jsonSettings = new JsonSerializerSettings();
             jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
 
@@ -169,7 +169,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateSerialization2()
         {
-            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"}]}}";
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"02b3f334-a6af-47f4-80ca-acff0464f324\"}]}}";
             var jsonSettings = new JsonSerializerSettings();
             jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
 
@@ -181,7 +181,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateSerialization3()
         {
-            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"adl://test.azuredatalake.com/$temp/trash/131926752000000000/bn6sch104331623/deleted_02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\"}],\"numSearched\":\"23\"}}";
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":1548266625223,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"02b3f334-a6af-47f4-80ca-acff0464f324\"},{\"type\":\"FILE\",\"creationTime\":1548266623692,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_DRuXVefrpukWAuIs.txt\"}],\"numSearched\":\"23\"}}";
             var jsonSettings = new JsonSerializerSettings();
             jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
 
