@@ -255,7 +255,6 @@ namespace Microsoft.Azure.DataLake.Store
             int getListSize = EnumerateAll ? ListSize : Math.Min(ListSize, RemainingEntries);
             // EnumerateDirectoryChangeAclJob also calls core separately. If you change logic here, consider changing there also
             var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, Selection, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
-            continuationToken = fileListResult.FileStatuses.ContinuationToken;
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + Path + " after " + ListAfterNext);
@@ -265,7 +264,9 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw Client.GetExceptionFromResponse(resp, "Unexpected error getting listStatus for path " + Path + " after " + ListAfterNext);
             }
-            
+            // Retrieve the continuation token here since above we have checked whether fileListResult. FileStatuses is not null
+            continuationToken = fileListResult.FileStatuses.ContinuationToken;
+
             return MoveNext();
         }
 

@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.16
+- Fix EnumerateDirectory to retrieve continuation token once response is checked
+- Fix GetContentSummary for links
 ### Version 1.1.15
 - Use minimal flag for liststatus in recursive acl. This improves the performance.
 - Fix remote json response that is not parsable in the exception message
