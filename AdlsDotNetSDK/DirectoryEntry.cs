@@ -1,6 +1,8 @@
 ﻿using Microsoft.Azure.DataLake.Store.Serialization;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using System;
+using System.Collections.Generic;
 
 namespace Microsoft.Azure.DataLake.Store
 {
@@ -13,6 +15,15 @@ namespace Microsoft.Azure.DataLake.Store
         DIRECTORY,
         FILE
     }
+
+    /// <summary>
+    /// Enum containing two types of attributes of directory entry
+    /// </summary>
+    internal enum DirectoryEntryAttributeType
+    {
+        Link
+    }
+
     /// <summary>
     /// Class that encapsulates the metadata of the directory entry
     /// </summary>
@@ -77,6 +88,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         [JsonProperty(PropertyName = "permission")]
         public string Permission { get; internal set; }
+
+        /// <summary>
+        /// Unix style permission string
+        /// </summary>
+        [JsonProperty(PropertyName = "attributes", ItemConverterType = typeof(StringEnumConverter))]
+        internal List<DirectoryEntryAttributeType> Attribute { get; set; }
         /// <summary>
         /// Default constructor
         /// </summary>
@@ -104,6 +121,7 @@ namespace Microsoft.Azure.DataLake.Store
             Permission = dir.Permission;
             HasAcl = dir.HasAcl;
             ExpiryTime = dir.ExpiryTime;
+            Attribute = dir.Attribute;
         }
         /// <summary>
         /// Constructor that initializes each property

@@ -3,7 +3,6 @@ using Microsoft.Azure.DataLake.Store.AclTools.Jobs;
 using Microsoft.Azure.DataLake.Store.QueueTools;
 using NLog;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -145,7 +144,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
                 _ignoreVerifyTimeErrors = ignoreVerifyTimeErrors;
                 _incorrectVerifyFile = verifyFile;
                 _incorrectFileList = new QueueWrapper<string>(-1);
-                Directory.CreateDirectory(Path.GetDirectoryName(_incorrectVerifyFile));
+                Utils.CreateParentDirectory(_incorrectVerifyFile);
                 _incorrectVerifyFileStream = new StreamWriter(new FileStream(_incorrectVerifyFile, FileMode.OpenOrCreate, FileAccess.ReadWrite))
                 {
                     AutoFlush = true

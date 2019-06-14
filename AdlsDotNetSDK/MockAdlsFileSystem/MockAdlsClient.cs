@@ -246,7 +246,6 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                     var dirEntry = _directoryEntries[path];
                     ret = _directoryEntries.Remove(path);
                     var originalPath = dirEntry.Entry.FullName;
-                    //string trashPath = "/$temp/trash/123456789/local/" + originalPath.Substring(1);
                     string trashPath = "/deleted/local/" + random.Next(10000000);
 
                     // Add it to the list of items in trash
@@ -1198,7 +1197,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             }
             if (saveToLocal)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(dumpFileName));
+                Utils.CreateParentDirectory(dumpFileName);
             }
             using (var propertyDumpWriter = new StreamWriter((saveToLocal
                 ? new FileStream(dumpFileName, FileMode.Create, FileAccess.ReadWrite)

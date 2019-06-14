@@ -132,6 +132,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             
             _adlsClient.DeleteRecursive(UnitTestDir);
             _adlsClient.CreateDirectory(UnitTestDir);
+            _adlsClient.RemoveAllAcls(UnitTestDir);
             var nonOwnerAclSpec = new List<AclEntry>
             {
                 new AclEntry(AclType.user, NonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
@@ -271,7 +272,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         #region TestCreate
         [TestMethod]
-        [ExpectedException(typeof(AdlsException))]
         public void TestCreatePathWithColon()
         {
             string path = $"{UnitTestDir}/testCreateFile:8080";
@@ -2923,6 +2923,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(summary.FileCount == expectedFileCnt);
             Assert.IsTrue(summary.SpaceConsumed == expectedFileSize);
         }
+
+        [TestMethod]
+        [ExpectedException(typeof(AdlsException))]
+        public void TestGetFileListStatusNotFoundException() {
+            string path = $"{UnitTestDir}/TestGetFileListStatusException";
+            foreach (var entry in _adlsClient.EnumerateDirectory(path)) { }
+        }
+
         /// <summary>
         /// Unit test to get filelist status of a directory
         /// </summary>
