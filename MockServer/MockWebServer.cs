@@ -105,6 +105,13 @@ namespace MockServer
                     Wait(context.Request.Body);
                     context.Response.StatusCode = (int)resp.StatusCode.Value;
                     context.Response.ReasonPhrase = resp.StatusDescription;
+                    if (resp.ResponseBody != null)
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(resp.ResponseBody);
+                        context.Response.ContentType = "application/json";
+                        context.Response.ContentLength = bytes.Length;
+                        context.Response.Body.WriteAsync(bytes, 0, bytes.Length).Wait();
+                    }
                 }
             }
         }
@@ -124,6 +131,11 @@ namespace MockServer
                 Thread.Sleep(waitTime * 1000);
             }
         }
+
+        public void StopAbruptly()
+        {
+            _webListener.Dispose();
+        }
     }
     /// <summary>
     /// Custom Http response that the mock server uses to set the response of a request
@@ -138,11 +150,13 @@ namespace MockServer
         /// Http status message
         /// </summary>
         public string StatusDescription { get; set; }
+        public string ResponseBody { get; set; }
 
-        public MockResponse(int status, string description)
+        public MockResponse(int status, string description, string body=null)
         {
             StatusCode = (HttpStatusCode)status;
             StatusDescription = description;
+            ResponseBody = body;
         }
     }
 

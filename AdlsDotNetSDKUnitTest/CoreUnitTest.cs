@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using Microsoft.Azure.DataLake.Store.Acl;
@@ -22,7 +24,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
-        private const int NumTests = 5;
+        private const int NumTests = 7;
         private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
@@ -82,12 +84,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsClient.CreateClient("contoso.cabostore.net", "Test");
             AdlsClient.CreateClient("contoso.dogfood.com.net", "Test");
             AdlsClient.CreateClient("contoso-test.azure-data.net", "test");
+            AdlsClient.CreateClient("contoso-test.Azuredatalakestore.eglax.inc.bov", "test");
         }
 
         [TestMethod]
         public void TestPathMissingRootSeparator()
         {
-            string path = "CorePathMissingRootSeparator"+SdkUnitTest.TestId;
+            string path = "CorePathMissingRootSeparator" + SdkUnitTest.TestId;
             string direcPath = path + "/directory";
             Assert.IsTrue(_adlsClient.CreateDirectory(direcPath));
             string filePath = path + "/file";
@@ -99,7 +102,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             using (var reader = new StreamReader(_adlsClient.GetReadStream(filePath)))
             {
-                string output=reader.ReadToEnd();
+                string output = reader.ReadToEnd();
                 Assert.IsTrue(text.Equals(output));
             }
 
@@ -226,11 +229,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (IOException) { Assert.Fail("This request should have passed"); }
             server.StopServer();
         }
+
         /// <summary>
         /// Unit test to test cancellation
         /// </summary>
         [TestMethod]
-        public void TestCancelation()
+        public void TestCancellation()
         {
             int port = 8084;
             MockWebServer server = new MockWebServer(port);
@@ -245,14 +249,67 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             };
             Thread worker = new Thread(run);
             worker.Start(state);
-            Thread.Sleep(60000);
+            Thread.Sleep(10000);
+            Stopwatch watch = Stopwatch.StartNew();
             source.Cancel();
+            worker.Join();
+            watch.Stop();
+            Assert.IsTrue(watch.ElapsedMilliseconds < 1000);
+            Assert.IsNotNull(state.AdlsClient);
+            Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
+            server.StopAbruptly();
+        }
+
+        [TestMethod]
+        public void TestTimeout()
+        {
+            int port = 8085;
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            server.EnqueMockResponse(new MockResponse(200, "OK"));
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            CancellationTokenSource source = new CancellationTokenSource();
+            RequestState state = new RequestState()
+            {
+                AdlsClient = adlsClient,
+                CancelToken = source.Token,
+                Timeout = 5,
+                IsRetry = false
+            };
+            Thread worker = new Thread(run);
+            worker.Start(state);
             Stopwatch watch = Stopwatch.StartNew();
             worker.Join();
             watch.Stop();
-            Assert.IsTrue(watch.ElapsedMilliseconds < 10000);
+            Assert.IsTrue(watch.ElapsedMilliseconds < 7000);
             Assert.IsNotNull(state.AdlsClient);
-            Assert.IsInstanceOfType(state.Ex, typeof(OperationCanceledException));
+            Assert.IsInstanceOfType(state.Ex, typeof(Exception));
+            Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
+            server.StopAbruptly();
+        }
+
+        [TestMethod]
+        public void TestConnectionBroken()
+        {
+            int port = 8086;
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            server.EnqueMockResponse(new MockResponse(200, "OK"));
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            CancellationTokenSource source = new CancellationTokenSource();
+            RequestState state = new RequestState()
+            {
+                AdlsClient = adlsClient,
+                CancelToken = source.Token,
+                IsRetry = false
+            };
+            Thread worker = new Thread(run);
+            worker.Start(state);
+            Thread.Sleep(5000);
+            server.StopAbruptly();
+            worker.Join();
+            Assert.IsNotNull(state.AdlsClient);
+            Assert.IsTrue(state.IsConnectionFailure);
         }
 
         private void run(object data)
@@ -264,13 +321,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 return;
             }
             AdlsClient adlsClient = state.AdlsClient;
-            RequestOptions req = new RequestOptions(new ExponentialRetryPolicy());
             OperationResponse resp = new OperationResponse();
             adlsClient.SetInsecureHttp();
+            RequestOptions req = null;
+            if (state.Timeout != -1)
+            {
+                req = new RequestOptions(Guid.NewGuid().ToString(), new TimeSpan(0, 0, state.Timeout), state.IsRetry ? new ExponentialRetryPolicy() : (RetryPolicy)new NoRetryPolicy());
+            }
+            else
+            {
+                req = new RequestOptions(state.IsRetry ? new ExponentialRetryPolicy() : (RetryPolicy)new NoRetryPolicy());
+            }
             byte[] ip = Encoding.UTF8.GetBytes("wait:300");
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter()
-                .GetResult();
+            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter().GetResult();
             state.Ex = resp.Ex;
+            state.IsConnectionFailure = resp.ConnectionFailure;
         }
 
         private class RequestState
@@ -278,6 +343,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             public AdlsClient AdlsClient { set; get; }
             public Exception Ex { set; get; }
             public CancellationToken CancelToken { get; set; }
+            public int Timeout { get; set; } = -1; // In seconds
+            public bool IsRetry { get; set; } = true;
+            public bool IsConnectionFailure { get; set; } = false;
         }
         /// <summary>
         /// Unit test serializing and deserializing Acl
@@ -298,6 +366,50 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             string retResult = AclEntry.ParseAclEntryString(actualString, false).ToString();
             return retResult.Equals(expectedString);
+        }
+
+        [TestMethod]
+        public void TestListStatusWithArrayInResponse()
+        {
+            int port = 8087;
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Link\"]}]}}";
+            server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
+
+            adlsClient.SetInsecureHttp();
+            HashSet<string> hset = new HashSet<string>();
+            foreach (var entry in adlsClient.EnumerateDirectory("/ShareTest"))
+            {
+                hset.Add(entry.FullName);
+            }
+            Assert.IsTrue(hset.Count == 2);
+            Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
+            Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
+            server.StopServer();
+        }
+
+        [TestMethod]
+        public void testListStatusWithMultipleArrayInResponse()
+        {
+            int port = 8088;
+            AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
+            MockWebServer server = new MockWebServer(port);
+            server.StartServer();
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Link\"]}]}}";
+            server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
+
+            adlsClient.SetInsecureHttp();
+            HashSet<string> hset = new HashSet<string>();
+            foreach (var entry in adlsClient.EnumerateDirectory("/ShareTest"))
+            {
+                hset.Add(entry.FullName);
+            }
+            Assert.IsTrue(hset.Count == 2);
+            Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
+            Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
+            server.StopServer();
         }
 
         [ClassCleanup]

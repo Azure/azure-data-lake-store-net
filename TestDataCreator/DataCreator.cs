@@ -28,14 +28,16 @@ namespace TestDataCreator
             internal long FileLength;
             internal bool WriteInNewLines;
             internal AdlsClient Client;
+            internal string NonRandomText;
 
-            internal State(string ph, long fLength, bool writeNewLines, bool local = true, AdlsClient ct = null)
+            internal State(string ph, long fLength, bool writeNewLines, bool local = true, AdlsClient ct = null, string text="")
             {
                 Path = ph;
                 FileLength = fLength;
                 WriteInNewLines = writeNewLines;
                 IsLocal = local;
                 Client = ct;
+                NonRandomText = text;
             }
         }
 
@@ -108,6 +110,11 @@ namespace TestDataCreator
                         }
 
                     }
+                    else if (!string.IsNullOrEmpty(st.NonRandomText))
+                    {
+                        var readBytes = Encoding.UTF8.GetBytes(st.NonRandomText);
+                        ostream.Write(readBytes,0,readBytes.Length);
+                    }
                 }
             }
         }
@@ -115,7 +122,7 @@ namespace TestDataCreator
         {
             MultiThreadedRunner<State> inst = new MultiThreadedRunner<State>(6, Run);
             CreateDirRecursiveLocal(inst, path, recursLevel, noDirEntries, lowFileEntries, highFileEntries,
-                lowStringLength, highStringLength,filePrefix,writeInNewLines);
+                lowStringLength, highStringLength, filePrefix, writeInNewLines);
             inst.RunMultiThreaded();
             inst.StopMultiThreaded();
         }
@@ -144,16 +151,16 @@ namespace TestDataCreator
 
         internal static void CreateDirRecursiveRemote(AdlsClient client, string path, int recursLevel, int noDirEntries,
             int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength,
-            bool keepBottomLevelFolderEmpty = false, string filePrefix = "")
+            bool keepBottomLevelFolderEmpty = false, string filePrefix = "", int numThreads = 6, string nonRandomText = "")
         {
-            MultiThreadedRunner<State> inst = new MultiThreadedRunner<State>(6, Run);
+            MultiThreadedRunner<State> inst = new MultiThreadedRunner<State>(numThreads, Run);
             CreateDirRecursiveRemote(inst, client, path, recursLevel, noDirEntries, lowFileEntries, highFileEntries,
-                lowStringLength, highStringLength, keepBottomLevelFolderEmpty, filePrefix);
+                lowStringLength, highStringLength, keepBottomLevelFolderEmpty, filePrefix, nonRandomText);
             inst.RunMultiThreaded();
             inst.StopMultiThreaded();
         }
 
-        internal static void CreateDirRecursiveRemote(MultiThreadedRunner<State> inst,AdlsClient client, string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, bool keepBottomLevelFolderEmpty = false, string filePrefix = "")
+        internal static void CreateDirRecursiveRemote(MultiThreadedRunner<State> inst,AdlsClient client, string path, int recursLevel, int noDirEntries, int lowFileEntries, int highFileEntries, int lowStringLength, int highStringLength, bool keepBottomLevelFolderEmpty = false, string filePrefix = "", string nonRandomText="")
         {
             client.CreateDirectory(path);
             if (recursLevel == 0 && keepBottomLevelFolderEmpty)
@@ -166,7 +173,8 @@ namespace TestDataCreator
             for (int i = 0; i < noFileEntries; i++)
             {
                 long stringLength = (Random.Next(lowStringLength, highStringLength));
-                inst.AddToQueue(new State(path + "/" + nextLevel + filePrefix + i + "File.txt",stringLength,false,false,client));
+                inst.AddToQueue(new State(path + "/" + nextLevel + filePrefix + i + "File.txt", stringLength, false,
+                    false, client, nonRandomText));
             }
             if (recursLevel == 0)
             {

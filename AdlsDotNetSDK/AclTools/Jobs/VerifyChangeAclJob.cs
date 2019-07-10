@@ -1,4 +1,6 @@
 ﻿using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.Azure.DataLake.Store.RetryPolicies;
+using System;
 using System.Collections.Generic;
 
 namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
@@ -6,24 +8,24 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
     internal class VerifyChangeAclJob : BaseJob
     {
         private readonly AclProcessor _aclProcess;
-        private readonly string _fullPath;
-        private readonly DirectoryEntryType _entryType;
+        internal readonly string FullPath;
+        internal readonly DirectoryEntryType EntryType;
         private bool _verifyCorrect;
-        internal VerifyChangeAclJob(AclProcessor aclProcess, string fullPath, DirectoryEntryType type):base(1)
+        internal VerifyChangeAclJob(AclProcessor aclProcess, string fullPath, DirectoryEntryType type):base(2)
         {
             _aclProcess = aclProcess;
-            _fullPath = fullPath;
-            _entryType = type;
+            FullPath = fullPath;
+            EntryType = type;
         }
         protected override object DoJob()
         {
-            var aclEntries = _entryType == DirectoryEntryType.DIRECTORY ? _aclProcess.AclEntries : _aclProcess.FileAclEntries;
-            var status = _aclProcess.Client.GetAclStatus(_fullPath);
+            var aclEntries = EntryType == DirectoryEntryType.DIRECTORY ? _aclProcess.AclEntries : _aclProcess.FileAclEntries;
+            var status = _aclProcess.Client.GetAclStatus(FullPath);
             var remoteAclEntries = status.Entries;
             _verifyCorrect = CheckAclListContains(remoteAclEntries, aclEntries,_aclProcess.Type == RequestedAclType.RemoveAcl);
-            if (_verifyCorrect)
+            if (!_verifyCorrect)
             {
-                _aclProcess.IncrementCorrectCount(_entryType);
+                _aclProcess.IncrementIncorrectCount(EntryType, FullPath);
             }
             return null;
         }
@@ -63,7 +65,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
         }
         protected override string JobDetails()
         {
-            return $"EntryName: {_fullPath}, EntryType: {_entryType}, Correct: {_verifyCorrect}";
+            return $"EntryName: {FullPath}, EntryType: {EntryType}, Correct: {_verifyCorrect}";
         }
 
         protected override string JobType()

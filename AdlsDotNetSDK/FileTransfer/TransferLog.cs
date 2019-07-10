@@ -31,7 +31,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 throw new ArgumentNullException(nameof(transferLogFile));
             }
             _transferLogFile = transferLogFile;
-            Directory.CreateDirectory(Path.GetDirectoryName(transferLogFile));
+
+            Utils.CreateParentDirectory(transferLogFile);
             try
             {
                 _stream = new FileStream(transferLogFile, resume ? FileMode.Open : FileMode.Create,

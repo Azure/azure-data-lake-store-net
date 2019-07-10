@@ -1,4 +1,44 @@
 # Changes to the SDK
+### Version 1.1.16
+- Fix EnumerateDirectory to retrieve continuation token once response is checked
+- Fix GetContentSummary for links
+### Version 1.1.15
+- Use minimal flag for liststatus in recursive acl. This improves the performance.
+- Fix remote json response that is not parsable in the exception message
+- Improve the enumerate logic for recursive acl tool, this prevents high heap consumption for very large directories
+- Set null to the array element of the priority queue that is dequeued
+- Use continutation token internally for enumerate
+- Fix json parsing of EnumerateDeletedItems
+### Version 1.1.14
+- Add SDk support for enumerate and restore APIs for deleted items
+- Fix handling of negative acesstime and modificationtime for getfilestatus and liststatus
+- Fix async cancellation token
+- Minor fixes: Fix MockADlsClient Create with overwrite, Fix HasAcl in copy constructor
+### Version 1.1.13
+- Fix timeouts not getting retried 
+### Version 1.1.12
+- Increase the default thread count if physical cores is 0, Fix threadcount to be defaultthreadcount if input is 0
+- Enable getconsistent length in getfilestatus
+- Fix cancellation support in Enumerate
+- Fix timeout for async, netcore
+- Add unittests for timeout and connection broken
+- Fix mockclient account validation, ChangeAcl api
+- Fix priorityqueue parent calculation
+### Version 1.1.11
+- Change test framework
+- Refactor ListStatus
+- Throw exception when token is malformed so that retryable requests are retried
+- Fix passing exception messages as a part of latency header
+### Version 1.1.10
+- Support for Json formatted requests in Request body, e:g MsConcat.
+- Supporting special characters in msconcat api for source files.
+- Updated the server to latest version
+- Fix liststatus response parsing when filestatus object contains array in one field.
+- Fix the default thread calculation, make minimum threads as 1 if number of cores returned is 0.
+### Version 1.1.9
+- Fix error handling for chunked error response
+- Allow concat for single source file and add unittest
+- Fix BulkUpload for very large files which reaches the concatenate limit
 ### Version 1.1.8
 - Fix FileTransfer upload for relative input path. Add unittest
 - Fix error message for remote exceptions which does not return json output. 

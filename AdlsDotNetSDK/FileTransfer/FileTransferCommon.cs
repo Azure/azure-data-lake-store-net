@@ -102,7 +102,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             DoOverwrite = ingressOrEgressTest ? IfExists.Overwrite : doOverwrite;
             ProgressTracker = progressTracker;
             IngressOrEgressTest = ingressOrEgressTest;
-            NumConsumerThreads = numThreads < 0 ? AdlsClient.DefaultNumThreads : numThreads;
+            NumConsumerThreads = numThreads <= 0 ? AdlsClient.DefaultNumThreads : numThreads;
             ChunkSize = chunkSize;
             NotRecurse = notRecurse;
             metaDataInfo = string.IsNullOrEmpty(metaDataInfo) ? ChunkSize.ToString() : metaDataInfo + $",ChunkSize:{chunkSize},{(NotRecurse ? "NotRecurse" : "Recurse")}";
@@ -117,13 +117,13 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             string separator = Regex.Escape($"{sourceSeparator}{destSeparator}");
             var regex = new Regex($"[:{separator}]");
-            return Sha1HashString($"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat");
+            return HashString($"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat");
         }
-        // Uses SHA1 to hash the filename
-        private static string Sha1HashString(string fileName)
+        // Uses MD5 to hash the filename, here security is not a concern, just speed
+        internal static string HashString(string fileName)
         {
-            var sha1 = SHA1.Create();
-            byte[] hashBytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(fileName));
+            var md5 = MD5.Create();
+            byte[] hashBytes = md5.ComputeHash(Encoding.UTF8.GetBytes(fileName));
             var sb = new StringBuilder(HashStringBuilderLength);
             foreach (byte b in hashBytes)
             {

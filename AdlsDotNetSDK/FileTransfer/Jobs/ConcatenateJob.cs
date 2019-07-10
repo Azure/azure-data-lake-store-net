@@ -45,7 +45,6 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
         private readonly bool _performUploadRenameOnly;
 
         private const int UploadRetryTime = 1;
-        private const string DestTempGuidForConcat = "ConcatGuid";
 
         internal ConcatenateJob(string source, string chunkSegmentFolder, string dest, AdlsClient client, long size, long totalChunks, bool isUpload, bool doUploadRenameOnly = false) : base(size)
         {
@@ -120,9 +119,8 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
         //Upload: Concats all the chunks into a temporary guid name. Then renames it to the destination to overwrite it
         private SingleEntryTransferStatus PerformUploadJob()
         {
-            AdlsException adlsExcep;
             // If only do rename then go do that- This will only happen in resume cases
-            if (_performUploadRenameOnly || PerformConcatWithRetries(out adlsExcep))
+            if (_performUploadRenameOnly || PerformConcatWithRetries(out AdlsException adlsExcep))
             {
                 string destGuid = ChunkSegmentFolder + FileUploader.DestTempGuidForConcat;
                 try
@@ -185,7 +183,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
             AdlsException exception=null;
             try
             {
-                Client.ConcatenateFiles(destGuid, fileList);
+                Client.ConcatenateFilesParallelAsync(destGuid, fileList).GetAwaiter().GetResult();
             }
             catch (AdlsException ex)
             {

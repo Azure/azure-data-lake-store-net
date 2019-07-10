@@ -48,6 +48,8 @@ namespace Microsoft.Azure.DataLake.Store
             {"MSCONCAT",new Operation("POST", Constants.RequiresBodyTrue, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
             {"GETFILESTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
             {"LISTSTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"ENUMERATEDELETEDITEMS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
+            {"RESTOREDELETEDITEMS",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
             {"SETTIMES",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
             {"CHECKACCESS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
             {"SETPERMISSION",new Operation("PUT", Constants.RequiresBodyFalse, Constants.ReturnsBodyFalse, Constants.WebHdfs)},
@@ -60,7 +62,6 @@ namespace Microsoft.Azure.DataLake.Store
             {"GETACLSTATUS",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
             {"GETCONTENTSUMMARY",new Operation("GET", Constants.RequiresBodyFalse, Constants.ReturnsBodyTrue, Constants.WebHdfs)},
         };
-        
     }
     
     /// <summary>

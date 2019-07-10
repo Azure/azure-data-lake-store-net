@@ -1,4 +1,5 @@
-﻿
+﻿using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.Azure.DataLake.Store.Serialization;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -7,7 +8,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Azure.DataLake.Store.Acl;
 
 namespace Microsoft.Azure.DataLake.Store
 {
@@ -565,15 +565,14 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task ConcatAsync(string path, List<string> sourceFiles, bool deleteSourceDirectory, AdlsClient client,
         RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
-            if (sourceFiles.Count <= 1)
+            if (sourceFiles == null || sourceFiles.Count == 0)
             {
                 resp.IsSuccessful = false;
-                resp.Error = "Does not have more than one File to concatenate";
+                resp.Error = "No source files to concatenate";
                 return;
             }
             HashSet<string> hashSet = new HashSet<string>();//To check whether we have duplciate file names in the list
-            StringBuilder sb = new StringBuilder("sources=");
-            int itemInBuilder = 0;
+            Newtonsoft.Json.Linq.JArray jArray = new Newtonsoft.Json.Linq.JArray();
             foreach (var sourceFile in sourceFiles)
             {
                 if (string.IsNullOrEmpty(sourceFile))
@@ -594,22 +593,23 @@ namespace Microsoft.Azure.DataLake.Store
                     resp.Error = "One of the Files to concatenate is same as another file";
                     return;
                 }
-                if (itemInBuilder > 0) //If first item is already in string builder
-                {
-                    sb.Append(",");
-                }
-                hashSet.Add(sourceFile);
-                itemInBuilder++;
-                sb.Append(sourceFile);
+
+                jArray.Add(sourceFile);
             }
-            byte[] body = Encoding.UTF8.GetBytes(sb.ToString());
+            Newtonsoft.Json.Linq.JObject jObject = new Newtonsoft.Json.Linq.JObject();
+            jObject.Add("sources", jArray);
+            byte[] body = Encoding.UTF8.GetBytes(jObject.ToString(Formatting.None));
             QueryParams qp = new QueryParams();
             if (deleteSourceDirectory)
             {
                 qp.Add("deleteSourceDirectory", "true");
             }
-            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            IDictionary<string, string> headers = new Dictionary<string, string>();
+            headers.Add("Content-Type", "application/json");
+            await WebTransport.MakeCallAsync("MSCONCAT", path, new ByteBuffer(body, 0, body.Length), default(ByteBuffer), qp, client, req, resp, cancelToken, headers).ConfigureAwait(false);
         }
+
+        #region GetFileStatusApis
         /// <summary>
         /// Gets meta data like full path, type (file or directory), group, user, permission, length,last Access Time,last Modified Time, expiry time, acl Bit, replication Factor
         /// </summary>
@@ -619,20 +619,62 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="req">Options to change behavior of the Http request </param>
         /// <param name="resp">Stores the response/ouput of the Http request </param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
-        /// <param name="getConsistentFileLength"> True if we want to get consistent and updated length</param>
+        /// <param name="getConsistentFileLength"> True if we want to get updated length.</param>
         /// <returns>Returns the metadata of the file or directory</returns>
         public static async Task<DirectoryEntry> GetFileStatusAsync(string path, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken), bool getConsistentFileLength=false)
+        {
+            var getfileStatusResult = await GetFileStatusAsync<DirectoryEntryResult<DirectoryEntry>>(path,userIdFormat, null, client, req, resp, getConsistentFileLength, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                return null;
+            }
+            if (getfileStatusResult != null && getfileStatusResult.FileStatus != null)
+            {
+                getfileStatusResult.FileStatus.Name = string.IsNullOrEmpty(getfileStatusResult.FileStatus.Name) ? GetFileName(getfileStatusResult.FileStatus.Name) : getfileStatusResult.FileStatus.Name;
+                getfileStatusResult.FileStatus.FullName = string.IsNullOrEmpty(getfileStatusResult.FileStatus.FullName) ? path : path + "/" + getfileStatusResult.FileStatus.FullName;
+            }
+            else
+            {
+                //This should never come here
+                resp.IsSuccessful = false;
+                resp.Error = $"Unexpected problem with parsing JSON output.";
+                return null;
+            }
+            return getfileStatusResult?.FileStatus;
+        }
+
+        /// <summary>
+        /// GetFilestatus api where the the type can be generic. The FullName of the output will not be populated.
+        /// Caller of this API needs to update that
+        /// </summary>
+        /// <typeparam name="T">Type of the json deserialized</typeparam>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented</param>
+        /// <param name="extraQueryParams">Extra query parameters</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="getConsistentFileLength"> True if we want to get consistent and updated length</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns></returns>
+
+        internal static async Task<T> GetFileStatusAsync<T>(string path, UserGroupRepresentation? userIdFormat, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, bool getConsistentFileLength = false, CancellationToken cancelToken = default(CancellationToken)) where T : class
         {
             QueryParams qp = new QueryParams();
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
             qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
-            // Currently disabled
             if (getConsistentFileLength)
             {
                 qp.Add("getconsistentlength", "true");
             }
+            if (extraQueryParams != null)
+            {
+                foreach (var key in extraQueryParams.Keys)
+                {
+                    qp.Add(key, extraQueryParams[key]);
+                }
+            }
 
-            DirectoryEntry der;
             var responseTuple = await WebTransport.MakeCallAsync("GETFILESTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
@@ -641,75 +683,7 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     using (MemoryStream stream = new MemoryStream(responseTuple.Item1))
                     {
-                        using (StreamReader stReader = new StreamReader(stream))
-                        {
-                            using (var jsonReader = new JsonTextReader(stReader))
-                            {
-                                jsonReader.Read(); //Start Object
-                                jsonReader.Read(); //FileStatus
-                                jsonReader.Read(); //Start Object
-                                string name = "", type = "", group = "", user = "", permission = "";
-                                long length = 0,
-                                    lastAccessTime = -1,
-                                    lastModifiedTime = -1,
-                                    expiryTime = -1;
-                                bool aclBit = false;
-                                do
-                                {
-                                    jsonReader.Read();
-                                    if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
-                                    {
-                                        switch ((string)jsonReader.Value)
-                                        {
-                                            case "length":
-                                                jsonReader.Read();
-                                                length = (long)jsonReader.Value;
-                                                break;
-                                            case "pathSuffix":
-                                                jsonReader.Read();
-                                                name = (string)jsonReader.Value;
-                                                break;
-                                            case "type":
-                                                jsonReader.Read();
-                                                type = (string)jsonReader.Value;
-                                                break;
-                                            case "group":
-                                                jsonReader.Read();
-                                                group = (string)jsonReader.Value;
-                                                break;
-                                            case "owner":
-                                                jsonReader.Read();
-                                                user = (string)jsonReader.Value;
-                                                break;
-                                            case "permission":
-                                                jsonReader.Read();
-                                                permission = (string)jsonReader.Value;
-                                                break;
-                                            case "accessTime":
-                                                jsonReader.Read();
-                                                lastAccessTime = (long)jsonReader.Value;
-                                                break;
-                                            case "modificationTime":
-                                                jsonReader.Read();
-                                                lastModifiedTime = (long)jsonReader.Value;
-                                                break;
-                                            case "msExpirationTime":
-                                                jsonReader.Read();
-                                                expiryTime = (long)jsonReader.Value;
-                                                break;
-                                            case "aclBit":
-                                                jsonReader.Read();
-                                                aclBit = (bool)jsonReader.Value;
-                                                break;
-                                        }
-                                    }
-                                } while (!jsonReader.TokenType.Equals(JsonToken.EndObject));
-                                string fullName = string.IsNullOrEmpty(name) ? path : path + "/" + name;
-                                name = string.IsNullOrEmpty(name) ? GetFileName(fullName) : name;
-                                der = new DirectoryEntry(name, fullName, length, group, user, lastAccessTime,
-                                    lastModifiedTime, type, permission, aclBit, expiryTime);
-                            }
-                        }
+                        return JsonCustomConvert.DeserializeObject<T>(stream, new Newtonsoft.Json.JsonSerializerSettings());
                     }
                 }
                 catch (Exception ex)
@@ -726,8 +700,9 @@ namespace Microsoft.Azure.DataLake.Store
                 resp.Error = "Output is not expected";
                 return null;
             }
-            return der;
         }
+        #endregion
+
         /// <summary>
         /// API copied from Path.GetFileName (https://referencesource.microsoft.com/#mscorlib/system/io/path.cs,95facc58d06cadd0)
         /// Prevents the Invalid Char check because hadoop supports some of those characters.
@@ -747,6 +722,9 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return path;
         }
+
+        #region ListStatusApis
+
         /// <summary>
         /// Lists the sub-directories or files contained in a directory
         /// </summary>
@@ -762,6 +740,81 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>List of directoryentries</returns>
         public static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
+            return await ListStatusAsync(path, listAfter, listBefore, listSize, userIdFormat, Selection.Standard, client, req, resp, cancelToken);
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
+        /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
+        /// <param name="listSize">List size to obtain from server</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>List of directoryentries</returns>
+        /// <returns></returns>
+        internal static async Task<List<DirectoryEntry>> ListStatusAsync(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, Selection selection, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            var getListStatusResult = await ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(path, listAfter, listBefore, listSize, userIdFormat, selection, null, client, req, resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                return null;
+            }
+            return GetDirectoryEntryListWithFullPath<DirectoryEntry>(path, getListStatusResult, resp);
+        }
+
+        /// <summary>
+        /// Populates the fullname of the directoryentry returned by the liststatus
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="path"></param>
+        /// <param name="getListStatusResult"></param>
+        /// <param name="resp"></param>
+        /// <returns></returns>
+        internal static List<T> GetDirectoryEntryListWithFullPath<T>(string path, DirectoryEntryListResult<T> getListStatusResult, OperationResponse resp) where T : DirectoryEntry
+        {
+            if (getListStatusResult != null && getListStatusResult.FileStatuses != null && getListStatusResult.FileStatuses.FileStatus != null)
+            {
+                string suffixedPath = path.EndsWith("/") ? path : path + "/";
+                foreach (var entry in getListStatusResult.FileStatuses.FileStatus)
+                {
+                    entry.FullName = string.IsNullOrEmpty(entry.Name) ? path : suffixedPath + entry.Name;
+                }
+                return getListStatusResult.FileStatuses.FileStatus;
+            }
+            else
+            {
+                //This should never come here
+                resp.IsSuccessful = false;
+                resp.Error = $"Unexpected problem with parsing JSON output.";
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// ListStatus api where the the type can be generic. The FullName of the output will not be populated.
+        /// Caller of this API needs to update that
+        /// </summary>
+        /// <typeparam name="T">Type of the json deserialized</typeparam>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
+        /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
+        /// <param name="listSize">List size to obtain from server</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="extraQueryParams">Dictionary containing extra query params</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>List of directoryentries</returns>
+        /// <returns></returns>
+        internal static async Task<T> ListStatusAsync<T>(string path, String listAfter, String listBefore, int listSize, UserGroupRepresentation? userIdFormat, Selection selection, IDictionary<string, string> extraQueryParams, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken)) where T : class
+        {
             QueryParams qp = new QueryParams();
             if (!string.IsNullOrWhiteSpace(listAfter))
             {
@@ -776,99 +829,105 @@ namespace Microsoft.Azure.DataLake.Store
                 qp.Add("listSize", Convert.ToString(listSize));
             }
             userIdFormat = userIdFormat ?? UserGroupRepresentation.ObjectID;
-            qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
+            
+            if (selection != Selection.Minimal)
+            {
+                qp.Add("tooid", Convert.ToString(userIdFormat == UserGroupRepresentation.ObjectID));
+            }
+
+            if (selection != Selection.Standard)
+            {
+                qp.Add("select", selection.ToString());
+            }
+
+            if (extraQueryParams != null)
+            {
+                foreach (var key in extraQueryParams.Keys)
+                {
+                    qp.Add(key, extraQueryParams[key]);
+                }
+            }
             var responseTuple = await WebTransport.MakeCallAsync("LISTSTATUS", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return null;
             if (responseTuple != null)
             {
                 try
                 {
-                    List<DirectoryEntry> direcList = new List<DirectoryEntry>(listSize);
+
                     using (MemoryStream stream = new MemoryStream(responseTuple.Item1))
                     {
-                        using (StreamReader stReader = new StreamReader(stream))
-                        {
-                            using (var jsonReader = new JsonTextReader(stReader))
-                            {
-                                jsonReader.Read(); //Start Object{
-                                jsonReader.Read(); //FileStatuses
-                                jsonReader.Read(); //Start object
-                                jsonReader.Read(); //FileStatus
-                                jsonReader.Read(); //StartArray
-                                String name = "";
-                                long length = 0;
-                                String group = "";
-                                String user = "";
-                                long lastAccessTime = -1;
-                                long lastModifiedTime = -1;
-                                string type = "";
-                                String permission = "";
-                                bool aclBit = true;
-                                long expiryTime = -1;
-                                string suffixedPath = path.EndsWith("/") ? path : path + "/";
-                                do
-                                {
-                                    jsonReader.Read();
-                                    if (jsonReader.TokenType.Equals(JsonToken.EndObject))
-                                    {
-                                        string fullName = string.IsNullOrEmpty(name) ? path : suffixedPath + name;
-                                        DirectoryEntry dir =
-                                            new DirectoryEntry(name, fullName, length, group, user, lastAccessTime,
-                                                lastModifiedTime, type, permission,
-                                                aclBit, expiryTime);
-                                        direcList.Add(dir);
-                                    }
-                                    else if (jsonReader.TokenType.Equals(JsonToken.PropertyName))
-                                    {
-                                        switch ((string)jsonReader.Value)
-                                        {
-                                            case "length":
-                                                jsonReader.Read();
-                                                length = (long)jsonReader.Value;
-                                                break;
-                                            case "pathSuffix":
-                                                jsonReader.Read();
-                                                name = (string)jsonReader.Value;
-                                                break;
-                                            case "type":
-                                                jsonReader.Read();
-                                                type = (string)jsonReader.Value;
-                                                break;
-                                            case "group":
-                                                jsonReader.Read();
-                                                group = (string)jsonReader.Value;
-                                                break;
-                                            case "owner":
-                                                jsonReader.Read();
-                                                user = (string)jsonReader.Value;
-                                                break;
-                                            case "permission":
-                                                jsonReader.Read();
-                                                permission = (string)jsonReader.Value;
-                                                break;
-                                            case "accessTime":
-                                                jsonReader.Read();
-                                                lastAccessTime = (long)jsonReader.Value;
-                                                break;
-                                            case "modificationTime":
-                                                jsonReader.Read();
-                                                lastModifiedTime = (long)jsonReader.Value;
-                                                break;
-                                            case "msExpirationTime":
-                                                jsonReader.Read();
-                                                expiryTime = (long)jsonReader.Value;
-                                                break;
-                                            case "aclBit":
-                                                jsonReader.Read();
-                                                aclBit = (bool)jsonReader.Value;
-                                                break;
-                                        }
-                                    }
-                                } while (!jsonReader.TokenType.Equals(JsonToken.EndArray));
-                            }
-                        }
+                        return JsonCustomConvert.DeserializeObject<T>(stream, new Newtonsoft.Json.JsonSerializerSettings());
                     }
-                    return direcList;
+                }
+                catch (Exception ex)
+                {
+                    resp.IsSuccessful = false;
+                    resp.Error = $"Unexpected problem with parsing JSON output. \r\nExceptionType: {ex.GetType()} \r\nExceptionMessage: {ex.Message}";
+                }
+            }
+            else
+            {
+                resp.IsSuccessful = false;
+                resp.Error = "Output is not expected";
+            }
+            return null;
+
+        }
+
+        /// <summary>
+        /// Lists the deleted streams or directories in the trash matching the hint.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults.</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>List of deleted entries</returns>
+
+        public static async Task<TrashStatus> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            QueryParams qp = new QueryParams();
+            if (!string.IsNullOrEmpty(hint) && !string.IsNullOrWhiteSpace(hint))
+            {
+                qp.Add("hint", hint);
+            }
+            else
+            {
+                throw new ArgumentException($"Hint cannot be skipped or be empty or a whitespace. Please provide a specific hint");
+            }
+
+            if (!string.IsNullOrWhiteSpace(listAfter))
+            {
+                qp.Add("listAfter", listAfter);
+            }
+
+            if (numResults > 4000 || numResults <= 0)
+            {
+                numResults = 4000;
+            }
+
+            qp.Add("listSize", Convert.ToString(numResults));
+            qp.Add("api-version", "2018-08-01");
+
+            var responseTuple = await WebTransport.MakeCallAsync("ENUMERATEDELETEDITEMS", "/", default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful) return null;
+            if (responseTuple != null)
+            {
+                try
+                {
+
+                    using (MemoryStream stream = new MemoryStream(responseTuple.Item1))
+                    {
+                        var trashStatus = JsonCustomConvert.DeserializeObject<TrashStatusResult>(stream, new JsonSerializerSettings()).TrashStatusRes;
+                        if (trashStatus.TrashEntries != null && ((List<TrashEntry>)trashStatus.TrashEntries) != null)
+                        {
+                            trashStatus.NumFound = ((List<TrashEntry>)trashStatus.TrashEntries).Count;
+                        }
+                        return trashStatus;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -883,6 +942,49 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return null;
         }
+
+        /// <summary>
+        /// Restore a stream or directory from trash to user space. This is a synchronous operation.
+        /// Not threadsafe when Restore is called for same path from different threads. 
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="restoreToken">restore token of the entry to be restored. This is the trash directory path in enumeratedeleteditems response</param>
+        /// <param name="restoreDestination">Path to which the entry should be restored</param>
+        /// <param name="type">Type of the entry which is being restored</param>
+        /// <param name="restoreAction">Action to take during destination name conflicts - overwrite or copy</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        public static Task RestoreDeletedItemsAsync(string restoreToken, string restoreDestination, string type, string restoreAction, AdlsClient client, RequestOptions req, OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
+            QueryParams qp = new QueryParams();
+            if (!string.IsNullOrWhiteSpace(restoreToken))
+            {
+                qp.Add("restoreToken", restoreToken);
+            }
+
+            if (!string.IsNullOrWhiteSpace(restoreDestination))
+            {
+                qp.Add("restoreDestination", restoreDestination);
+            }
+
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                qp.Add("type", type);
+            }
+
+            if (!string.IsNullOrWhiteSpace(restoreAction))
+            {
+                qp.Add("restoreAction", restoreAction);
+            }
+
+            qp.Add("api-version", "2018-08-01");
+
+            return WebTransport.MakeCallAsync("RESTOREDELETEDITEMS", "/", default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken);
+        }
+
+        #endregion
+
         /// <summary>
         /// Set the expiry time
         /// </summary>

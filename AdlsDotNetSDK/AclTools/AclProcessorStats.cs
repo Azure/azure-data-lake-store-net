@@ -1,4 +1,6 @@
 ﻿
+using System.Collections.Concurrent;
+
 namespace Microsoft.Azure.DataLake.Store.AclTools
 {
     /// <summary>
@@ -7,13 +9,14 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
     public class AclProcessorStats
     {
         /// <summary>
-        /// Number of files correctly processed
+        /// List of directories incorrectly processed
         /// </summary>
-        internal long FilesCorrect { get; set; }
+        internal long IncorrectDirectoryCount { get; set; }
         /// <summary>
-        /// Number of directories correctly processed
+        /// List of files incorrectly processed
         /// </summary>
-        internal long DirectoriesCorrect { get; set; }
+        internal long IncorrectFileCount { get; set; }
+        
         /// <summary>
         /// Number of files processed
         /// </summary>
@@ -29,10 +32,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             DirectoryProcessed = dirProcessed;
         }
 
-        internal AclProcessorStats(long fileProcessed, long dirProcessed, long fileCorrect, long dirCorrect):this(fileProcessed,dirProcessed)
+        internal AclProcessorStats(long fileProcessed, long dirProcessed, long fileIncorrect, long dirIncorrect):this(fileProcessed,dirProcessed)
         {
-            FilesCorrect = fileCorrect;
-            DirectoriesCorrect = dirCorrect;
+            IncorrectFileCount = fileIncorrect;
+            IncorrectDirectoryCount = dirIncorrect;
         }
 
     }

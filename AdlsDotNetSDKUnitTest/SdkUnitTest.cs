@@ -1,18 +1,17 @@
-﻿using System;
+﻿using Microsoft.Azure.DataLake.Store.Acl;
+using Microsoft.IdentityModel.Clients.ActiveDirectory;
+using Microsoft.Rest;
+using Microsoft.Rest.Azure.Authentication;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Azure.DataLake.Store.Acl;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
-using Microsoft.Rest.Azure.Authentication;
-using Microsoft.Rest;
 using System.Threading;
-using Microsoft.Extensions.Configuration;
+using System.Threading.Tasks;
 
 namespace Microsoft.Azure.DataLake.Store.UnitTest
 {
@@ -22,9 +21,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         internal static readonly string TestId = Guid.NewGuid().ToString();
         private static AdlsClient _adlsClient;
         private static readonly Random Random = new Random();
-        private static IConfigurationRoot Config = new ConfigurationBuilder()
-                                    .SetBasePath(Directory.GetCurrentDirectory())
-                                    .AddXmlFile("appsettings.xml").Build();
         /// <summary>
         /// Full Account domain name
         /// </summary>
@@ -88,6 +84,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private static string _dogFoodAuthEndPoint;
 
+        private static bool _isAccountTieredStore;
+
         private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
@@ -95,15 +93,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             return new string(Enumerable.Repeat(chars, length)
                 .Select(s => s[Random.Next(s.Length)]).ToArray());
         }
-        /// <summary>
-        /// Reads the app configuration
-        /// </summary>
-        /// <param name="settingName">Value of the setting in appsettings</param>
-        /// <returns></returns>
-        internal static string ReadSetting(string settingName)
-        {
-            return Config.GetSection("AppSettings:" + settingName).Value;
-        }
+
         /// <summary>
         /// Sets up the unit test
         /// </summary>
@@ -111,22 +101,24 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [AssemblyInitialize]
         public static void SetupUnitTest(TestContext context)
         {
-            _accntName = ReadSetting("Account");
-            _ownerObjectId = ReadSetting("AccountOwnerObjectId");
-            _ownerClientId = ReadSetting("AccountOwnerClientId");
-            _ownerClientSecret = ReadSetting("AccountOwnerClientSecret");
-            NonOwner1ObjectId = ReadSetting("NonOwner1ObjectId");
-            _nonOwner1ClientId = ReadSetting("NonOwner1ClientId");
-            _nonOwner1ClientSecret = ReadSetting("NonOwner1ClientSecret");
-            NonOwner2ObjectId = ReadSetting("NonOwner2ObjectId");
-            _nonOwner2ClientId = ReadSetting("NonOwner2ClientId");
-            _nonOwner2ClientSecret = ReadSetting("NonOwner2ClientSecret");
-            _nonOwner3ObjectId = ReadSetting("NonOwner3ObjectId");
-            _nonOwner3ClientId = ReadSetting("NonOwner3ClientId");
-            _nonOwner3ClientSecret = ReadSetting("NonOwner3ClientSecret");
-            Group1Id = ReadSetting("Group1Id");
-            _domain = ReadSetting("Domain");
-            _dogFoodAuthEndPoint = ReadSetting("DogFoodAuthenticationEndPoint");
+            
+            _accntName = (string)context.Properties["Account"];
+            _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
+            _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
+            _ownerClientSecret = (string)context.Properties["AccountOwnerClientSecret"];
+            NonOwner1ObjectId = (string)context.Properties["NonOwner1ObjectId"];
+            _nonOwner1ClientId = (string)context.Properties["NonOwner1ClientId"];
+            _nonOwner1ClientSecret = (string)context.Properties["NonOwner1ClientSecret"];
+            NonOwner2ObjectId = (string)context.Properties["NonOwner2ObjectId"];
+            _nonOwner2ClientId = (string)context.Properties["NonOwner2ClientId"];
+            _nonOwner2ClientSecret = (string)context.Properties["NonOwner2ClientSecret"];
+            _nonOwner3ObjectId = (string)context.Properties["NonOwner3ObjectId"];
+            _nonOwner3ClientId = (string)context.Properties["NonOwner3ClientId"];
+            _nonOwner3ClientSecret = (string)context.Properties["NonOwner3ClientSecret"];
+            Group1Id = (string)context.Properties["Group1Id"];
+            _domain = (string)context.Properties["Domain"];
+            _dogFoodAuthEndPoint = (string)context.Properties["DogFoodAuthenticationEndPoint"];
+            _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
         }
         /// <summary>
@@ -137,8 +129,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public static void SetupTest(TestContext context)
         {
             _adlsClient = SetupSuperClient();
+            
             _adlsClient.DeleteRecursive(UnitTestDir);
             _adlsClient.CreateDirectory(UnitTestDir);
+            _adlsClient.RemoveAllAcls(UnitTestDir);
             var nonOwnerAclSpec = new List<AclEntry>
             {
                 new AclEntry(AclType.user, NonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
@@ -146,7 +140,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.group, Group1Id, AclScope.Access, AclAction.ExecuteOnly)
             };
-            _adlsClient.ModifyAclEntries("/",nonOwnerAclSpec);
+            _adlsClient.ModifyAclEntries("/", nonOwnerAclSpec);
             _adlsClient.ModifyAclEntries(UnitTestDir, nonOwnerAclSpec);
         }
         #region Setup
@@ -217,8 +211,49 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             return client;
         }
+
+        private static string GetFileOrFolderName(string type)
+        {
+            var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            Random random = new Random();
+            string name = "";
+            for (int i = 0; i < 16; i++)
+            {
+                name += chars[random.Next(chars.Length)];
+            }
+            
+            if(type.Contains("file"))
+            {
+                name = "file_" + name + ".txt";
+            }
+            else if(type.Contains("directory"))
+            {
+                name = "dir_" + name;
+            }
+
+            return name;
+        }
+
+        private static void SetupTrashFile(string name, string type)
+        {
+            string path = $"{UnitTestDir}/" + name;
+            bool result;
+            if (type.Contains("file"))
+            {
+                _adlsClient.CreateFile(path, IfExists.Overwrite, "732");
+            }
+            else
+            {
+                result = _adlsClient.CreateDirectory(path, "777" );
+                Assert.IsTrue(result);
+            }
+   
+            result = _adlsClient.Delete(path);
+            Assert.IsTrue(result);
+        }
+
         #endregion
-        
+
         [TestMethod]
         public void TestRequestIdException()
         {
@@ -236,6 +271,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         }
 
         #region TestCreate
+        [TestMethod]
+        public void TestCreatePathWithColon()
+        {
+            string path = $"{UnitTestDir}/testCreateFile:8080";
+            _adlsClient.CreateDirectory(path);
+        }
+
         /// <summary>
         /// Unit test for creating a directory using ADL SDK
         /// </summary>
@@ -328,7 +370,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             catch (AdlsException ex)
             {
                 Assert.IsTrue(ex.HttpStatus == HttpStatusCode.BadRequest);
-                Assert.IsTrue(ex.Error.Contains("JsonReaderException"));
+                Assert.IsTrue(ex.Ex.GetType().Name.Contains("JsonReaderException"));
             }
         }
         
@@ -889,7 +931,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(6 * 1024 * 1024)]
         public void TestConcurrentAppendSerial(int size)
         {
-            return;
             string path =$"{UnitTestDir}/testConcurrentAppend_"+size;
             int count = 5;
             string line = RandomString(size);
@@ -912,7 +953,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(1024 * 1024)]
         public void TestConcurrentAppendParallel(int size)
         {
-            return;
             string path = $"{UnitTestDir}/testConcurrentAppendParallel_" + size;
             int count = 10;
             string line = RandomString(size);
@@ -939,7 +979,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(1 * 1024 * 1024)]
         public void TestConcurrentAppendGetFileStatus(int size)
         {
-            return;
             string path = $"{UnitTestDir}/testConcurrentAppendParallelGetFile_" + size;
             int count = 10;
             string line = RandomString(size);
@@ -1021,7 +1060,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// </summary>
         /// <param name="overwrite">Whether to overwrite the existing destination if it exists</param>
         [TestMethod]
-        [DataRow(true)]
+        [DataRow(false)]
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExist(bool overwrite)
         {
@@ -1277,15 +1316,35 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Unit test to try concat one file
         /// </summary>
         [TestMethod]
-        [ExpectedException(typeof(AdlsException))]
-        public void TestConcatException3()
+        public void TestConcatOneFile()
         {
-            string destPath = $"{UnitTestDir}/destPath.txt";
-            List<string> srcList = new List<string>();
-            string srcFile1 = $"{UnitTestDir}/Source/srcPathEx3.txt";
-            srcList.Add(srcFile1);
+            string destPath = $"{UnitTestDir}/destPathOneFile.txt";
+            string srcFile1 = $"{UnitTestDir}/Source/srcPathOneFile.txt";
+            string text1 = RandomString(2 * 1024);
+            byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
+            using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
+            {
+                ostream.Write(textByte1, 0, textByte1.Length);
+            }
+
+            List<string> srcList = new List<string>
+            {
+                srcFile1
+            };
             _adlsClient.ConcatenateFiles(destPath, srcList);
-            Assert.Fail("Trying to concat one file should throw an exception");
+            string output = "";
+            using (var istream = _adlsClient.GetReadStream(destPath))
+            {
+                int noOfBytes;
+                byte[] buffer = new byte[2 * 1024];
+                do
+                {
+                    noOfBytes = istream.Read(buffer, 0, buffer.Length);
+                    output += Encoding.UTF8.GetString(buffer, 0, noOfBytes);
+                } while (noOfBytes > 0);
+            }
+            Assert.IsTrue(output.Equals(text1));
+
         }
         /// <summary>
         /// Unit test to test failure when the destination is folder
@@ -1313,10 +1372,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.ConcatenateFiles(destPath, srcList);
         }
 
+        /// <summary>
+        /// This test is to test stream is sealed after concat. This is valid behavior only in tieredstore.
+        /// </summary>
         [TestMethod]
         [ExpectedException(typeof(AdlsException))]
         public void TestConcatException5()
         {
+            if (_isAccountTieredStore)
+            {
+                throw new AdlsException("Ignore this test, since stream is not sealed after concat in tiered store");
+            }
             string destPath = $"{UnitTestDir}/destPathEx2.txt";
             List<string> srcList = new List<string>()
             {
@@ -1347,6 +1413,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             TestConcatTwoFile(false, UnitTestDir + "/destPath2.txt", UnitTestDir + "/Source");
             TestConcatTwoFile(true, UnitTestDir + "/destPath3.txt", UnitTestDir + "/Source1");
+            TestConcatTwoFile(false, UnitTestDir + "/destPath6.txt", UnitTestDir + "/Source1", "prefix+with,signs");
+            TestConcatTwoFile(true, UnitTestDir + "/destPath7.txt", UnitTestDir + "/Source1", "prefix+with,signs");
         }
 
         /// <summary>
@@ -1355,17 +1423,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <param name="deleteSource">Whether to delete source directory</param>
         /// <param name="destPath">Destination filename</param>
         /// <param name="sourcePath">Source directory</param>
-        public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath)
+        public void TestConcatTwoFile(bool deleteSource, string destPath, string sourcePath, string sourceFileNamePrefix = "")
         {
             List<string> srcList = new List<string>();
-            string srcFile1 = sourcePath + "/srcPath1.txt";
+            string srcFile1 = sourcePath + "/" + sourceFileNamePrefix + "srcPath1.txt";
             string text1 = RandomString(2 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
             using (var ostream = _adlsClient.CreateFile(srcFile1, IfExists.Overwrite, ""))
             {
                 ostream.Write(textByte1, 0, textByte1.Length);
             }
-            string srcFile2 = sourcePath + "/srcPath2.txt";
+            string srcFile2 = sourcePath + "/" + sourceFileNamePrefix + "srcPath2.txt";
             string text2 = RandomString(3 * 1024 * 1024);
             byte[] textByte2 = Encoding.UTF8.GetBytes(text2);
             using (var ostream = _adlsClient.CreateFile(srcFile2, IfExists.Overwrite, ""))
@@ -2490,6 +2558,340 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(status.Entries.Contains(new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.ReadExecute)));
         }
         #endregion
+
+        #region TrashEnumerateRestore
+        private Tuple<EnumerateDeletedItemsProgress, Progress<EnumerateDeletedItemsProgress>> GetProgressTracker()
+        {
+            var progressTracker = new Progress<EnumerateDeletedItemsProgress>();
+            EnumerateDeletedItemsProgress progress = new EnumerateDeletedItemsProgress();
+
+            progressTracker.ProgressChanged += (s, e) =>
+            {
+                lock (progress)
+                {
+                    progress.NumSearched = e.NumSearched;
+                    progress.NumFound = e.NumFound;
+                    progress.NextListAfter = e.NextListAfter;
+                }
+            };
+            return Tuple.Create<EnumerateDeletedItemsProgress, Progress<EnumerateDeletedItemsProgress>>(progress,progressTracker);
+        }
+        [TestMethod]
+        public void TestRestoreDeletedItemsToOriginalDestination()
+        {
+            // Restore file
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            // Enumerate goes to Alki secondaries, so sleep to let them catch up.
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+
+            // Get file status on restored entry
+            string path = $"{UnitTestDir}/" + streamName;
+            DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+            
+            // Restore directory
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            // Enumerate goes to Alki secondaries, so sleep to let them catch up.
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+
+            // Get file status on restored entry
+            path = $"{UnitTestDir}/" + dirName;
+            diren = _adlsClient.GetDirectoryEntry(path);
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsToNewDestination()
+        {
+            // Restore file
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            string path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite);
+
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+            
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            destPath.Substring(0, destPath.LastIndexOf('/') + 1);
+            String newName = GetFileOrFolderName("file");
+            destPath += newName;
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+
+            // Get file status on restored entry
+            path.Substring(0, path.LastIndexOf('/') + 1);
+            path += newName;
+            DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+
+            // Restore Directory
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            path = $"{UnitTestDir}/" + dirName;
+            bool result = _adlsClient.CreateDirectory(path);
+            Assert.IsTrue(result);
+
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+            
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            destPath.Substring(0, destPath.LastIndexOf('/') + 1);
+            newName = GetFileOrFolderName("file");
+            destPath += newName;
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+
+            // Get file status on restored entry
+            path.Substring(0, path.LastIndexOf('/') + 1);
+            path += newName;
+            diren = _adlsClient.GetDirectoryEntry(path);
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsFileWithOverwriteOrCopy()
+        {
+            // Test copy
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            string path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite);
+
+            Thread.Sleep(3000);
+
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file", "copy");
+            
+            // Test overwrite
+            streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            path = $"{UnitTestDir}/" + streamName;
+            _adlsClient.CreateFile(path, IfExists.Overwrite, "777");
+
+            Thread.Sleep(3000);
+            trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.FILE);
+
+            restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "file", "overwrite");
+        }
+
+        [TestMethod]
+        public void TestRestoreDeletedItemsDirectoryWithCopy()
+        {
+            // Test copy
+            string dirName = GetFileOrFolderName("directory");
+            SetupTrashFile(dirName, "directory");
+
+            string path = $"{UnitTestDir}/" + dirName;
+            bool result = _adlsClient.CreateDirectory(path);
+            Assert.IsTrue(result);
+
+            Thread.Sleep(3000);
+            
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(dirName, null, 1, null);
+            Assert.IsTrue(trashEntries.Count() == 1);
+            Assert.IsTrue(trashEntries.ElementAt(0).Type == TrashEntryType.DIRECTORY);
+
+            string restoreToken = trashEntries.ElementAt(0).TrashDirPath;
+            string destPath = trashEntries.ElementAt(0).OriginalPath;
+
+            try
+            {
+                _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory");
+                Assert.IsTrue(false);
+            }
+            catch (AdlsException ex)
+            {
+                Assert.IsTrue(ex.HttpStatus == HttpStatusCode.Conflict);
+            }
+
+            _adlsClient.RestoreDeletedItems(restoreToken, destPath, "directory", "copy");
+
+            // directory restores with overwrites not supported yet
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateCancellationToken()
+        {
+            CancellationTokenSource source = new CancellationTokenSource();
+            CancellationToken token = source.Token;
+
+            string streamName = GetFileOrFolderName("file");
+            SetupTrashFile(streamName, "file");
+
+            source.Cancel();
+            var tuple = GetProgressTracker();
+           
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(streamName, null, 1, tuple.Item2, token);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(tuple.Item1.NumSearched == 0);
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForMultipleFileSearch()
+        {
+            string prefix = GetFileOrFolderName("file");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string streamName = prefix + "_" + GetFileOrFolderName("file");
+                SetupTrashFile(streamName, "file");
+            }
+
+            Thread.Sleep(3000);
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(prefix, null, N, progresstuple.Item2);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == N);
+            for (int i = 0; i < N; i++)
+            {
+                Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.FILE);
+            }
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForZeroFileSearch()
+        {
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems("zzzzz", null, 1, progresstuple.Item2);
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == 0);
+            Assert.IsTrue(string.IsNullOrEmpty(progresstuple.Item1.NextListAfter));
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForEmptyHint()
+        {
+            try
+            {
+                IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems("", null, 1, null);
+                Assert.IsTrue(false);
+            }
+            catch(Exception ex)
+            {
+                if(ex is ArgumentException)
+                {
+                    Assert.IsTrue(true);
+                }
+                else
+                {
+                    Assert.IsTrue(false);
+                }
+
+                return;
+            }
+
+            Assert.IsTrue(false);
+        }
+
+        [TestMethod]
+        public void TestTrashEnumerateForMultipleDirectorySearch()
+        {
+            string prefix = GetFileOrFolderName("directory");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string dirName = prefix + "_" + GetFileOrFolderName("directory");
+                SetupTrashFile(dirName, "directory");
+            }
+
+            Thread.Sleep(3000);
+            var progresstuple = GetProgressTracker();
+            IEnumerable<TrashEntry> trashEntries = _adlsClient.EnumerateDeletedItems(prefix, null, N, progresstuple.Item2);
+
+            Thread.Sleep(3000);
+            Assert.IsTrue(progresstuple.Item1.NumFound == N);
+            for (int i = 0; i < N; i++)
+            {
+                Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.DIRECTORY);
+            }
+        }
+        
+        #endregion
+
         private bool VerifyGuid(string objectId)
         {
             return Regex.IsMatch(objectId, @"^[{(]?[0-9A-Fa-f]{8}[-]?([0-9A-Fa-f]{4}[-]?){3}[0-9A-Fa-f]{12}[)}]?$");
@@ -2521,6 +2923,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(summary.FileCount == expectedFileCnt);
             Assert.IsTrue(summary.SpaceConsumed == expectedFileSize);
         }
+
+        [TestMethod]
+        [ExpectedException(typeof(AdlsException))]
+        public void TestGetFileListStatusNotFoundException() {
+            string path = $"{UnitTestDir}/TestGetFileListStatusException";
+            foreach (var entry in _adlsClient.EnumerateDirectory(path)) { }
+        }
+
         /// <summary>
         /// Unit test to get filelist status of a directory
         /// </summary>
@@ -2533,68 +2943,83 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             string filePrefix = "";
             int setListSize = 120;
             HashSet<string> hSet = new HashSet<string>();
+            HashSet<string> hFullNameSet = new HashSet<string>();
+            // DataCreator creates new folder/file with 
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, 0, 0, 0, 0, false, filePrefix);
-            TestGetFileStatus(path, 0, hSet, 0, setListSize);
-            TestGetFileStatus(path, 1, hSet, 0, setListSize);
+            TestGetFileStatus(path, 0, hSet, hFullNameSet, 0, setListSize);
+            TestGetFileStatus(path, 1, hSet, hFullNameSet, 0, setListSize);
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 1, hSet, 1, setListSize);
-            TestGetFileStatus(path, 2, hSet, 1, setListSize);
+            TestGetFileStatus(path, 1, hSet, hFullNameSet, 1, setListSize);
+            TestGetFileStatus(path, 2, hSet, hFullNameSet, 1, setListSize);
             totFiles = 99;
             filePrefix = "A1";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 50, hSet, 50, setListSize);
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, 100, setListSize);
+            TestGetFileStatus(path, 50, hSet, hFullNameSet, 50, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, 100, setListSize);
             totFiles = 20;
             filePrefix = "A2";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, setListSize - 1, hSet, setListSize - 1, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, setListSize + 1, hSet, setListSize, setListSize);
+            TestGetFileStatus(path, setListSize - 1, hSet, hFullNameSet, setListSize - 1, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, setListSize + 1, hSet, hFullNameSet, setListSize, setListSize);
             totFiles = 80;
             filePrefix = "A3";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, 200, hSet, 200, setListSize);
-            TestGetFileStatus(path, 201, hSet, 200, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, 200, hSet, hFullNameSet, 200, setListSize);
+            TestGetFileStatus(path, 201, hSet, hFullNameSet, 200, setListSize);
             totFiles = 100;
             filePrefix = "A4";
             TestDataCreator.DataCreator.CreateDirRecursiveRemote(_adlsClient, path, 0, 0, totFiles, totFiles, 0, 0, false, filePrefix);
             for (int i = 0; i < totFiles; i++)
             {
                 hSet.Add(prefix + (filePrefix + i + "File.txt"));
+                hFullNameSet.Add(path + "/" + prefix + filePrefix + i + "File.txt");
             }
-            TestGetFileStatus(path, 100, hSet, 100, setListSize);
-            TestGetFileStatus(path, setListSize, hSet, setListSize, setListSize);
-            TestGetFileStatus(path, 200, hSet, 200, setListSize);
-            TestGetFileStatus(path, 2 * setListSize, hSet, 2 * setListSize, setListSize);
-            TestGetFileStatus(path, 300, hSet, 300, setListSize);
-            TestGetFileStatus(path, 400, hSet, 300, setListSize);
+            TestGetFileStatus(path, 100, hSet, hFullNameSet, 100, setListSize);
+            TestGetFileStatus(path, setListSize, hSet, hFullNameSet, setListSize, setListSize);
+            TestGetFileStatus(path, 200, hSet, hFullNameSet, 200, setListSize);
+            TestGetFileStatus(path, 2 * setListSize, hSet, hFullNameSet, 2 * setListSize, setListSize);
+            TestGetFileStatus(path, 300, hSet, hFullNameSet, 300, setListSize);
+            TestGetFileStatus(path, 400, hSet, hFullNameSet, 300, setListSize);
+            TestListStatusUsingCore(path, 400, hSet, hFullNameSet, 300);
         }
 
-        public static void TestGetFileStatus(string path, int maxEntries, HashSet<string> hSet, int expectedEntries, int setListSize = 100)
+        public static void TestGetFileStatus(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
+        {
+            TestGetFileStatusStandard(path, maxEntries, hSet, fullNamehSet, expectedEntries, setListSize);
+            TestGetFileStatusMinimal(path, maxEntries, hSet, fullNamehSet, expectedEntries, setListSize);
+        }
+
+
+        public static void TestGetFileStatusStandard(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
         {
             int count = 0;
             var fop = _adlsClient.EnumerateDirectory(path, maxEntries, "", "");
             var en = fop.GetEnumerator();
-            ((FileStatusList)en).ListSize = setListSize;
+            ((FileStatusList<DirectoryEntry>)en).ListSize = setListSize;
 
             while (en.MoveNext())
             {
@@ -2602,6 +3027,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 if (!hSet.Contains(dir.Name))
                 {
                     Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
                 }
                 if (dir.Type != DirectoryEntryType.FILE)
                 {
@@ -2611,6 +3040,66 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             Assert.IsTrue(count == expectedEntries);
         }
+
+        internal static void TestListStatusUsingCore(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries)
+        {
+            int count = 0;
+            var resp = new OperationResponse();
+            var entries = Core.ListStatusAsync(path, "", "", maxEntries, UserGroupRepresentation.ObjectID, _adlsClient, new RequestOptions(), resp).GetAwaiter().GetResult();
+            foreach(var dir in entries)
+            {
+                if (!hSet.Contains(dir.Name))
+                {
+                    Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
+                }
+                if (dir.Type != DirectoryEntryType.FILE)
+                {
+                    Assert.Fail(dir.Name + " should be file");
+                }
+                count++;
+            }
+            Assert.IsTrue(count == expectedEntries);
+        }
+
+        internal static void TestGetFileStatusMinimal(string path, int maxEntries, HashSet<string> hSet, HashSet<string> fullNamehSet, int expectedEntries, int setListSize = 100)
+        {
+            int count = 0;
+            var fop = _adlsClient.EnumerateDirectory(path, maxEntries, "", "", selection: Selection.Minimal);
+            var en = fop.GetEnumerator();
+            ((FileStatusList<DirectoryEntry>)en).ListSize = setListSize;
+
+            while (en.MoveNext())
+            {
+                var dir = en.Current;
+                if (!hSet.Contains(dir.Name))
+                {
+                    Assert.Fail(dir.Name + ": The file should have been in the hashset");
+                }
+                if (!fullNamehSet.Contains(dir.FullName))
+                {
+                    Assert.Fail(dir.FullName + ": The file fullname should have been in the hashset");
+                }
+                if (dir.Type != DirectoryEntryType.FILE)
+                {
+                    Assert.Fail(dir.Name + " should be file");
+                }
+                Assert.AreEqual(dir.ExpiryTime, null);
+                Assert.AreEqual(dir.Group, null);
+                Assert.AreEqual(dir.HasAcl, false);
+                Assert.AreEqual(dir.LastAccessTime, null);
+                Assert.AreEqual(dir.LastModifiedTime, null);
+                Assert.AreEqual(dir.Length, 0);
+                Assert.AreEqual(dir.Permission, null);
+                Assert.AreEqual(dir.User, null);
+                count++;
+            }
+            Assert.IsTrue(count == expectedEntries);
+        }
+
         [ClassCleanup]
         public static void CleanTests()
         {

@@ -4,6 +4,7 @@ using Microsoft.Azure.DataLake.Store.QueueTools;
 using NLog;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Threading;
 
@@ -93,18 +94,26 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// </summary>
         private long _directoryEnumerated;
         /// <summary>
-        /// Number of files for which Acl change was correct. This is used for internal use.
+        /// List of directories incorrectly processed
         /// </summary>
-        private long _filesCorrect;
+        private long _incorrectDirectoryCount;
         /// <summary>
-        /// Number of directories for which Acl change was correct. This is used for internal use.
+        /// List of files incorrectly processed
         /// </summary>
-        private long _directoryCorrect;
-        private AclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount, IProgress<AclProcessorStats> aclStatusTracker, CancellationToken cancelToken, bool verify=false)
+        private long _incorrectFileCount;
+        private string _incorrectVerifyFile;
+        private StreamWriter _incorrectVerifyFileStream;
+        private QueueWrapper<string> _incorrectFileList;
+        private readonly bool _ignoreVerifyTimeErrors;
+        /// <summary>
+        /// thread to dump incorrect files in a file
+        /// </summary>
+        private Thread _threadDumpIncorrectFiles;
+        private AclProcessor(string path,AdlsClient client, List<AclEntry> aclEntries, RequestedAclType type, int threadCount, IProgress<AclProcessorStats> aclStatusTracker, CancellationToken cancelToken, bool verify=false, string verifyFile = null, bool ignoreVerifyTimeErrors = false)
         {
             _inputPath = path;
             Client = client;
-            NumThreads = threadCount < 0 ? AdlsClient.DefaultNumThreads: threadCount;
+            NumThreads = threadCount <= 0 ? AdlsClient.DefaultNumThreads: threadCount;
             Queue = new PriorityQueueWrapper<BaseJob>(NumThreads);
             _threadWorker = new Thread[NumThreads];
             if (aclEntries == null || aclEntries.Count == 0)
@@ -129,6 +138,18 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             _isVerify = verify;
             _aclStatusTracker = aclStatusTracker;
             _cancelToken = cancelToken;
+            // If verify file is passed we have to setup a thread and a filestream to write to the file
+            if (verify && !string.IsNullOrEmpty(verifyFile))
+            {
+                _ignoreVerifyTimeErrors = ignoreVerifyTimeErrors;
+                _incorrectVerifyFile = verifyFile;
+                _incorrectFileList = new QueueWrapper<string>(-1);
+                Utils.CreateParentDirectory(_incorrectVerifyFile);
+                _incorrectVerifyFileStream = new StreamWriter(new FileStream(_incorrectVerifyFile, FileMode.OpenOrCreate, FileAccess.ReadWrite))
+                {
+                    AutoFlush = true
+                };
+            }
             if (AclLog.IsDebugEnabled)
             {
                 AclLog.Debug($"AclProcessor, Name: {_inputPath}, Threads: {NumThreads}, AclChangeType: {Type}, InputAcl: {string.Join(":",AclEntries)}{(_isVerify?", RunInVerifyMode":string.Empty)}");
@@ -142,7 +163,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         {
             lock (_thisLock)
             {
-                _clientException = ex;
+                if (_clientException == null)
+                {
+                    _clientException = ex;
+                }
             }
         }
         /// <summary>
@@ -179,11 +203,15 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// <param name="aclEntries">Acl Entries to verify</param>
         /// <param name="type">Type of Acl Job: Acl modify verify or Acl set verify or acl remove verify</param>
         /// <param name="threadCount">Custom number of threads</param>
+        /// <param name="verifyFile">Verification file</param>
+        /// <param name="ignoreError">If passed true, then we will ignore the error and dump the error in verifyFile. Pass this true only if verifyFile is not null</param>
+        /// <param name="statusTracker">Status Tracker</param>
+        /// <param name="cancelToken">Cancel Token</param>
         /// <returns></returns>
         internal static AclProcessorStats RunAclVerifier(string path, AdlsClient client, List<AclEntry> aclEntries,
-            RequestedAclType type, int threadCount = -1)
+            RequestedAclType type, int threadCount = -1, string verifyFile = null, bool ignoreError = false, IProgress<AclProcessorStats> statusTracker = null, CancellationToken cancelToken = default(CancellationToken))
         {
-            return new AclProcessor(path, client, aclEntries, type, threadCount, null, default(CancellationToken), true)
+            return new AclProcessor(path, client, aclEntries, type, threadCount, statusTracker, cancelToken, true, verifyFile, ignoreError)
                 .ProcessAcl();
         }
         /// <summary>
@@ -192,18 +220,19 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// <returns>Acl Processor: Number of files and directories processed or ACl Verification: Number of files and directories processed and number of files and directories correctly processed by Acl Processor</returns>
         private AclProcessorStats ProcessAcl()
         {
-            DirectoryEntry dir = Client.GetDirectoryEntry(_inputPath);
-            for (int i = 0; i < NumThreads; i++)
-            {
-                _threadWorker[i] = new Thread(Run);
-            }
-
-            ProcessDirectoryEntry(dir);
             if (_cancelToken.IsCancellationRequested)
             {
                 return new AclProcessorStats(_filesEnumerated, _directoryEnumerated);
             }
 
+            //Create the threads
+            for (int i = 0; i < NumThreads; i++)
+            {
+                _threadWorker[i] = new Thread(Run) {
+                    Name = "Thread: " + i
+                };
+            }
+                        
             if (_aclStatusTracker != null)
             {
                 _threadStats = new Thread(StatsRun)
@@ -211,27 +240,51 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
                     Name = "StatsThread"
                 };
             }
+            if (!string.IsNullOrEmpty(_incorrectVerifyFile))
+            {
+                _threadDumpIncorrectFiles = new Thread(VerifyFileDumpRun)
+                {
+                    Name = "Verify Dump Thread"
+                };
+            }
 
+            // Put the first entry to queue
+            DirectoryEntry dir = Client.GetDirectoryEntry(_inputPath);
+            ProcessDirectoryEntry(dir);
+
+            // Start the threads
             for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Start();
             }
             
-            //Stats thread should only start after enumeration is done
             if (_aclStatusTracker != null)
             {
                 _threadStats.Start();
             }
 
+            if (!string.IsNullOrEmpty(_incorrectVerifyFile))
+            {
+                _threadDumpIncorrectFiles.Start();
+            }
+
+            //Join the threads
             for (int i = 0; i < NumThreads; i++)
             {
                 _threadWorker[i].Join();
             }
-
+            
             if (_aclStatusTracker != null)
             {
                 Interlocked.Increment(ref _consumerDone);
                 _threadStats.Join();
+            }
+
+            if (!string.IsNullOrEmpty(_incorrectVerifyFile))
+            {
+                // Signify the end of the queue
+                _incorrectFileList.Add(null);
+                _threadDumpIncorrectFiles.Join();
             }
 
             if (GetException() != null)
@@ -240,13 +293,17 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             }
 
             return _isVerify
-                ? new AclProcessorStats(_filesEnumerated, _directoryEnumerated, _filesCorrect, _directoryCorrect)
+                ? new AclProcessorStats(_filesEnumerated, _directoryEnumerated, _incorrectFileCount, _incorrectDirectoryCount)
                 : new AclProcessorStats(_filesEnumerated, _directoryEnumerated);
         }
         internal void ProcessDirectoryEntry(DirectoryEntry dir)
         {
             if (dir.Type == DirectoryEntryType.DIRECTORY)
             {
+                if (AclLog.IsDebugEnabled)
+                {
+                    AclLog.Debug($"Enumerate job submitted for: {dir.FullName}");
+                }
                 Queue.Add(new EnumerateDirectoryChangeAclJob(this, dir.FullName));
                 Interlocked.Increment(ref _directoryEnumerated);
             }
@@ -258,6 +315,10 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
                     return;
                 }
                 Interlocked.Increment(ref _filesEnumerated);
+            }
+            if (AclLog.IsDebugEnabled)
+            {
+                AclLog.Debug($"{(_isVerify ? "VerifyAcl" : "ChangeAcl")} job submitted for: {dir.FullName}");
             }
             if (_isVerify)
             {
@@ -272,15 +333,26 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// Increments the correct count of files and directories
         /// </summary>
         /// <param name="type">Type of Directory entry</param>
-        internal void IncrementCorrectCount(DirectoryEntryType type)
+        /// <param name="fullPath">Path</param>
+        /// <param name="error">error</param>
+        internal void IncrementIncorrectCount(DirectoryEntryType type, string fullPath, string error=null)
         {
+            // If dumping the incorrect files to a file then put in queue
+            if (!string.IsNullOrEmpty(_incorrectVerifyFile))
+            {
+                if (!string.IsNullOrEmpty(error))
+                {
+                    fullPath += "," + error;
+                }
+                _incorrectFileList.Add(fullPath);
+            }
             if (type == DirectoryEntryType.DIRECTORY)
             {
-                Interlocked.Increment(ref _directoryCorrect);
+                Interlocked.Increment(ref _incorrectDirectoryCount);
             }
             else
             {
-                Interlocked.Increment(ref _filesCorrect);
+                Interlocked.Increment(ref _incorrectFileCount);
             }
         }
 
@@ -292,47 +364,105 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
             while (Interlocked.Read(ref _consumerDone) == 0)
             {
                 _aclStatusTracker.Report(new AclProcessorStats(_filesEnumerated, _directoryEnumerated));
-                Thread.Sleep(50);
+                Thread.Sleep(5000);
             }
         }
 
+        /// <summary>
+        /// Delegate method run by stats thread
+        /// </summary>
+        private void VerifyFileDumpRun()
+        {
+            while (true)
+            {
+                var entry = _incorrectFileList.Poll();
+                if (entry == null)
+                {
+                    break;
+                }
+                _incorrectVerifyFileStream.WriteLine(entry);
+            }
+            _incorrectVerifyFileStream.Dispose();
+        }
+        private void DumpIgnoredVerificationError(BaseJob job)
+        {
+            // By default if job is enumerate, type is directory
+            DirectoryEntryType type = DirectoryEntryType.DIRECTORY;
+            string fullName = "";
+            if(job is VerifyChangeAclJob)
+            {
+                type = ((VerifyChangeAclJob)job).EntryType;
+                fullName = ((VerifyChangeAclJob)job).FullPath;
+            }
+            else if (job is EnumerateDirectoryChangeAclJob)
+            {
+                fullName = ((EnumerateDirectoryChangeAclJob)job).FullPath;
+            }
+            IncrementIncorrectCount(type, fullName, "Exception");
+
+        }
         /// <summary>
         /// Method run by a single thread. Polls a directory entry. If job is of type EnumerateDirectory then enumerates contents in it and queues them. 
         /// If job is of type Acl Change then performs the Acl change. If job type is Acl Verify then does acl verification
         /// </summary>
         private void Run()
         {
-            while (true)
+            try
             {
-                if (_cancelToken.IsCancellationRequested)
+                while (true)
                 {
-                    return;
-                }
-                var job = Queue.Poll();
-                if (GetException()!=null||job == null||job is PoisonJob)//Exception or Poision block (all threads are waiting)
-                {
-                    Queue.Add(new PoisonJob());
-                    return;
-                }
-                
-                try
-                {
-                    job.DoRun(AclJobLog);
-                }
-                catch (AdlsException ex)
-                {
-                    if (ex.HttpStatus != HttpStatusCode.NotFound)//Do not stop acl processor if the file/directory is deleted
+                    if (_cancelToken.IsCancellationRequested)
                     {
-                        SetException(ex);//Sets the global exception to signal other threads to close
-                        Queue.Add(new PoisonJob());//Handle corner cases like when exception is raised other threads can be in wait state
                         return;
                     }
+
+                    var job = Queue.Poll();
+                    if (GetException() != null || job == null || job is PoisonJob)//Exception or Poision block (all threads are waiting)
+                    {
+                        Queue.Add(new PoisonJob());
+                        return;
+                    }
+
+                    try
+                    {
+                        job.DoRun(AclJobLog);
+                    }
+                    catch (AdlsException ex)
+                    {
+                        if (ex.HttpStatus != HttpStatusCode.NotFound)//Do not stop acl processor if the file/directory is deleted
+                        {
+                            if (_ignoreVerifyTimeErrors)
+                            {
+                                DumpIgnoredVerificationError(job);
+                            }
+                            else
+                            {
+                                SetException(ex);//Sets the global exception to signal other threads to close
+                                Queue.Add(new PoisonJob());//Handle corner cases like when exception is raised other threads can be in wait state
+                                return;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_ignoreVerifyTimeErrors)
+                        {
+                            DumpIgnoredVerificationError(job);
+                        }
+                        else
+                        {
+                            SetException(ex);
+                            Queue.Add(new PoisonJob());//Handle corner cases like when exception is raised other threads can be in wait state
+                            return;
+                        }
+                    }
                 }
-                catch (Exception ex)
-                {
-                    SetException(ex);
-                    Queue.Add(new PoisonJob());//Handle corner cases like when exception is raised other threads can be in wait state
-                    return;
+            }
+            catch(Exception e)
+            {
+                // This should never come here, but just in case of SynchronizationLockException at least thread will exit dutifully
+                if (AclLog.IsDebugEnabled) {
+                    AclLog.Debug("Unexpected error: "+e.Message);
                 }
             }
         }

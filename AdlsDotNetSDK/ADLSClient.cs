@@ -14,6 +14,9 @@ using Microsoft.Azure.DataLake.Store.FileTransfer;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Rest;
 using NLog;
+using System.IO;
+using System.Linq;
+
 #if NET452
 using System.Management;
 #endif
@@ -49,6 +52,8 @@ namespace Microsoft.Azure.DataLake.Store
     public class AdlsClient
     {
         #region Properties
+
+        internal static int ConcatenateStreamListThreshold = 100;
         /// <summary>
         /// Logger to log information (debug/error/trace) regarding client
         /// </summary>
@@ -101,12 +106,24 @@ namespace Microsoft.Azure.DataLake.Store
         public static int DefaultNumThreads { get; internal set; }
 
         internal const int DefaultThreadsCalculationFactor = 8;
+        internal const int DefaultCoreCount = 8;
 
         /// <summary>
         /// DIP IP
         /// </summary>
         internal string DipIp { get; set; }
 
+
+        /// <summary>
+        /// Delegate that accepts the writestream and wraps it with the compression stream, Only set by client if we 
+        /// </summary>
+        internal Func<Stream, Stream> WrapperStream { get; set; } = null;
+
+        /// <summary>
+        /// ContentEncoding for the compression, if not set then we use default contentencoding
+        /// </summary>
+        internal string ContentEncoding { get; set; } = null;
+        
         #endregion
 
         #region Constructors
@@ -136,12 +153,17 @@ namespace Microsoft.Azure.DataLake.Store
 #if NET452
                 // Cannot get Caption/Architecture from Win32_OperatingSystem because they can have localised values
                 osInfo = Environment.OSVersion.VersionString + " " + IntPtr.Size * 8;
-                
+
                 dotNetVersion = "NET452";
                 int coreCount = 0;
                 foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
                 {
                     coreCount += int.Parse(item["NumberOfCores"].ToString());
+                }
+                if(coreCount <= 0)
+                {
+                    ClientLogger.Debug("Physical core count is returned as 0, changing it to 8");
+                    coreCount = DefaultCoreCount;
                 }
                 DefaultNumThreads = DefaultThreadsCalculationFactor * coreCount;
 #else
@@ -171,10 +193,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         protected AdlsClient()
         {
-            
+
         }
 
-        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false)
+        internal AdlsClient(string accnt, long clientId, bool skipAccntValidation = false)
         {
             AccountFQDN = accnt.Trim();
             if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
@@ -182,21 +204,19 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
             }
             ClientId = clientId;
-            AccessToken = token;
             if (ClientLogger.IsTraceEnabled)
             {
                 ClientLogger.Trace($"AdlsStoreClient, {ClientId} created for account {AccountFQDN} for SDK version {SdkVersion}");
             }
         }
 
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false)
+        internal AdlsClient(string accnt, long clientId, string token, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
         {
-            AccountFQDN = accnt.Trim();
-            if (!skipAccntValidation && !IsValidAccount(AccountFQDN))
-            {
-                throw new ArgumentException($"Account name {AccountFQDN} is invalid. Specify the full account including the domain name.");
-            }
-            ClientId = clientId;
+            AccessToken = token;
+        }
+
+        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        {
             AccessProvider = creds;
         }
 
@@ -417,7 +437,7 @@ namespace Microsoft.Azure.DataLake.Store
             // Pass getConsistentlength so that we get the updated length of stream
             DirectoryEntry diren = await Core
                 .GetFileStatusAsync(filename, UserGroupRepresentation.ObjectID, this,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+                    new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken, true).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error opening a Read Stream for file {filename}.");
@@ -508,7 +528,7 @@ namespace Microsoft.Azure.DataLake.Store
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
             RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
-            
+
             OperationResponse resp = new OperationResponse();
             await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
@@ -546,8 +566,8 @@ namespace Microsoft.Azure.DataLake.Store
             string leaseId = Guid.NewGuid().ToString();
             bool overwrite = mode == IfExists.Overwrite;
             //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            RetryPolicy policy = overwrite ?  new ExponentialRetryPolicy() : (RetryPolicy) new NonIdempotentRetryPolicy();
-            
+            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
+
             OperationResponse resp = new OperationResponse();
             Core.Create(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp);
             if (!resp.IsSuccessful)
@@ -744,6 +764,77 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in concating files {String.Join(",", concatFiles)} to destination {destination}");
             }
         }
+
+        /// <summary>
+        /// Internal API to do parallel concatenate
+        /// </summary>
+        /// <param name="destination">Destintaion</param>
+        /// <param name="concatFiles">Concat Files</param>
+        /// <param name="deleteSource">Whether to delete the source directory</param>
+        /// <param name="cancelToken">Cancellation Token</param>
+        internal virtual async Task ConcatenateFilesParallelAsync(string destination, List<string> concatFiles, bool deleteSource = false,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            string tempDir = destination.Remove(destination.LastIndexOf('/') + 1) + Guid.NewGuid();
+            if (ClientLogger.IsDebugEnabled)
+            {
+                ClientLogger.Debug($"Temporary Concat Directory: {tempDir}");
+            }
+            await ConcatenateFilesParallelAsync(destination, concatFiles, 0, tempDir, deleteSource, cancelToken);
+            await DeleteRecursiveAsync(tempDir, cancelToken);
+        }
+
+        private async Task ConcatenateFilesParallelAsync(string destination, List<string> concatFiles, int recurse, string tempDestination, bool deleteSource = false, CancellationToken cancelToken = default(CancellationToken))
+        {
+            if (concatFiles.Count < ConcatenateStreamListThreshold)
+            {
+                await ConcatenateFilesAsync(destination, concatFiles, recurse != 0 || deleteSource, cancelToken);
+                return;
+            }
+
+            int numberTasks = (int)Math.Ceiling((float)concatFiles.Count / ConcatenateStreamListThreshold);
+            var taskList = new Task[numberTasks];
+            var destinationList = new List<string>(numberTasks);
+            // Parallel concat destination files will be as 0,1,2... under tempDetination\GUID-{recurselevel}. And files under tempDestination\Guid will be the input for 
+            // next recursive concat. Adding recurse level tot he temp directory is helpful for debugging purposes
+            string tempDir = tempDestination + "/" + Guid.NewGuid() + $"-{recurse}";
+            for (int i = 0; i < numberTasks; i++)
+            {
+                destinationList.Add(tempDir + "/" + i);
+                int start = i * ConcatenateStreamListThreshold;
+                int count = i < (numberTasks - 1)
+                    ? ConcatenateStreamListThreshold
+                    : concatFiles.Count - (numberTasks - 1) * ConcatenateStreamListThreshold;
+                if (ClientLogger.IsDebugEnabled)
+                {
+                    ClientLogger.Debug($"Recurse: {recurse}; TaskId: {i}; SourceFiles: {String.Join(",", concatFiles.GetRange(start, count))}; Destination: {destinationList[i]}");
+                }
+                // Pass false for recurse!=0 also because softdelete will cleanup the folder anyways
+                taskList[i] = ConcatenateFilesAsync(destinationList[i], concatFiles.GetRange(start, count),
+                    false, cancelToken);
+            }
+
+            for (int i = 0; i < numberTasks; i++)
+            {
+                taskList[i].Wait(cancelToken);
+            }
+
+            // Concatenate is always called with deleteSource as false, because parallel concat jobs cannot delete the source folder
+            // Now for other recurse levels if you concatenate all the files of a directory softdelete on the SSS will delete the folder since all the files in the tempguid foldler
+            if (recurse == 0 && deleteSource)
+            {
+                string sourcePath = concatFiles[0].Remove(concatFiles[0].LastIndexOf('/'));
+                if (string.IsNullOrEmpty(sourcePath))
+                {
+                    throw new ArgumentException("The root directory cant be deleted");
+                }
+
+                await DeleteRecursiveAsync(sourcePath, cancelToken);
+            }
+
+            await ConcatenateFilesParallelAsync(destination, destinationList, recurse + 1, tempDestination, deleteSource, cancelToken);
+        }
+
         /// <summary>
         /// Synchronous API to concatenate source files to a destination file
         /// </summary>
@@ -758,7 +849,7 @@ namespace Microsoft.Azure.DataLake.Store
         }
         /// <summary>
         /// Returns a enumerable that enumerates the sub-directories or files contained in a directory.
-        /// By default listAfter and listBefore is empty and we enuerate all the directory entries.
+        /// By default listAfter and listBefore is empty and we enumerate all the directory entries.
         /// </summary>
         /// <param name="path">Path of the directory</param>
         /// <param name="userIdFormat">Way the user or group object will be represented</param>
@@ -766,8 +857,24 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Enumerable that enumerates over the contents</returns>
         public virtual IEnumerable<DirectoryEntry> EnumerateDirectory(string path, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
-            return EnumerateDirectory(path, -1, "", "", userIdFormat, cancelToken);
+            return EnumerateDirectory(path, -1, "", "", Selection.Standard, userIdFormat, cancelToken);
         }
+
+        /// <summary>
+        /// Returns a enumerable that enumerates the sub-directories or files contained in a directory.
+        /// By default listAfter and listBefore is empty and we enuerate all the directory entries.
+        /// </summary>
+        /// <param name="path">Path of the directory</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>Enumerable that enumerates over the contents</returns>
+        internal virtual IEnumerable<DirectoryEntry> EnumerateDirectory(string path, Selection selection, UserGroupRepresentation? userIdFormat,
+            CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDirectory(path, -1, "", "", selection, userIdFormat, cancelToken);
+        }
+
         /// <summary>
         /// Returns a enumerable that enumerates the sub-directories or files contained in a directory
         /// </summary>
@@ -775,20 +882,22 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="maxEntries">List size to obtain from server</param>
         /// <param name="listAfter">Filename after which list of files should be obtained from server</param>
         /// <param name="listBefore">Filename till which list of files should be obtained from server</param>
-        /// <param name="userIdFormat">Way the user or group object will be represented</param>
+        /// <param name="selection">Define data to return for each entry</param>
+        /// <param name="userIdFormat">Way the user or group object will be represented. Won't be honored for Selection.Minimal</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Enumerable that enumerates over the contents</returns>
-        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore, UserGroupRepresentation userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
+        internal IEnumerable<DirectoryEntry> EnumerateDirectory(string path, int maxEntries, string listAfter, string listBefore,
+            Selection selection = Selection.Standard, UserGroupRepresentation? userIdFormat = UserGroupRepresentation.ObjectID, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(path))
             {
                 throw new ArgumentException("Path is null");
             }
-            return new FileStatusOutput(listBefore, listAfter, maxEntries, userIdFormat, this, path);
+            return new FileStatusOutput<DirectoryEntry>(listBefore, listAfter, maxEntries, userIdFormat, this, path, selection, cancelToken);
         }
 
         #region Access, Acl, Permission
-        
+
         /// <summary>
         /// Asynchronously sets the expiry time
         /// </summary>
@@ -1114,6 +1223,126 @@ namespace Microsoft.Azure.DataLake.Store
 
         #endregion
 
+        #region Trash Enumerate, Restore
+        /// <summary>
+        /// Search trash under a account with hint and a starting point. This is a long running operation,
+        /// and user is updated with progress periodically.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual IEnumerable<TrashEntry> EnumerateDeletedItems(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDeletedItemsAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously gets the trash entries
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            List<TrashEntry> trashEntries = new List<TrashEntry>();
+            string nextListAfter = listAfter;
+            long numSearched = 0;
+            int numFound = 0;
+
+            if (numResults > 4000 || numResults < 0)
+            {
+                numResults = 4000;
+            }
+
+            while (true)
+            {
+                OperationResponse resp = new OperationResponse();
+
+                // TODO : pass the timeout programmatically instead of hard-coding here
+                TrashStatus trashstatus = await Core.EnumerateDeletedItemsAsync(hint, nextListAfter, numResults - numFound, this, new RequestOptions(null, new TimeSpan(0, 0, 135), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+                if (!resp.IsSuccessful)
+                {
+                    if (!(resp.Ex is OperationCanceledException))
+                    {
+                        throw GetExceptionFromResponse(resp, $"Error in EnumerateDeletedItemsAsync hint:{hint}, listAfter:{listAfter}, numResults:{numResults}.");
+                    }
+                }
+
+                if (trashstatus != null)
+                {
+                    numSearched += trashstatus.NumSearched;
+
+                    if (trashstatus.TrashEntries != null)
+                    {
+                        trashEntries.AddRange(trashstatus.TrashEntries);
+                        numFound += trashstatus.NumFound;
+                    }
+
+                    if (progressTracker != null)
+                    {
+                        EnumerateDeletedItemsProgress progress = new EnumerateDeletedItemsProgress { NumFound = numFound, NumSearched = numSearched, NextListAfter = trashstatus.NextListAfter };
+                        progressTracker.Report(progress);
+                    }
+
+                    // empty NextListAfter implies search is complete. Break when serach is complete
+                    // or when we have found requisite number of entries
+                    if (String.IsNullOrEmpty(trashstatus.NextListAfter) || numFound >= numResults)
+                    {
+                        break;
+                    }
+
+                    nextListAfter = trashstatus.NextListAfter;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return trashEntries;
+        }
+
+        /// <summary>
+        /// Synchronously Restores trash entry
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual void RestoreDeletedItems(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            RestoreDeletedItemsAsync(pathOfFileToRestoreInTrash, restoreDestination, type, restoreAction, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronously Restores trash entry
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="pathOfFileToRestoreInTrash">Trash Directory path returned by enumeratedeleteditems</param>
+        /// <param name="restoreDestination">Destination for restore</param>
+        /// <param name="type">type of restore - file or directory</param>
+        /// <param name="restoreAction">Action to take in case of destination conflict</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual async Task RestoreDeletedItemsAsync(string pathOfFileToRestoreInTrash, string restoreDestination, string type, string restoreAction = "", CancellationToken cancelToken = default(CancellationToken))
+        {
+            OperationResponse resp = new OperationResponse();
+            await Core.RestoreDeletedItemsAsync(pathOfFileToRestoreInTrash, restoreDestination, type, restoreAction, this, new RequestOptions(), resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                throw GetExceptionFromResponse(resp, $"Error in RestoreDeletedItemsAsync pathOfFileToRestoreInTrash:{pathOfFileToRestoreInTrash}, restoreDestination:{restoreDestination}, type:{type}, restoreAction:{restoreAction}");
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// Gets content summary of a file or directory.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
@@ -1129,6 +1358,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Asynchronous API to perform concurrent append at server. The offset at which append will occur is determined by server. Asynchronous operation.
+        /// It is highly recomended to call this api with data size less than equals 4MB. Backend gurantees 4MB atomic appends.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>
@@ -1153,6 +1383,7 @@ namespace Microsoft.Azure.DataLake.Store
 
         /// <summary>
         /// Synchronous API to perform concurrent append at server. The offset at which append will occur is determined by server.
+        /// It is highly recomended to call this api with data size less than equals 4MB. Backend gurantees 4MB atomic appends.
         /// </summary>
         /// <param name="path">Path of the file</param>
         /// <param name="autoCreate"></param>
@@ -1205,8 +1436,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Upload directory or file from local to remote. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// By default files are uploaded at new line boundaries. However if files does not have newline within 4MB chunks,
+        /// the transfer will fail. In that case it is required to pass true to <paramref name="isBinary"/> to avoid uploads at newline boundaries.
         /// </summary>
         /// <param name="srcPath">Local source path</param>
         /// <param name="destPath">Remote destination path - It should always be a directory.</param>
@@ -1215,7 +1450,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
         /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration</param>
         /// <param name="resume">If true then we want to resume from last transfer</param>
-        /// <param name="isBinary">If false then writes files to data lake at newline boundaries. If true, then this is not guranteed but the upload will be faster.</param>
+        /// <param name="isBinary">If false then writes files to data lake at newline boundaries, however if the file has no newline within 4MB chunks it will throw exception.
+        /// If true, then upload at new line boundaries is not guranteed but the upload will be faster. By default false, if file has no newlines within 4MB chunks true should be apssed</param>
         /// <param name="cancelToken">Cancellation token</param>
         /// <returns>Transfer Status encapsulating the details of upload</returns>
         public virtual TransferStatus BulkUpload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, bool isBinary = false, CancellationToken cancelToken = default(CancellationToken))
@@ -1226,6 +1462,8 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Download directory or file from remote server to local. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
         /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
         /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
         /// </summary>
@@ -1323,8 +1561,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (!string.IsNullOrEmpty(resp.Error))
             {
-                // If remote error is nonjson then print the actual error for exception
-                exceptionMessage += "Error: " + resp.Error + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse)? "": $" {resp.RemoteErrorNonJsonResponse}")}.";
+                exceptionMessage += "Error: " + resp.Error;
             }
             else if (!string.IsNullOrEmpty(resp.RemoteExceptionName))
             {
@@ -1332,7 +1569,8 @@ namespace Microsoft.Azure.DataLake.Store
             }
             else
             {
-                exceptionMessage += $"Unknown Error: {resp.Ex.Message} Source: {resp.Ex.Source} StackTrace: {resp.Ex.StackTrace}.";
+                // If remote error is nonjson then print the actual error for exception
+                exceptionMessage += $"Unknown Error: {resp.Ex.Message} Source: {resp.Ex.Source} StackTrace: {resp.Ex.StackTrace}.\n" + $"{(string.IsNullOrEmpty(resp.RemoteErrorNonJsonResponse) ? "" : $"RemoteJsonErrorResponse: {resp.RemoteErrorNonJsonResponse}")}.";
             }
             exceptionMessage += $"\nLast encountered exception thrown after {(resp.Retries + 1)} tries. ";
             if (resp.ExceptionHistory != null) exceptionMessage += "[" + resp.ExceptionHistory + "]";

@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+  </RunConfiguration>
+  <!--Use your actual definitions of the parameters for test in the Localrun.runsettings file instead of this template.runsettings so that you do not check in credentials by mistake-->
+  <!-- Parameters used by tests at runtime -->
+  <TestRunParameters>
+    <!--Account domain name. e.g., something.azuredatalakestore.net-->
+    <Parameter name="Account" value="" />
+    <Parameter name="IsAccountTieredStore" value="false" />
+    <!--Owner should be the owner of the account i.e. super user
+-        Object Id is the service principal Id
+-        Client Id is the app Id
+-        Client Secret is the key
+-    -->
+    <Parameter name="AccountOwnerObjectId" value="" />
+    <Parameter name="AccountOwnerClientId" value="" />
+    <Parameter name="AccountOwnerClientSecret" value="" />
+
+    <!--Non owners should not be owners of the account-->
+    <!--Details for nonowner1 -->
+    <Parameter name="NonOwner1ObjectId" value="" />
+    <Parameter name="NonOwner1ClientId" value="" />
+    <Parameter name="NonOwner1ClientSecret" value="" />
+
+    <!--Details for nonowner2 -->
+    <Parameter name="NonOwner2ObjectId" value="" />
+    <Parameter name="NonOwner2ClientId" value="" />
+    <Parameter name="NonOwner2ClientSecret" value="" />
+
+    <!--Details of nonowner 3 -->
+    <Parameter name="NonOwner3ObjectId" value="" />
+    <Parameter name="NonOwner3ClientId" value="" />
+    <Parameter name="NonOwner3ClientSecret" value="" />
+
+    <!--Group1 should have nonowner2 and nonowner3-->
+    <Parameter name="Group1Id" value=""/>
+    
+    <Parameter name="Domain" value="" />
+    <Parameter name="DogFoodAuthenticationEndPoint" value="" />
+  </TestRunParameters>
+
+  <!-- Adapter Specific sections -->
+
+
+
+</RunSettings>

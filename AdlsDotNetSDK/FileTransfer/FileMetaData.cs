@@ -160,7 +160,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             // Non chunked file download
             if (TotalChunks == 0)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                Utils.CreateParentDirectory(dest);
                 return new FileStream(dest, Transfer.DoOverwrite == IfExists.Overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write);
             }
             lock (_lock)
@@ -170,7 +170,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 {
                     return new FileStream(dest, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
                 }
-                Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                Utils.CreateParentDirectory(dest);
                 var fs = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
 #if NET452
                 MarkFileSparse(fs.SafeFileHandle);

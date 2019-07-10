@@ -1,15 +1,29 @@
-﻿using System;
+﻿using Microsoft.Azure.DataLake.Store.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using System;
+using System.Collections.Generic;
 
 namespace Microsoft.Azure.DataLake.Store
 {
     /// <summary>
     /// Enum containing two types of directory entry
     /// </summary>
+    [JsonConverter(typeof(FileTypeEnumConverter))]
     public enum DirectoryEntryType
     {
         DIRECTORY,
         FILE
     }
+
+    /// <summary>
+    /// Enum containing two types of attributes of directory entry
+    /// </summary>
+    internal enum DirectoryEntryAttributeType
+    {
+        Link
+    }
+
     /// <summary>
     /// Class that encapsulates the metadata of the directory entry
     /// </summary>
@@ -18,53 +32,73 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Name of the entry
         /// </summary>
-        public String Name { get; internal set; }
+        [JsonProperty(PropertyName = "pathSuffix")]
+        public string Name { get; internal set; }
 
         /// <summary>
         /// Full Path of the directory entry
         /// </summary>
-        public String FullName { get; internal set; }
+        public string FullName { get; internal set; }
 
         /// <summary>
         /// Size of the file. Zero for directory
         /// </summary>
+        [JsonProperty(PropertyName = "length")]
         public long Length { get; internal set; }
         /// <summary>
         /// Group owner of the file or directory
         /// </summary>
+        [JsonProperty(PropertyName = "group")]
         public String Group { get; internal set; }
         /// <summary>
         /// User owner of the file or directory 
         /// </summary>
-        public String User { get; internal set; }
+        [JsonProperty(PropertyName = "owner")]
+        public string User { get; internal set; }
         /// <summary>
         /// Instant when the file was last accessed
         /// </summary>
+        [JsonProperty(PropertyName = "accessTime")]
+        [JsonConverter(typeof(ServerDateTimeConverter))]
         public DateTime? LastAccessTime { get; internal set; }
         /// <summary>
         /// Instant when the file was last modified
         /// </summary>
+        [JsonProperty(PropertyName = "modificationTime")]
+        [JsonConverter(typeof(ServerDateTimeConverter))]
         public DateTime? LastModifiedTime { get; internal set; }
         /// <summary>
         /// Type- File or directory
         /// </summary>
+        [JsonProperty(PropertyName = "type")]
         public DirectoryEntryType Type { get; internal set; }
         /// <summary>
         /// Boolean indicating whether ACLs are set
         /// </summary>
+        [JsonProperty(PropertyName = "aclBit")]
         public bool HasAcl { get; internal set; }
         /// <summary>
         /// Instant when the file will expire
         /// </summary>
+        [JsonProperty(PropertyName = "msExpirationTime")]
+        [JsonConverter(typeof(ExpirationDateTimeConverter))]
         public DateTime? ExpiryTime { get; internal set; }
         /// <summary>
         /// Unix style permission string
         /// </summary>
-        public String Permission { get; internal set; }
+        [JsonProperty(PropertyName = "permission")]
+        public string Permission { get; internal set; }
+
+        /// <summary>
+        /// Unix style permission string
+        /// </summary>
+        [JsonProperty(PropertyName = "attributes", ItemConverterType = typeof(StringEnumConverter))]
+        internal List<DirectoryEntryAttributeType> Attribute { get; set; }
         /// <summary>
         /// Default constructor
         /// </summary>
         public DirectoryEntry() { }
+
         /// <summary>
         /// Initializes the name and full name
         /// </summary>
@@ -76,17 +110,18 @@ namespace Microsoft.Azure.DataLake.Store
 
         internal DirectoryEntry(DirectoryEntry dir)
         {
-            Name = new string(dir.Name.ToCharArray());
-            FullName = new string(dir.FullName.ToCharArray());
+            Name = dir.Name;
+            FullName = dir.FullName;
             Length = dir.Length;
-            Group = new string(dir.Group.ToCharArray());
-            User = new string(dir.User.ToCharArray());
+            Group = dir.Group;
+            User = dir.User;
             LastAccessTime = dir.LastAccessTime;
             LastModifiedTime = dir.LastModifiedTime;
             Type = dir.Type;
-            Permission = new string(dir.Permission.ToCharArray());
-            HasAcl = HasAcl;
+            Permission = dir.Permission;
+            HasAcl = dir.HasAcl;
             ExpiryTime = dir.ExpiryTime;
+            Attribute = dir.Attribute;
         }
         /// <summary>
         /// Constructor that initializes each property

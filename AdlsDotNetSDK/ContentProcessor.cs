@@ -1,5 +1,6 @@
 ﻿using Microsoft.Azure.DataLake.Store.QueueTools;
 using System;
+using System.Linq;
 using System.Net;
 using System.Threading;
 
@@ -158,7 +159,10 @@ namespace Microsoft.Azure.DataLake.Store
                         if (dir.Type == DirectoryEntryType.DIRECTORY)
                         {
                             Interlocked.Increment(ref _directoryCount);
-                            _queue.Add(dir);
+                            if (!(dir.Attribute != null && dir.Attribute.Any(attr => attr == DirectoryEntryAttributeType.Link)))
+                            {
+                                _queue.Add(dir);
+                            }
                         }
                         else
                         {
