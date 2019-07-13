@@ -22,7 +22,7 @@ namespace Microsoft.Azure.DataLake.Store.RetryPolicies
                 return false;
             }
             //For 408-timed out and 429-too many responses and 5xx server except the above ones we need retries
-            if (ex != null || httpCode >= 500 || httpCode == 408 || httpCode == 429 || httpCode == 401)
+            if (ex != null || httpCode >= 500 || httpCode == 408 || httpCode == 429)
             {
                 return true;
             }

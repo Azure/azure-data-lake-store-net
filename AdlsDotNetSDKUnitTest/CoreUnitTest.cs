@@ -412,6 +412,63 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             server.StopServer();
         }
 
+
+        private class ConcatTestRetryPolicy : RetryPolicy
+        {
+            private int _numberOfRetries;
+            private readonly int _maxRetries;
+
+            public ConcatTestRetryPolicy()
+            {
+                _numberOfRetries = 0;
+                _maxRetries = 2;
+            }
+
+            public override bool ShouldRetry(int httpCode, Exception ex)
+            {
+                if (_numberOfRetries >= _maxRetries)
+                    return false;
+
+                if (httpCode == 400)
+                    return false;
+
+                if (httpCode == 404) 
+                {
+                    _numberOfRetries++;
+                    return true;
+                }
+                throw new Exception("This class is not meant for use other than testing!");
+            }
+
+            public int NumberOfRetries()
+            {
+                return _numberOfRetries;
+            }
+
+        }
+
+        /// <summary>
+        /// Unit test to ConcatContentTypePopulatedInRetries
+        /// </summary>
+        [TestMethod]
+        public void ConcatContentTypePopulatedInRetries()
+        {
+            var retrypolicy = new ConcatTestRetryPolicy();
+            RequestOptions req = new RequestOptions(retrypolicy);
+            OperationResponse resp = new OperationResponse();
+
+            try
+            {
+                Core.ConcatAsync("WillNotExist.txt", new List<string> { "DoesntExist1.txt", "DoesntExist2.txt" }, _adlsClient, req, resp).GetAwaiter().GetResult();
+            }
+            catch (AdlsException)
+            {
+                // do nothing for adls exception as the above call is mean to fail. 
+                // We only care about how many times we actually retried
+            }
+            Assert.AreEqual(retrypolicy.NumberOfRetries(), 2);
+        }
+
         [ClassCleanup]
         public static void CleanTests()
         {

@@ -24,9 +24,9 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
         /// </summary>
         private AdlsClient Client { get; }
         /// <summary>
-        /// Buffersize of read from source and write to destination. This has to same as ADlsOutputStream.Buffercapacity. Otherwise we haveto change immplementation of ReadForwardTillNewLine.
+        /// Buffersize of read from source and write to destination. This has to same as <see cref="AdlsOutputStream.BufferMaxCapacity"/>. Otherwise we haveto change immplementation of ReadForwardTillNewLine.
         /// </summary>
-        private  static readonly int BuffSize = AdlsOutputStream.BufferCapacity;
+        private  static readonly int BuffSize = AdlsOutputStream.BufferMaxCapacity;
         // 
         internal static int ReadForwardBuffSize = 8 * 1024;
         /// <summary>
@@ -229,9 +229,9 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
                 {
                     writeStream.Write(readBytes, 0, indexAfterlastNewLine);
                 }
-                else if (bufferDataSize == AdlsOutputStream.BufferCapacity) // No newlines were found in 4MB
+                else if (bufferDataSize == AdlsOutputStream.BufferMaxCapacity) // No newlines were found in 4MB
                 {
-                    throw new AdlsException($"No new lines obtained in {AdlsOutputStream.BufferCapacity} of data at offset {readStream.Position - AdlsOutputStream.BufferCapacity} for file {Metadata.SrcFile}. File should be uploaded as binary.");
+                    throw new AdlsException($"No new lines obtained in {AdlsOutputStream.BufferMaxCapacity} of data at offset {readStream.Position - AdlsOutputStream.BufferMaxCapacity} for file {Metadata.SrcFile}. File should be uploaded as binary.");
                 }
                 // Length read this turn would be total buffer size minus the residual Data size, update the lengthToRead for next turn
                 lengthToRead -= bufferDataSize - residualDataSize;
@@ -301,9 +301,9 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer.Jobs
                     break;
                 }
             }
-            if (bufferOffset == AdlsOutputStream.BufferCapacity && result == -1)
+            if (bufferOffset == AdlsOutputStream.BufferMaxCapacity && result == -1)
             {
-                throw new AdlsException($"No new lines obtained in {AdlsOutputStream.BufferCapacity} of data at offset {readStream.Position - AdlsOutputStream.BufferCapacity} for file {Metadata.SrcFile}. File should be uploaded as binary.");
+                throw new AdlsException($"No new lines obtained in {AdlsOutputStream.BufferMaxCapacity} of data at offset {readStream.Position - AdlsOutputStream.BufferMaxCapacity} for file {Metadata.SrcFile}. File should be uploaded as binary.");
             }
             // This is the case where the current or the next chunk segment will have data less than 4 MB
             return 0;

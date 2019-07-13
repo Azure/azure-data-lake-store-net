@@ -36,9 +36,18 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         private byte[] Buffer { get; set; }
         /// <summary>
+        /// Internal buffer pool if passed. We will take a byte array of 4 mb from there and then return it to them after close
+        /// </summary>
+        private AdlsArrayPool<byte> _bufferPool;
+        /// <summary>
         /// Capacity of the internal buffer. Check CopyFileJob.cs before changing this threshold.
         /// </summary>
-        internal static int BufferCapacity = 4 * 1024 * 1024;
+        internal static int BufferMaxCapacity = 4 * 1024 * 1024;
+        internal static int BufferMinCapacity = 1 * 1024 * 1024;
+        /// <summary>
+        /// Number of bytes written to the server
+        /// </summary>
+        private int _bufferCapacity;
         /// <summary>
         /// Pointer in the buffer till which data is written
         /// </summary>
@@ -79,22 +88,38 @@ namespace Microsoft.Azure.DataLake.Store
             get => FilePointer + BufferSize;
             set => throw new NotSupportedException();
         }
-        private AdlsOutputStream(string filename, AdlsClient client, string leaseId)
+        private AdlsOutputStream(string filename, AdlsClient client, string leaseId, AdlsArrayPool<byte> bufferPool, int bufferCapacity)
         {
             Filename = filename;
             Client = client;
             LeaseId = string.IsNullOrEmpty(leaseId) ? Guid.NewGuid().ToString() : leaseId;
             BufferSize = 0;
-            Buffer = new byte[BufferCapacity];
+            if(bufferCapacity > BufferMaxCapacity)
+            {
+                throw new Exception($"BufferCApacity is too big. Maximum Capacity: {BufferMaxCapacity}");
+            }
+            else if(bufferCapacity < BufferMinCapacity)
+            {
+                throw new Exception($"BufferCApacity is too small. Minimum Capacity: {BufferMinCapacity}");
+            }
+            _bufferCapacity = bufferCapacity;
+            if (bufferPool != null)
+            {
+                _bufferPool = bufferPool;
+            }
+            else
+            {
+                Buffer = new byte[_bufferCapacity];
+            }
         }
 
         protected AdlsOutputStream()
         {
             
         }
-        internal static async Task<AdlsOutputStream> GetAdlsOutputStreamAsync(string filename, AdlsClient client, bool isNew, string leaseId)
+        internal static async Task<AdlsOutputStream> GetAdlsOutputStreamAsync(string filename, AdlsClient client, bool isNew, string leaseId, AdlsArrayPool<byte> bufferPool, int bufferCapacity)
         {
-            var adlsOpStream = new AdlsOutputStream(filename, client, leaseId);
+            var adlsOpStream = new AdlsOutputStream(filename, client, leaseId, bufferPool, bufferCapacity);
             await adlsOpStream.InitializeFileSizeAsync(isNew).ConfigureAwait(false);
             if (OutStreamLog.IsTraceEnabled)
             {
@@ -102,6 +127,43 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return adlsOpStream;
         }
+
+        /// <summary>
+        /// If buffer pool is apssed then rent from the pool if buffer is released from the alst flush
+        /// </summary>
+        private async Task CreateBufferIfNotInitializedAsync()
+        {
+            if(_bufferPool != null && Buffer == null)
+            {
+                Buffer = await _bufferPool.RentAsync(_bufferCapacity).ConfigureAwait(false);
+                if (Buffer == null || Buffer.Length < _bufferCapacity)
+                {
+                    throw new OutOfMemoryException($"Could not rent a buffer of size {_bufferCapacity}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// If buffer is rented from bufferpool, then release the buffer to buffer pool while flush is called
+        /// Else buffer is released only when disposing is true
+        /// </summary>
+        /// <param name="disposing"></param>
+        private async Task ReleaseBufferIfInitializedAsync(bool disposing = false)
+        {
+            if (_bufferPool != null)
+            {
+                if (Buffer != null)
+                {
+                   await _bufferPool.ReturnAsync(Buffer, true).ConfigureAwait(false);
+                    Buffer = null;
+                }
+            }
+            else if (disposing)
+            {
+                Buffer = null;
+            }
+        }
+
         /// <summary>
         /// Initialize the file size by doing a getfilestatus if we are creating in append mode
         /// </summary>
@@ -137,7 +199,9 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw new ObjectDisposedException("Stream is closed");
             }
+            // TODO test double flush
             await WriteServiceAsync(SyncFlag.METADATA, cancelToken).ConfigureAwait(false);
+            await ReleaseBufferIfInitializedAsync().ConfigureAwait(false);
         }
         /// <summary>
         /// Synchronously flushes data from buffer to server and updates the metadata
@@ -148,8 +212,11 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw new ObjectDisposedException("Stream is closed");
             }
+            // TODO test double flush
             WriteService(SyncFlag.METADATA);
+            ReleaseBufferIfInitializedAsync().GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Not supported
         /// </summary>
@@ -227,20 +294,21 @@ namespace Microsoft.Azure.DataLake.Store
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancelToken)
         {
             WriteVerify(buffer, offset, count);
+            await CreateBufferIfNotInitializedAsync().ConfigureAwait(false);
             //If putting data in buffer will overflow the buffer
-            if (BufferSize + count > BufferCapacity)
+            if (BufferSize + count > _bufferCapacity)
             {
                 //If data size is less than 4MB then we should gurantee that the write to be atomic
-                if (count <= BufferCapacity)
+                if (count <= _bufferCapacity)
                 {
                     await WriteServiceAsync(SyncFlag.DATA, cancelToken).ConfigureAwait(false);
                 }
                 else
                 {
                     //Else we just continue writing data to server until the left data is less than buffer size
-                    while (BufferSize + count > BufferCapacity)
+                    while (BufferSize + count > _bufferCapacity)
                     {
-                        int toCopy = BufferCapacity - BufferSize;
+                        int toCopy = _bufferCapacity - BufferSize;
                         AddDataToBuffer(buffer, offset, toCopy);//Adds data to buffer to write to server
                         count -= toCopy;
                         offset += toCopy;
@@ -260,20 +328,21 @@ namespace Microsoft.Azure.DataLake.Store
         public override void Write(byte[] buffer, int offset, int count)
         {
             WriteVerify(buffer, offset, count);
+            CreateBufferIfNotInitializedAsync().GetAwaiter().GetResult();
             //If putting data in buffer will overflow the buffer
-            if (BufferSize + count > BufferCapacity)
+            if (BufferSize + count > _bufferCapacity)
             {
                 //If data size is less than 4MB then we should gurantee that the write to be atomic
-                if (count <= BufferCapacity)
+                if (count <= _bufferCapacity)
                 {
                     WriteService(SyncFlag.DATA);
                 }
                 else
                 {
                     //Else we just continue writing data to server until the left data is less than buffer size
-                    while (BufferSize + count > BufferCapacity)
+                    while (BufferSize + count > _bufferCapacity)
                     {
-                        int toCopy = BufferCapacity - BufferSize;
+                        int toCopy = _bufferCapacity - BufferSize;
                         AddDataToBuffer(buffer, offset, toCopy);//Adds data to buffer to write to server
                         count -= toCopy;
                         offset += toCopy;
@@ -293,15 +362,13 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-            //Following pattern is followed in FileStream.cs
             try
             {
                 if (disposing)
-                {
+                {   
+                    // TODO test for dispose after flush
                     //Based on Dispose Pattern reference objects shouldnt be touched during finalizer
                     WriteService(SyncFlag.CLOSE);
-                    Buffer = null;
-                    _isDisposed = true;
                 }
             }
             finally
@@ -310,6 +377,8 @@ namespace Microsoft.Azure.DataLake.Store
                 FilePointer = 0;
                 if (disposing)
                 {
+                    ReleaseBufferIfInitializedAsync(true).GetAwaiter().GetResult();
+                    _isDisposed = true;
                     if (OutStreamLog.IsTraceEnabled)
                     {
                         OutStreamLog.Trace($"ADLFileOutputStream, Stream closed for file {Filename} for client {Client.ClientId}");
@@ -331,7 +400,6 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 return;
             }
-
             if (OutStreamLog.IsTraceEnabled)
             {
                 OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");

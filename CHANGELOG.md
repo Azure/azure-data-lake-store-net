@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.17
+- Internal changes
+- Bug fix for concat retries
 ### Version 1.1.16
 - Fix EnumerateDirectory to retrieve continuation token once response is checked
 - Fix GetContentSummary for links

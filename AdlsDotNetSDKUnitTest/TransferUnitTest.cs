@@ -29,7 +29,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static int CopyBufferSize = 4 * 1024; // Buffer size for FileCopy and ADlsOutputStream, not necessary at all just kept to catch corner cases
         private static int ReadBufferForwardSize = 8; // For nonbinary we read forward, this is the size we should read forward
         [ClassInitialize]
-        public static void SetupClient(TestContext context)
+        public static void SetupClassTests(TestContext context)
         {
             _adlsClient = SdkUnitTest.SetupSuperClient();
 
@@ -40,15 +40,22 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             DataCreator.CreateDirRecursiveRemote(_adlsClient, RemotePathDownload, 2, 3, 3, 4, LowFileSize, HighFileSize, true);
             DataCreator.BuffSize = DataCreatorBuffSize;
-            CopyFileJob.ReadForwardBuffSize = ReadBufferForwardSize;
-            AdlsOutputStream.BufferCapacity = CopyBufferSize;
-            // Below are the settings that forces download to be chunked for sizes greater than chunk size
-            FileDownloader.SkipChunkingWeightThreshold = TransferChunkSize;
-            FileDownloader.NumLargeFileThreshold = Int64.MaxValue;
+            
 
             DataCreator.CreateDirRecursiveLocal(LocalPathUpload1, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
             DataCreator.CreateDirRecursiveLocal(LocalPathUpload2, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
 
+        }
+
+        [TestInitialize]
+        public void SetupTest()
+        {
+            CopyFileJob.ReadForwardBuffSize = ReadBufferForwardSize;
+            AdlsOutputStream.BufferMaxCapacity = CopyBufferSize;
+            AdlsOutputStream.BufferMinCapacity = 0;
+            // Below are the settings that forces download to be chunked for sizes greater than chunk size
+            FileDownloader.SkipChunkingWeightThreshold = TransferChunkSize;
+            FileDownloader.NumLargeFileThreshold = Int64.MaxValue;
         }
 
         [TestMethod]
@@ -197,8 +204,19 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 Assert.IsTrue(localDict.Count == remoteEntries);
             }
         }
+
+        [TestCleanup]
+        public void CleanupTest()
+        {
+            CopyFileJob.ReadForwardBuffSize = 8 * 1024;
+            AdlsOutputStream.BufferMaxCapacity = 4 * 1024 * 1024;
+            AdlsOutputStream.BufferMinCapacity = 1 * 1024 * 1024;
+            FileDownloader.SkipChunkingWeightThreshold = 1 * 1024 * 1024 * 1024L;
+            FileDownloader.NumLargeFileThreshold = 20;
+        }
+
         [ClassCleanup]
-        public static void CleanTests()
+        public static void CleanUpClassTests()
         {
             _adlsClient.DeleteRecursive(RemotePath);
             DataCreator.DeleteRecursiveLocal(new DirectoryInfo(LocalPath));

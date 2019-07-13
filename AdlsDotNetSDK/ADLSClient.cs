@@ -394,6 +394,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return CreateDirectoryAsync(dirName, octalPermission, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous API that returns the stream to read data from file in ADLS
         /// </summary>
@@ -414,12 +415,13 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return GetReadStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous API that returns the stream to read data from file in ADLS
         /// </summary>
         /// <param name="filename">File name</param>
-        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <param name="bufferCapacity"> Buffer Capacity</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Input stream</returns>
         public virtual async Task<AdlsInputStream> GetReadStreamAsync(string filename, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
         {
@@ -442,17 +444,19 @@ namespace Microsoft.Azure.DataLake.Store
             }
             return new AdlsInputStream(filename, this, diren, bufferCapacity);
         }
+
         /// <summary>
         /// Synchronous API that returns the stream to read data from file in ADLS
         /// </summary>
         /// <param name="filename">File name</param>
-        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <param name="bufferCapacity"> Buffer Capacity</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Input stream</returns>
         public virtual AdlsInputStream GetReadStream(string filename, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
         {
             return GetReadStreamAsync(filename, bufferCapacity, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
         /// access - any attempt to open the same file for append will fail while this stream is open. 
@@ -460,9 +464,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// Threading: The returned stream is not thread-safe.
         /// </summary>
         /// <param name="filename">File name</param>
+        /// <param name="bufferPool">Buffer Pool</param>
+        /// <param name="bufferCapacity">Buffer capacity, Number of bytes written to the server</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Output stream</returns>
-        public virtual async Task<AdlsOutputStream> GetAppendStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
+        internal virtual async Task<AdlsOutputStream> GetAppendStreamAsync(string filename, AdlsArrayPool<byte> bufferPool, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(filename))
             {
@@ -481,8 +487,39 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw GetExceptionFromResponse(resp, $"Error trying to append to file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId).ConfigureAwait(false);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, false, leaseId, bufferPool, bufferCapacity).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Synchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open.  
+        /// 
+        /// Threading: The returned stream is not thread-safe.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="bufferPool">Buffer Pool</param>
+        /// <param name="bufferCapacity">Buffer capacity, Number of bytes written to the server</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>Output stream</returns>
+        internal virtual AdlsOutputStream GetAppendStream(string filename, AdlsArrayPool<byte> bufferPool, int bufferCapacity, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return GetAppendStreamAsync(filename, bufferPool, bufferCapacity, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open. 
+        /// 
+        /// Threading: The returned stream is not thread-safe.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>Output stream</returns>
+        public virtual async Task<AdlsOutputStream> GetAppendStreamAsync(string filename, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await GetAppendStreamAsync(filename, null, AdlsOutputStream.BufferMaxCapacity, cancelToken).ConfigureAwait(false);
+        }
+
         /// <summary>
         /// Synchronous API that returns the stream to write data to a file in ADLS. The file is opened with exclusive 
         /// access - any attempt to open the same file for append will fail while this stream is open.  
@@ -496,6 +533,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             return GetAppendStreamAsync(filename, cancelToken).GetAwaiter().GetResult();
         }
+
         /// <summary>
         /// Asynchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
         /// access - any attempt to open the same file for append will fail while this stream is open. 
@@ -504,11 +542,13 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="filename">File name</param>
         /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
+        /// <param name="bufferPool">Passed buffer pool</param>
+        /// <param name="bufferCapacity">Buffer capacity, Min can be 1MB, Max can be 4MB</param>
         /// <param name="octalPermission">Octal permission string, can be null</param>
         /// <param name="createParent">If true creates any non-existing parent directories</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         /// <returns>Output stream</returns>
-        public virtual async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, string octalPermission = null, bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
+        internal virtual async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
         {
             if (string.IsNullOrEmpty(filename))
             {
@@ -533,7 +573,42 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
             }
-            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId).ConfigureAwait(false);
+            return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId, bufferPool, bufferCapacity).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open.  
+        /// 
+        /// Threading: The returned stream is not thread-safe.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
+        /// <param name="bufferPool">Passed buffer pool</param>
+        /// <param name="bufferCapacity"></param>
+        /// <param name="octalPermission">Octal permission string</param>
+        /// <param name="createParent">If true creates any non-existing parent directories</param>
+        /// <returns>Output stream</returns>
+        internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true)
+        {
+            return CreateFileAsync(filename, mode, bufferPool, bufferCapacity, octalPermission, createParent).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Asynchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open. 
+        /// 
+        /// Threading: The returned stream is not thread-safe.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
+        /// <param name="octalPermission">Octal permission string, can be null</param>
+        /// <param name="createParent">If true creates any non-existing parent directories</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>Output stream</returns>
+        public virtual async Task<AdlsOutputStream> CreateFileAsync(string filename, IfExists mode, string octalPermission = null, bool createParent = true, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return await CreateFileAsync(filename, mode, null, AdlsOutputStream.BufferMaxCapacity, octalPermission, createParent, cancelToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -549,30 +624,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Output stream</returns>
         public virtual AdlsOutputStream CreateFile(string filename, IfExists mode, string octalPermission = null, bool createParent = true)
         {
-            if (string.IsNullOrEmpty(filename))
-            {
-                throw new ArgumentException("Path is null");
-            }
-            if (filename.Equals("/"))
-            {
-                throw new ArgumentException("Cant create the root");
-            }
-            if (ClientLogger.IsTraceEnabled)
-            {
-                ClientLogger.Trace($"AdlsStoreClient, Create File {filename} for client {ClientId}");
-            }
-            string leaseId = Guid.NewGuid().ToString();
-            bool overwrite = mode == IfExists.Overwrite;
-            //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
-
-            OperationResponse resp = new OperationResponse();
-            Core.Create(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(policy), resp);
-            if (!resp.IsSuccessful)
-            {
-                throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
-            }
-            return AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId).GetAwaiter().GetResult();
+            return CreateFileAsync(filename, mode, octalPermission, createParent).GetAwaiter().GetResult();
         }
 
         /// <summary>

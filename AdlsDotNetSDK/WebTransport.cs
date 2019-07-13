@@ -45,6 +45,11 @@ namespace Microsoft.Azure.DataLake.Store
 
         private static int ErrorResponseDefaultLength = 1000;
         /// <summary>
+        /// This contains list of custom headers that are not directly copied
+        /// </summary>
+        private static HashSet<string> HeadersNotToBeCopied = new HashSet<string> {"Content-Type"};
+
+        /// <summary>
         /// Method that gets called when CancellationToken is cancelled. It aborts the Http web request.
         /// </summary>
         /// <param name="state">HttpWebRequest instance</param>
@@ -273,6 +278,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="customHeaders">Custom headers</param>
         private static void AssignCommonHttpHeaders(HttpWebRequest webReq, AdlsClient client, RequestOptions req, string token, string opMethod, IDictionary<string, string> customHeaders, int postRequestLength)
         {
+
             webReq.Headers["Authorization"] = token;
             string latencyHeader = LatencyTracker.GetLatency();
             if (!string.IsNullOrEmpty(latencyHeader))
@@ -316,11 +322,11 @@ namespace Microsoft.Azure.DataLake.Store
                 if (customHeaders.TryGetValue("Content-Type", out contentType))
                 {
                     webReq.ContentType = contentType;
-                    customHeaders.Remove("Content-Type");
                 }
                 foreach (var key in customHeaders.Keys)
                 {
-                    webReq.Headers[key] = customHeaders[key];
+                    if (!HeadersNotToBeCopied.Contains(key))
+                        webReq.Headers[key] = customHeaders[key];
                 }
             }
 #if NET452
