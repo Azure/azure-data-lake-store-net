@@ -8,4 +8,8 @@ internal enum Selection
     Standard,   // default
     ///<summary>Only returns name and type. toOid Won't be honored for Selection.Minimal</summary>
     Minimal,
+    /// <summary>
+    /// For internal use only. For policy info.
+    /// </summary>
+    Extended
 }

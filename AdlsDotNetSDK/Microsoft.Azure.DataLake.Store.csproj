@@ -4,13 +4,13 @@
     <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
     <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>1.2.1-alpha</Version>
+	  <Version>1.2.2-alpha</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes> Increase the timeout of httpclient to 3 minutes to allow higher request timeouts of trash apis, Exception handling for operation cancelled in webtransport.makesinglecallasync, Expose delegationhandler in adlsclient for mock testing</PackageReleaseNotes>
+    <PackageReleaseNotes>Fix EnumerateDirectory to retrieve continuation token once response is checked, Fix GetContentSummary for links, Fix concat retries</PackageReleaseNotes>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageLicenseUrl>https://raw.githubusercontent.com/Azure/azure-data-lake-store-net/master/LICENSE</PackageLicenseUrl>
     <PackageIconUrl>http://go.microsoft.com/fwlink/?LinkID=288890</PackageIconUrl>
@@ -24,6 +24,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.10" />
     <PackageReference Include="System.Net.Requests" Version="4.3.0" />
+    <PackageReference Include="System.Buffers" Version="4.3.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net452'">

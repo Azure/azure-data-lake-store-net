@@ -1031,7 +1031,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             using (Stream localStream = new FileStream(srcPath, FileMode.Open, FileAccess.Read),
                 adlsStream=CreateFile(destPath,shouldOverwrite))
             {
-                byte[] buff=new byte[AdlsOutputStream.BufferCapacity];
+                byte[] buff=new byte[AdlsOutputStream.BufferMaxCapacity];
                 while (true)
                 {
                     int bytesRead = localStream.Read(buff, 0, buff.Length);
@@ -1068,7 +1068,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
             using (Stream localStream = new FileStream(destPath, FileMode.Create, FileAccess.ReadWrite),
                             adlsStream = GetReadStream(srcPath))
             {
-                byte[] buff = new byte[AdlsOutputStream.BufferCapacity];
+                byte[] buff = new byte[AdlsOutputStream.BufferMaxCapacity];
                 while (true)
                 {
                     int bytesRead = adlsStream.Read(buff, 0, buff.Length);

@@ -84,6 +84,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsClient.CreateClient("contoso.cabostore.net", "Test");
             AdlsClient.CreateClient("contoso.dogfood.com.net", "Test");
             AdlsClient.CreateClient("contoso-test.azure-data.net", "test");
+            AdlsClient.CreateClient("contoso-test.Azuredatalakestore.eglax.inc.bov", "test");
         }
 
         [TestMethod]
@@ -391,7 +392,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Share\",\"PartOfShare\"]}]}}";
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Link\"]}]}}";
             server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
 
             adlsClient.SetInsecureHttp();
@@ -413,7 +414,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[[\"Share\",\"Share1\"],[\"PartOfShare\"]]}]}}";
+            string liststatusOutput = "{\"FileStatuses\":{\"FileStatus\":[{\"length\":0,\"pathSuffix\":\"Test01\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1528320290048,\"modificationTime\":1528320362596,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner1\",\"group\":\"ownergroup1\",\"aclBit\":true},{\"length\":0,\"pathSuffix\":\"Test02\",\"type\":\"DIRECTORY\",\"blockSize\":0,\"accessTime\":1531515372559,\"modificationTime\":1531523888360,\"replication\":0,\"permission\":\"770\",\"owner\":\"owner2\",\"group\":\"ownergroup2\",\"aclBit\":true,\"attributes\":[\"Link\"]}]}}";
             server.EnqueMockResponse(new MockResponse(200, "Success", liststatusOutput));
 
             adlsClient.SetInsecureHttp();
@@ -426,6 +427,63 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(hset.Contains("/ShareTest/Test01"));
             Assert.IsTrue(hset.Contains("/ShareTest/Test02"));
             server.StopServer();
+        }
+
+
+        private class ConcatTestRetryPolicy : RetryPolicy
+        {
+            private int _numberOfRetries;
+            private readonly int _maxRetries;
+
+            public ConcatTestRetryPolicy()
+            {
+                _numberOfRetries = 0;
+                _maxRetries = 2;
+            }
+
+            public override bool ShouldRetry(int httpCode, Exception ex)
+            {
+                if (_numberOfRetries >= _maxRetries)
+                    return false;
+
+                if (httpCode == 400)
+                    return false;
+
+                if (httpCode == 404) 
+                {
+                    _numberOfRetries++;
+                    return true;
+                }
+                throw new Exception("This class is not meant for use other than testing!");
+            }
+
+            public int NumberOfRetries()
+            {
+                return _numberOfRetries;
+            }
+
+        }
+
+        /// <summary>
+        /// Unit test to ConcatContentTypePopulatedInRetries
+        /// </summary>
+        [TestMethod]
+        public void ConcatContentTypePopulatedInRetries()
+        {
+            var retrypolicy = new ConcatTestRetryPolicy();
+            RequestOptions req = new RequestOptions(retrypolicy);
+            OperationResponse resp = new OperationResponse();
+
+            try
+            {
+                Core.ConcatAsync("WillNotExist.txt", new List<string> { "DoesntExist1.txt", "DoesntExist2.txt" }, _adlsClient, req, resp).GetAwaiter().GetResult();
+            }
+            catch (AdlsException)
+            {
+                // do nothing for adls exception as the above call is mean to fail. 
+                // We only care about how many times we actually retried
+            }
+            Assert.AreEqual(retrypolicy.NumberOfRetries(), 2);
         }
 
         [ClassCleanup]

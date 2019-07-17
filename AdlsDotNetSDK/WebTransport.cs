@@ -42,6 +42,11 @@ namespace Microsoft.Azure.DataLake.Store
         private const int AuthorizationHeaderLengthThreshold = 10;
 
         private static int ErrorResponseDefaultLength = 1000;
+        /// This contains list of custom headers that are not directly copied
+        /// </summary>
+        private static HashSet<string> HeadersNotToBeCopied = new HashSet<string> {"Content-Type"};
+
+        /// <summary>
 
         #region Common
 
@@ -269,7 +274,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="customHeaders">Custom headers</param>
         private static void AssignCommonHttpHeaders(HttpRequestMessage webReq, AdlsClient client, RequestOptions req, string token, IDictionary<string, string> customHeaders, int postRequestLength)
         {
-            webReq.Headers.TryAddWithoutValidation("Authorization", token);
+             webReq.Headers.TryAddWithoutValidation("Authorization", token);
             string latencyHeader = LatencyTracker.GetLatency();
             if (!string.IsNullOrEmpty(latencyHeader))
             {
@@ -298,10 +303,10 @@ namespace Microsoft.Azure.DataLake.Store
                 if (customHeaders.TryGetValue("Content-Type", out contentType))
                 {
                     webReq.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
-                    customHeaders.Remove("Content-Type");
                 }
                 foreach (var key in customHeaders.Keys)
                 {
+                    if (!HeadersNotToBeCopied.Contains(key))
                     webReq.Headers.TryAddWithoutValidation(key, customHeaders[key]);
                 }
             }
@@ -606,7 +611,6 @@ namespace Microsoft.Azure.DataLake.Store
                         if (op.RequiresBody && requestData.Data != null)
                         {
                             postStream = GetCompressedStream(new MemoryStream(requestData.Data, requestData.Offset, requestData.Count), client, requestData.Count);
-                            webReq.Content = new StreamContent(postStream);
                         }
                         else
                         {

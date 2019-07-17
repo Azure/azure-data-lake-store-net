@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.2.2-alpha
+- Fix EnumerateDirectory to retrieve continuation token once response is checked
+- Fix GetContentSummary for links
+- Fix Concat Bug
 ### Version 1.2.1-alpha
 - Increase the timeout of httpclient to 3 minutes to allow higher request timeouts of trash apis
 - Exception handling for operation cancelled in webtransport.makesinglecallasync
