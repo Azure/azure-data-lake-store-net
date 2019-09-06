@@ -64,7 +64,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// <summary>
         /// NonOwner3 service principal object Id
         /// </summary>
-        private static string _nonOwner3ObjectId;
+        internal static string NonOwner3ObjectId;
         /// <summary>
         /// NonOwner3 app id
         /// </summary>
@@ -112,7 +112,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             NonOwner2ObjectId = (string)context.Properties["NonOwner2ObjectId"];
             _nonOwner2ClientId = (string)context.Properties["NonOwner2ClientId"];
             _nonOwner2ClientSecret = (string)context.Properties["NonOwner2ClientSecret"];
-            _nonOwner3ObjectId = (string)context.Properties["NonOwner3ObjectId"];
+            NonOwner3ObjectId = (string)context.Properties["NonOwner3ObjectId"];
             _nonOwner3ClientId = (string)context.Properties["NonOwner3ClientId"];
             _nonOwner3ClientSecret = (string)context.Properties["NonOwner3ClientSecret"];
             Group1Id = (string)context.Properties["Group1Id"];
@@ -137,7 +137,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             {
                 new AclEntry(AclType.user, NonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly),
-                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, NonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.group, Group1Id, AclScope.Access, AclAction.ExecuteOnly)
             };
             _adlsClient.ModifyAclEntries("/", nonOwnerAclSpec);
@@ -1916,7 +1916,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             new AclEntry(AclType.other, "", AclScope.Access, AclAction.None)
             };
             _adlsClient.SetAcl(path, aclList);
-            //Non owenr 1
+            //Non owner 1
             Assert.IsTrue(nonOwner1.CheckAccess(path, "rw-"));
             Assert.IsFalse(nonOwner1.CheckAccess(path, "--x"));
             try
@@ -2173,7 +2173,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.All),
-                new AclEntry(AclType.user, _nonOwner3ObjectId,AclScope.Access, AclAction.ExecuteOnly)
+                new AclEntry(AclType.user, NonOwner3ObjectId,AclScope.Access, AclAction.ExecuteOnly)
             };//Non owner client 2
             _adlsClient.ModifyAclEntries(path, aclList);
             string subDirec = path + "/SubDir";
@@ -2205,7 +2205,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.All),
-                new AclEntry(AclType.user, _nonOwner3ObjectId,AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, NonOwner3ObjectId,AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.user, NonOwner1ObjectId,AclScope.Access, AclAction.ExecuteOnly)
             };//Non owner client 2
             _adlsClient.ModifyAclEntries(path, aclList);
@@ -2240,14 +2240,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _adlsClient.CreateDirectory(path, "");
             List<AclEntry> aclList = new List<AclEntry>() {
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.All),
-                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, NonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
             };//Non owner client 2
             _adlsClient.ModifyAclEntries(path, aclList);
             string subDirec = path + "/SubDir";
             AdlsClient nonOwner2 = SetupNonOwnerClient2();
             nonOwner2.CreateDirectory(subDirec, "770");
             Assert.IsTrue(nonOwner2.CheckAccess(subDirec, "rwx"));
-            _adlsClient.SetOwner(subDirec, _nonOwner3ObjectId, "");
+            _adlsClient.SetOwner(subDirec, NonOwner3ObjectId, "");
             Assert.IsFalse(nonOwner2.CheckAccess(subDirec, "rwx"));
             AdlsClient nonOwner3 = SetupNonOwnerClient3();
             Assert.IsTrue(nonOwner3.CheckAccess(subDirec, "rwx"));
@@ -2263,7 +2263,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             }
             catch (Exception) { Assert.Fail("NonOwner 3 should have read write access to the subdirec so Create file and read stream should not raise an exception"); }
             DirectoryEntry dir = nonOwner3.GetDirectoryEntry(subDirec);
-            Assert.IsTrue(dir.User.Equals(_nonOwner3ObjectId));
+            Assert.IsTrue(dir.User.Equals(NonOwner3ObjectId));
         }
         /// <summary>
         /// Unit test to set group owner
@@ -2276,7 +2276,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             List<AclEntry> aclList = new List<AclEntry>()
             {
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.All),
-                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, NonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
             }; //Non owner client 2
             _adlsClient.ModifyAclEntries(path, aclList);
             string subDirec = path + "/SubDir";
@@ -3103,12 +3103,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassCleanup]
         public static void CleanTests()
         {
-            _adlsClient.DeleteRecursive(UnitTestDir);
+           _adlsClient.DeleteRecursive(UnitTestDir);
             var nonOwnerAclSpec = new List<AclEntry>
             {
                 new AclEntry(AclType.user, NonOwner1ObjectId, AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.user, NonOwner2ObjectId, AclScope.Access, AclAction.ExecuteOnly),
-                new AclEntry(AclType.user, _nonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
+                new AclEntry(AclType.user, NonOwner3ObjectId, AclScope.Access, AclAction.ExecuteOnly),
                 new AclEntry(AclType.group, Group1Id, AclScope.Access, AclAction.ExecuteOnly)
             };
             _adlsClient.RemoveAclEntries("/", nonOwnerAclSpec);

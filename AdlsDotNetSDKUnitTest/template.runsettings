@@ -38,6 +38,12 @@
     
     <Parameter name="Domain" value="" />
     <Parameter name="DogFoodAuthenticationEndPoint" value="" />
+    
+    <Parameter name="LinkTestsEnabled" value="false" />
+    <!-- Comma separated link paths -->
+    <Parameter name="LinkPaths" value="" />
+   
+
   </TestRunParameters>
 
   <!-- Adapter Specific sections -->

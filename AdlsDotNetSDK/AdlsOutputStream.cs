@@ -418,7 +418,7 @@ namespace Microsoft.Azure.DataLake.Store
                 if (resp.Retries > 0 && resp.HttpStatus == HttpStatusCode.BadRequest &&
                     resp.RemoteExceptionName.Equals("BadOffsetException"))
                 {
-                    bool zeroAppendIsSuccesful = await PerformZeroLengthAppendAsync(FilePointer + BufferSize, cancelToken).ConfigureAwait(false);
+                    bool zeroAppendIsSuccesful = await PerformZeroLengthAppendAsync(FilePointer + BufferSize, flag, cancelToken).ConfigureAwait(false);
                     if (zeroAppendIsSuccesful)
                     {
                         if (OutStreamLog.IsDebugEnabled)
@@ -427,7 +427,7 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                         FilePointer += BufferSize;
                         BufferSize = 0;
-                        MetaDataSynced = false;
+                        MetaDataSynced = flag == SyncFlag.METADATA;
                         return;
                     }
                     if (OutStreamLog.IsDebugEnabled)
@@ -472,7 +472,7 @@ namespace Microsoft.Azure.DataLake.Store
                 if (resp.Retries > 0 && resp.HttpStatus == HttpStatusCode.BadRequest &&
                     resp.RemoteExceptionName.Equals("BadOffsetException"))
                 {
-                    bool zeroAppendIsSuccesful = PerformZeroLengthAppend(FilePointer + BufferSize);
+                    bool zeroAppendIsSuccesful = PerformZeroLengthAppend(FilePointer + BufferSize, flag);
                     if (zeroAppendIsSuccesful)
                     {
                         if (OutStreamLog.IsDebugEnabled)
@@ -481,7 +481,7 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                         FilePointer += BufferSize;
                         BufferSize = 0;
-                        MetaDataSynced = false;
+                        MetaDataSynced = flag == SyncFlag.METADATA;
                         return;
                     }
                     if (OutStreamLog.IsDebugEnabled)
@@ -500,12 +500,13 @@ namespace Microsoft.Azure.DataLake.Store
         /// This is an asynchronous operation.
         /// </summary>
         /// <param name="offsetFile">Offset in file at which the append will be made</param>
+        /// <param name="syncFlag">The syncflag of the original append</param>
         /// <param name="cancelToken">Cancellation token</param>
         /// <returns></returns>
-        private async Task<bool> PerformZeroLengthAppendAsync(long offsetFile, CancellationToken cancelToken)
+        private async Task<bool> PerformZeroLengthAppendAsync(long offsetFile, SyncFlag syncFlag, CancellationToken cancelToken)
         {
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, SyncFlag.DATA, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             return resp.IsSuccessful;
         }
         /// <summary>
@@ -513,11 +514,12 @@ namespace Microsoft.Azure.DataLake.Store
         /// This is a synchronous operation.
         /// </summary>
         /// <param name="offsetFile">Offset in file at which the append will be made</param>
+        /// <param name="syncFlag">The syncflag of the original append</param>
         /// <returns></returns>
-        private bool PerformZeroLengthAppend(long offsetFile)
+        private bool PerformZeroLengthAppend(long offsetFile, SyncFlag syncFlag)
         {
             OperationResponse resp = new OperationResponse();
-            Core.Append(Filename, LeaseId, LeaseId, SyncFlag.DATA, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
+            Core.Append(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
             return resp.IsSuccessful;
         }
     }

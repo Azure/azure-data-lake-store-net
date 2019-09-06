@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.18
+- Fix passing the original syncflag for badoffset recovery
+- Internal only changes.
 ### Version 1.1.17
 - Internal changes
 - Bug fix for concat retries
