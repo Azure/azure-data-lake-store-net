@@ -181,7 +181,7 @@ namespace Microsoft.Azure.DataLake.Store
                 //Initialize the filepointer to the current length of file
                 // Pass getConsistentlength so that we get the updated length of stream
                 DirectoryEntry diren = await Core.GetFileStatusAsync(Filename, UserGroupRepresentation.ObjectID, Client,
-                    new RequestOptions(new ExponentialRetryPolicy()), resp, default(CancellationToken), true).ConfigureAwait(false);
+                    new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, default(CancellationToken), true).ConfigureAwait(false);
                 if (diren == null)
                 {
                     throw Client.GetExceptionFromResponse(resp, "Error in getting metadata while creating InputStream for file " + Filename + ".");
@@ -405,7 +405,7 @@ namespace Microsoft.Azure.DataLake.Store
                 OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 // if this was a retry and we get bad offset, then this might be because we got a transient
@@ -459,7 +459,7 @@ namespace Microsoft.Azure.DataLake.Store
                 OutStreamLog.Trace($"ADLFileOutputStream, Stream flush of size {BufferSize} at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            Core.Append(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
+            Core.Append(Filename, LeaseId, LeaseId, flag, FilePointer, Buffer, 0, BufferSize, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp);
             if (!resp.IsSuccessful)
             {
                 // if this was a retry and we get bad offset, then this might be because we got a transient
@@ -506,7 +506,7 @@ namespace Microsoft.Azure.DataLake.Store
         private async Task<bool> PerformZeroLengthAppendAsync(long offsetFile, SyncFlag syncFlag, CancellationToken cancelToken)
         {
             OperationResponse resp = new OperationResponse();
-            await Core.AppendAsync(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            await Core.AppendAsync(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             return resp.IsSuccessful;
         }
         /// <summary>
@@ -519,7 +519,7 @@ namespace Microsoft.Azure.DataLake.Store
         private bool PerformZeroLengthAppend(long offsetFile, SyncFlag syncFlag)
         {
             OperationResponse resp = new OperationResponse();
-            Core.Append(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
+            Core.Append(Filename, LeaseId, LeaseId, syncFlag, offsetFile, null, -1, 0, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp);
             return resp.IsSuccessful;
         }
     }

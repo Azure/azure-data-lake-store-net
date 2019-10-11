@@ -224,7 +224,7 @@ namespace Microsoft.Azure.DataLake.Store
                 IpStreamLog.Trace($"ADLFileInputStream.ReadServiceAsync, Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            BufferSize = await Core.OpenAsync(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            BufferSize = await Core.OpenAsync(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, $"Error in reading file {Filename} at offset {FilePointer}.");
@@ -245,7 +245,7 @@ namespace Microsoft.Azure.DataLake.Store
                 IpStreamLog.Trace($"ADLFileInputStream.ReadService, Read from server at offset {FilePointer} for file {Filename} for client {Client.ClientId}");
             }
             OperationResponse resp = new OperationResponse();
-            BufferSize = Core.Open(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(new ExponentialRetryPolicy()), resp);
+            BufferSize = Core.Open(Filename, SessionId, FilePointer, Buffer, 0, BufferCapacity, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp);
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, $"Error in reading file {Filename} at offset {FilePointer}.");
@@ -288,7 +288,7 @@ namespace Microsoft.Azure.DataLake.Store
                 throw new ArgumentOutOfRangeException(nameof(count));
             }
             OperationResponse resp = new OperationResponse();
-            int bytesRead = await Core.OpenAsync(Filename, SessionId, position, output, offset, count, Client, new RequestOptions(new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
+            int bytesRead = await Core.OpenAsync(Filename, SessionId, position, output, offset, count, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, $"Error in reading file {Filename} at offset {position}.");

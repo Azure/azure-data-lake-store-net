@@ -19,7 +19,7 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
         protected override object DoJob()
         {
             OperationResponse resp = new OperationResponse();
-            var getListStatusResult = Core.ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(FullPath, listAfter, null, listSize, UserGroupRepresentation.ObjectID, Selection.Minimal, null, _aclProcess.Client, new RequestOptions(new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
+            var getListStatusResult = Core.ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(FullPath, listAfter, null, listSize, UserGroupRepresentation.ObjectID, Selection.Minimal, null, _aclProcess.Client, new RequestOptions(_aclProcess.Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
             if (!resp.IsSuccessful)
             {
                 throw _aclProcess.Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + FullPath + " after " + listAfter);

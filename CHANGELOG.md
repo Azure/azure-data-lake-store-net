@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.19
+- Avoid throwing exception while unable to deserialize the creationtime of the trash or directory entry.
+- Expose setting per request timeout in adlsclient
 ### Version 1.1.18
 - Fix passing the original syncflag for badoffset recovery
 - Internal only changes.
