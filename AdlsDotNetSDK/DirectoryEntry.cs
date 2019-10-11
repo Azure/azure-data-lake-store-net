@@ -90,7 +90,7 @@ namespace Microsoft.Azure.DataLake.Store
         public string Permission { get; internal set; }
 
         /// <summary>
-        /// Unix style permission string
+        /// Attributes for directory
         /// </summary>
         [JsonProperty(PropertyName = "attributes", ItemConverterType = typeof(StringEnumConverter))]
         internal List<DirectoryEntryAttributeType> Attribute { get; set; }

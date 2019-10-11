@@ -1,4 +1,5 @@
 ﻿
+using System;
 using System.Collections.Concurrent;
 
 namespace Microsoft.Azure.DataLake.Store.AclTools
@@ -26,16 +27,18 @@ namespace Microsoft.Azure.DataLake.Store.AclTools
         /// </summary>
         public long DirectoryProcessed { get; internal set; }
 
-        public AclProcessorStats(long fileProcessed, long dirProcessed)
+        /// <summary>
+        /// Array of links found
+        /// </summary>
+        internal string[] LinkPaths { get; set; }
+
+        internal AclProcessorStats(long fileProcessed, long dirProcessed, long fileIncorrect, long dirIncorrect, ConcurrentBag<string> linkPaths)
         {
             FilesProcessed = fileProcessed;
             DirectoryProcessed = dirProcessed;
-        }
-
-        internal AclProcessorStats(long fileProcessed, long dirProcessed, long fileIncorrect, long dirIncorrect):this(fileProcessed,dirProcessed)
-        {
             IncorrectFileCount = fileIncorrect;
             IncorrectDirectoryCount = dirIncorrect;
+            LinkPaths = linkPaths.ToArray();
         }
 
     }

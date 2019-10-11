@@ -1111,6 +1111,7 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
         public override AclProcessorStats ChangeAcl(string path, List<AclEntry> aclEntries, RequestedAclType type, int threadCount = -1)
         {
             int numDirs = 0, numFiles = 0;
+            ConcurrentBag<string> sharePath = new ConcurrentBag<string>();
             foreach (var directoryEntriesKey in _directoryEntries.Keys)
             {
                 if (directoryEntriesKey.StartsWith(path))
@@ -1126,18 +1127,23 @@ namespace Microsoft.Azure.DataLake.Store.MockAdlsFileSystem
                             SetAcl(_directoryEntries[directoryEntriesKey].Entry.FullName, aclEntries);
                             break;
                     }
-
-                    if (_directoryEntries[directoryEntriesKey].Entry.Type == DirectoryEntryType.DIRECTORY)
+                    var dirEntry = _directoryEntries[directoryEntriesKey].Entry;
+                    if (dirEntry.Type == DirectoryEntryType.DIRECTORY)
                     {
+                        if (dirEntry.Attribute != null && dirEntry.Attribute.Contains(DirectoryEntryAttributeType.Link))
+                        {
+                            sharePath.Add(dirEntry.FullName);
+                        }
                         numDirs++;
                     }
                     else
                     {
                         numFiles++;
                     }
+
                 }
             }
-            return new AclProcessorStats(numFiles,numDirs);
+            return new AclProcessorStats(numFiles,numDirs, 0, 0, sharePath);
         }
 
         /// <summary>

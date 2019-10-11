@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -201,6 +202,35 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(entry.TrashStatusRes.NumSearched == 23);
             Assert.IsTrue(string.IsNullOrEmpty(entry.TrashStatusRes.NextListAfter));
         }
+
+        [TestMethod]
+        public void TestTrashEnumerateSerializationDateOverRange1()
+        {
+            long secondsSince1970 = (DateTime.MaxValue - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Ticks / 10000;
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":"+(secondsSince1970 + 5) +",\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"02b3f334-a6af-47f4-80ca-acff0464f324\"}],\"numSearched\":\"23\"}}";
+            var jsonSettings = new JsonSerializerSettings();
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
+
+            var entry = JsonCustomConvert.DeserializeObject<TrashStatusResult>(new MemoryStream(Encoding.UTF8.GetBytes(trashOutput)), jsonSettings);
+            Assert.IsTrue(entry.TrashStatusRes.NumSearched == 23);
+            var listEntry = (List<TrashEntry>)entry.TrashStatusRes.TrashEntries;
+            Assert.IsTrue(listEntry.Count == 1);
+            Assert.IsTrue(listEntry[0].CreationTime == new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        }
+        [TestMethod]
+        public void TestTrashEnumerateSerializationDateOverRange2()
+        {
+            string trashOutput = "{\"trashDir\":{\"trashDirEntry\":[{\"type\":\"FILE\",\"creationTime\":-1,\"originalPath\":\"adl://test.azuredatalake.com/Testf1c36522-02a1-4fae-86e7-72eb396e6e05/file_qapQg9Z1E1ZIGGP7.txt_file_3f4KjaewFTgnePx0.txt\",\"trashDirPath\":\"02b3f334-a6af-47f4-80ca-acff0464f324\"}],\"numSearched\":\"23\"}}";
+            var jsonSettings = new JsonSerializerSettings();
+            jsonSettings.Context = new System.Runtime.Serialization.StreamingContext(System.Runtime.Serialization.StreamingContextStates.All, "ParentDir");
+
+            var entry = JsonCustomConvert.DeserializeObject<TrashStatusResult>(new MemoryStream(Encoding.UTF8.GetBytes(trashOutput)), jsonSettings);
+            Assert.IsTrue(entry.TrashStatusRes.NumSearched == 23);
+            var listEntry = (List<TrashEntry>)entry.TrashStatusRes.TrashEntries;
+            Assert.IsTrue(listEntry.Count == 1);
+            Assert.IsTrue(listEntry[0].CreationTime == null);
+        }
+
         [TestMethod]
         public void TestEnumerateWithLinkSerialization1()
         {

@@ -19,21 +19,32 @@ namespace Microsoft.Azure.DataLake.Store.AclTools.Jobs
         protected override object DoJob()
         {
             OperationResponse resp = new OperationResponse();
-            
-            var fileStatus = Core.ListStatusAsync(FullPath, listAfter, null, listSize, UserGroupRepresentation.ObjectID, Selection.Minimal, _aclProcess.Client, new RequestOptions(new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
+            var getListStatusResult = Core.ListStatusAsync<DirectoryEntryListResult<DirectoryEntry>>(FullPath, listAfter, null, listSize, UserGroupRepresentation.ObjectID, Selection.Minimal, null, _aclProcess.Client, new RequestOptions(_aclProcess.Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).GetAwaiter().GetResult();
             if (!resp.IsSuccessful)
             {
                 throw _aclProcess.Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + FullPath + " after " + listAfter);
             }
-            foreach (var dir in fileStatus)
-            {
-                _aclProcess.ProcessDirectoryEntry(dir);
 
-            }
-            //TODO: USe continuationtoken for future
-            if (fileStatus.Count >= listSize)
+            var directoriyEntries = Core.GetDirectoryEntryListWithFullPath(FullPath, getListStatusResult, resp);
+            if (!resp.IsSuccessful)
             {
-                _aclProcess.Queue.Add(new EnumerateDirectoryChangeAclJob(_aclProcess, FullPath, fileStatus[fileStatus.Count - 1].Name));
+                throw _aclProcess.Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + FullPath + " after " + listAfter);
+            }
+
+            var continuationToken = getListStatusResult.FileStatuses.ContinuationToken;
+
+            foreach (var dir in directoriyEntries)
+            {
+                if (dir.Attribute != null && dir.Attribute.Contains(DirectoryEntryAttributeType.Link)){
+                    _aclProcess.AddLinkPath(dir.FullName);
+                }
+                else {
+                    _aclProcess.ProcessDirectoryEntry(dir);
+                }
+            }
+            if (!string.IsNullOrEmpty(continuationToken))
+            {
+                _aclProcess.Queue.Add(new EnumerateDirectoryChangeAclJob(_aclProcess, FullPath, continuationToken));
 
             }
             return null;

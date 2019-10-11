@@ -1,11 +1,13 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using NLog;
 using System;
 
 namespace Microsoft.Azure.DataLake.Store.Serialization
 {
     internal class ServerDateTimeConverter : DateTimeConverterBase
     {
+        private static readonly Logger DateTimeConverterLogger = LogManager.GetLogger("adls.dotnet.ServerDateTimeConverter");
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
             if (reader.TokenType != JsonToken.Integer)
@@ -21,7 +23,18 @@ namespace Microsoft.Azure.DataLake.Store.Serialization
             {
                 return null;
             }
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Add(new TimeSpan(ticks * 10000));
+            try
+            {
+                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Add(new TimeSpan(ticks * 10000));
+            }
+            catch(ArgumentOutOfRangeException ex)
+            {
+                if (DateTimeConverterLogger.IsDebugEnabled)
+                {
+                    DateTimeConverterLogger.Debug($"Exception: {ex.Message} Ticks: {ticks}");
+                }
+                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            }
 
         }
 

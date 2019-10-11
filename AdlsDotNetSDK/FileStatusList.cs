@@ -254,7 +254,7 @@ namespace Microsoft.Azure.DataLake.Store
             OperationResponse resp = new OperationResponse();
             int getListSize = EnumerateAll ? ListSize : Math.Min(ListSize, RemainingEntries);
             // EnumerateDirectoryChangeAclJob also calls core separately. If you change logic here, consider changing there also
-            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, Selection, _extraQueryParamsForListStatus, Client, new RequestOptions(new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
+            var fileListResult = Core.ListStatusAsync<DirectoryEntryListResult<T>>(Path, ListAfterNext, ListBefore, getListSize, Ugr, Selection, _extraQueryParamsForListStatus, Client, new RequestOptions(Client.GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, _cancelToken).GetAwaiter().GetResult();
             if (!resp.IsSuccessful)
             {
                 throw Client.GetExceptionFromResponse(resp, "Error getting listStatus for path " + Path + " after " + ListAfterNext);

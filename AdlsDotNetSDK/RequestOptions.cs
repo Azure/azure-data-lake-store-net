@@ -57,6 +57,14 @@ namespace Microsoft.Azure.DataLake.Store
         {
         }
         /// <summary>
+        /// Initializes request Id as GUID (default), Timeout and the request option as supplied by consumer
+        /// </summary>
+        /// <param name="timeOut"></param>
+        /// <param name="rp"></param>
+        public RequestOptions(TimeSpan timeOut, RetryPolicy rp) : this(null, timeOut, rp)
+        {
+        }
+        /// <summary>
         /// Initializes request Id, Timeout, and the request option
         /// </summary>
         /// <param name="requestId">request Id</param>

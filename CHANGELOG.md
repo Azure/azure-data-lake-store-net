@@ -1,4 +1,9 @@
 # Changes to the SDK
+### Version 1.2.3-alpha
+- Avoid throwing exception while unable to deserialize the creationtime of the trash or directory entry.
+- Expose setting per request timeout in adlsclient
+- Fix passing the original syncflag for badoffset recovery
+- Internal only changes.
 ### Version 1.2.2-alpha
 - Fix EnumerateDirectory to retrieve continuation token once response is checked
 - Fix GetContentSummary for links

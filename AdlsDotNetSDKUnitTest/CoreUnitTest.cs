@@ -276,7 +276,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 Timeout = 5,
                 IsRetry = false
             };
-            Thread worker = new Thread(run);
+            Thread worker = new Thread(runClientTimeout);
             worker.Start(state);
             Stopwatch watch = Stopwatch.StartNew();
             worker.Join();
@@ -353,6 +353,32 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter().GetResult();
             state.Ex = resp.Ex;
             state.IsConnectionFailure = resp.ConnectionFailure;
+        }
+
+        private void runClientTimeout(object data)
+        {
+            RequestState state = data as RequestState;
+
+            if (state == null)
+            {
+                return;
+            }
+            AdlsClient adlsClient = state.AdlsClient;
+            OperationResponse resp = new OperationResponse();
+            adlsClient.SetInsecureHttp();
+            if (state.Timeout != -1)
+            {
+                adlsClient.SetPerRequestTimeout(new TimeSpan(0, 0, state.Timeout));
+            }
+            byte[] ip = Encoding.UTF8.GetBytes("wait:300");
+            try
+            {
+                adlsClient.ConcurrentAppendAsync("/Test/dir", true, ip, 0, ip.Length, state.CancelToken).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                state.Ex = ex;
+            }
         }
 
         private class RequestState
