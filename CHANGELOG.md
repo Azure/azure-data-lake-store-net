@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.20
+- Fix conflict for parallel transfers for different account but same source and destination path in same host.
+- Expose the option to disable transfer logging for bulk uploads and bulk downloads.
 ### Version 1.1.19
 - Avoid throwing exception while unable to deserialize the creationtime of the trash or directory entry.
 - Expose setting per request timeout in adlsclient

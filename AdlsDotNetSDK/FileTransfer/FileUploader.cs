@@ -23,7 +23,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         private readonly Encoding _encodeType;
         internal const string DestTempGuidForConcat = "ConcatGuid";
         private FileUploader(string srcPath, string destPath, AdlsClient client, int numThreads,
-            IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, bool isBinary, CancellationToken cancelToken, bool ingressTest, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker, notRecurse, resume, ingressTest, chunkSize, Path.Combine(Path.GetTempPath(), ".adl", "Upload", GetTransferLogFileName(srcPath, destPath,Path.DirectorySeparatorChar,'/')), cancelToken, $"binary:{isBinary}")
+            IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool disableTransferLogging, bool resume, bool isBinary, CancellationToken cancelToken, bool ingressTest, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker, notRecurse, disableTransferLogging, resume, ingressTest, chunkSize, Path.Combine(Path.GetTempPath(), ".adl", "Upload", GetTransferLogFileName(client.AccountFQDN, srcPath, destPath,Path.DirectorySeparatorChar,'/')), cancelToken, $"binary:{isBinary}")
         {
             // If not recurse then we will have one thread and ProducerFirstPass logic loop will run only once
             NumProducerThreads = NotRecurse ? 1 : NumProducerThreadsFirstPass;
@@ -58,13 +58,14 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination </param>
         /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
         /// <param name="notRecurse"> If true then just does a enumeration in first level</param>
+        /// <param name="disableTransferLogging"></param>
         /// <param name="resume">If true we are resuming a previously interrupted upload process</param>
         /// <param name="isBinary">If false then we want to upload at new line boundaries</param>
         /// <param name="cancelToken">Cancellation Token</param>
         /// <param name="ingressTest">True if we just want to test ingress</param>
         /// <param name="chunkSize">Chunk Size used for chunking</param>
         /// <returns>Transfer Status of the upload</returns>
-        internal static TransferStatus Upload(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, bool isBinary = false, CancellationToken cancelToken = default(CancellationToken), bool ingressTest = false, long chunkSize = ChunkSizeDefault)
+        internal static TransferStatus Upload(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool disableTransferLogging = false, bool resume = false, bool isBinary = false, CancellationToken cancelToken = default(CancellationToken), bool ingressTest = false, long chunkSize = ChunkSizeDefault)
         {
             if (string.IsNullOrWhiteSpace(destPath))
             {
@@ -79,7 +80,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             {
                 destPath = destPath.Substring(0, destPath.Length - 1);
             }
-            var uploader= new FileUploader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, isBinary, cancelToken, ingressTest, chunkSize);
+            var uploader= new FileUploader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, disableTransferLogging, resume, isBinary, cancelToken, ingressTest, chunkSize);
             return uploader.RunTransfer();
         }
         /// Verifies whether input is a directory or a file. If it is a file then there is no need to start the producer
