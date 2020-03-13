@@ -40,7 +40,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         private QueueWrapper<DirectoryEntry> DownloaderProducerQueue { get; }
 
         private FileDownloader(string srcPath, string destPath, AdlsClient client, int numThreads,
-            IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, CancellationToken cancelToken, bool egressTest, int egressBufferCapacity, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker, notRecurse, resume, egressTest, chunkSize, Path.Combine(Path.GetTempPath(), ".adl", "Download", GetTransferLogFileName(srcPath, destPath, '/', Path.DirectorySeparatorChar)), cancelToken)
+            IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool disableTransferLogging, bool resume, CancellationToken cancelToken, bool egressTest, int egressBufferCapacity, long chunkSize) : base(srcPath, destPath, client, numThreads, doOverwrite, progressTracker, notRecurse, disableTransferLogging, resume, egressTest, chunkSize, Path.Combine(Path.GetTempPath(), ".adl", "Download", GetTransferLogFileName(client.AccountFQDN, srcPath, destPath, '/', Path.DirectorySeparatorChar)), cancelToken)
         {
             
             EgressBufferCapacity = egressBufferCapacity;
@@ -99,7 +99,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             {
                 SkipChunkingWeightThreshold = Int64.MaxValue;
             }
-            return new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, default(CancellationToken), egressTest, egressBufferCapacity, chunkSize).RunTransfer();
+            return new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker, notRecurse, false, resume, default(CancellationToken), egressTest, egressBufferCapacity, chunkSize).RunTransfer();
         }
         #endregion
         /// <summary>
@@ -112,13 +112,14 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination </param>
         /// <param name="progressTracker">Progresstracker to track progress of file transfer</param>
         /// <param name="notRecurse">If true then does enumeration till one level only, else will do recursive enumeration</param>
+        /// <param name="disableTransferLogging"></param>
         /// <param name="resume">If true we are resuming a previously interrupted upload process</param>
         /// <param name="cancelToken">Cancellation Token</param>
         /// <param name="egressTest">Egress test when we do not write file to local file system</param>
         /// <param name="egressBufferCapacity">Egress buffer size - Size of the read reuest from server</param>
         /// <param name="chunkSize">Chunk Size used for chunking</param>
         /// <returns>Transfer status of the download</returns>
-        internal static TransferStatus Download(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, CancellationToken cancelToken=default(CancellationToken), bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
+        internal static TransferStatus Download(string srcPath, string destPath, AdlsClient client, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool disableTransferLogging =false, bool resume = false, CancellationToken cancelToken=default(CancellationToken), bool egressTest = false, int egressBufferCapacity = 4 * 1024 * 1024, long chunkSize = ChunkSizeDefault)
         {
             if (!egressTest && string.IsNullOrWhiteSpace(destPath))
             {
@@ -133,7 +134,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 destPath = destPath.Substring(0, destPath.Length - 1);
             }
             var downloader = new FileDownloader(srcPath, destPath, client, numThreads, shouldOverwrite, progressTracker,
-                notRecurse, resume, cancelToken, egressTest, egressBufferCapacity, chunkSize);
+                notRecurse, disableTransferLogging, resume, cancelToken, egressTest, egressBufferCapacity, chunkSize);
             return downloader.RunTransfer();
         }
         /// <summary>

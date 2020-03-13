@@ -61,7 +61,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestUploadNonBinary()
         {
-            TransferStatus status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
+            TransferStatus status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
@@ -70,13 +70,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             localQueue.Enqueue(new DirectoryInfo(LocalPathUpload1));
             remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(RemotePathUpload1));
             Verify(localQueue, remoteQueue);
-            status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Fail, null, false, false, false, default(CancellationToken), false, TransferChunkSize);
+            status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Fail, null, false, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
         }
         [TestMethod]
         public void TestUploadBinary()
         {
-            TransferStatus status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Overwrite, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            TransferStatus status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Overwrite, null, false, true, false, true, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
@@ -85,13 +85,25 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             localQueue.Enqueue(new DirectoryInfo(LocalPathUpload2));
             remoteQueue.Enqueue(_adlsClient.GetDirectoryEntry(RemotePathUpload2));
             Verify(localQueue, remoteQueue);
-            status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Fail, null, false, false, true, default(CancellationToken), false, TransferChunkSize);
+            status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Fail, null, false,false, false, true, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(origSuccess == status.EntriesSkipped.Count);
+        }
+        [TestMethod]
+        public void TestUploadResumeAndDisableTransferLogging()
+        {
+            try
+            {
+                _adlsClient.BulkUpload(LocalPathUpload2, RemotePathUpload2, 10, IfExists.Overwrite, true, null, false, true, true, default(CancellationToken));
+            }
+            catch(ArgumentException ex)
+            {
+                Assert.IsTrue(ex.Message.Contains("resume and disablelogging both cannot be true"));
+            }
         }
         [TestMethod]
         public void TestDownload()
         {
-            TransferStatus status = FileDownloader.Download(RemotePathDownload, LocalPathDownload, _adlsClient, 25, IfExists.Overwrite, null, false, false, default(CancellationToken), false, 4194304, TransferChunkSize);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
+            TransferStatus status = FileDownloader.Download(RemotePathDownload, LocalPathDownload, _adlsClient, 25, IfExists.Overwrite, null, false, false, false, default(CancellationToken), false, 4194304, TransferChunkSize);//,null,IfExists.Overwrite,false,4194304,251658240L,true);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
             long origSuccess = status.FilesTransfered;
