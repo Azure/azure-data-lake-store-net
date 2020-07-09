@@ -42,8 +42,8 @@
     <Parameter name="LinkTestsEnabled" value="false" />
     <!-- Comma separated link paths -->
     <Parameter name="LinkPaths" value="" />
-   
 
+    <Parameter name="TlsEnabled" value="" />
   </TestRunParameters>
 
   <!-- Adapter Specific sections -->
