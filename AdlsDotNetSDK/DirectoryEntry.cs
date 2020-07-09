@@ -21,7 +21,9 @@ namespace Microsoft.Azure.DataLake.Store
     /// </summary>
     internal enum DirectoryEntryAttributeType
     {
-        Link
+        Link,
+        Share,
+        PartOfShare
     }
 
     /// <summary>

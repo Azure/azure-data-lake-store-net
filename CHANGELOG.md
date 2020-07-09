@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.21
+- Fix Name field of DirectoryEntry.
+- Internal changes.
 ### Version 1.1.20
 - Fix conflict for parallel transfers for different account but same source and destination path in same host.
 - Expose the option to disable transfer logging for bulk uploads and bulk downloads.
