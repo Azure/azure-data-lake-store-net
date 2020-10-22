@@ -121,6 +121,32 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             verifyAclLinkForPath(LinkPath1Root, LinkPath1);
         }
 
+        [TestMethod]
+        public void TestGfsOnShareFolder()
+        {
+            if (!_shoudRunLinkTests)
+            {
+                Assert.Inconclusive();
+            }
+            var entry = _adlsClient.GetDirectoryEntry(LinkPath1);
+            Assert.IsTrue(entry.Attribute.Contains(DirectoryEntryAttributeType.Share));
+            Assert.IsTrue(entry.Attribute.Contains(DirectoryEntryAttributeType.PartOfShare));
+        }
+
+        [TestMethod]
+        public void TestGfsOnSubShareFolder()
+        {
+            if (!_shoudRunLinkTests)
+            {
+                Assert.Inconclusive();
+            }
+            var testFolder = LinkPath1 + "/" + "TestGfsOnSubShareFolder";
+            _adlsClient.CreateDirectory(testFolder);
+            var entry = _adlsClient.GetDirectoryEntry(testFolder);
+            Assert.IsTrue(!entry.Attribute.Contains(DirectoryEntryAttributeType.Share));
+            Assert.IsTrue(entry.Attribute.Contains(DirectoryEntryAttributeType.PartOfShare));
+            _adlsClient.Delete(testFolder);
+        }
 
         [ClassCleanup]
         public static void CleanTests()

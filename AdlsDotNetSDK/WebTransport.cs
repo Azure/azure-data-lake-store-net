@@ -42,6 +42,7 @@ namespace Microsoft.Azure.DataLake.Store
         private const int AuthorizationHeaderLengthThreshold = 10;
 
         private static int ErrorResponseDefaultLength = 1000;
+
         /// This contains list of custom headers that are not directly copied
         /// </summary>
         private static HashSet<string> HeadersNotToBeCopied = new HashSet<string> {"Content-Type"};
@@ -307,7 +308,7 @@ namespace Microsoft.Azure.DataLake.Store
                 foreach (var key in customHeaders.Keys)
                 {
                     if (!HeadersNotToBeCopied.Contains(key))
-                    webReq.Headers.TryAddWithoutValidation(key, customHeaders[key]);
+                        webReq.Headers.TryAddWithoutValidation(key, customHeaders[key]);
                 }
             }
             webReq.Headers.TryAddWithoutValidation("User-Agent", client.GetUserAgent());

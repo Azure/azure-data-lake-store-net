@@ -548,7 +548,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             if (getfileStatusResult != null && getfileStatusResult.FileStatus != null)
             {
-                getfileStatusResult.FileStatus.Name = string.IsNullOrEmpty(getfileStatusResult.FileStatus.Name) ? GetFileName(getfileStatusResult.FileStatus.Name) : getfileStatusResult.FileStatus.Name;
+                getfileStatusResult.FileStatus.Name = string.IsNullOrEmpty(getfileStatusResult.FileStatus.Name) ? GetFileName(path) : getfileStatusResult.FileStatus.Name;
                 getfileStatusResult.FileStatus.FullName = string.IsNullOrEmpty(getfileStatusResult.FileStatus.FullName) ? path : path + "/" + getfileStatusResult.FileStatus.FullName;
             }
             else

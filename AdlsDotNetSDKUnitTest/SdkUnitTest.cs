@@ -86,6 +86,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private static bool _isAccountTieredStore;
 
+
         private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
@@ -120,6 +121,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _dogFoodAuthEndPoint = (string)context.Properties["DogFoodAuthenticationEndPoint"];
             _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
+            if (bool.Parse((string)context.Properties["TlsEnabled"]))
+            {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+            }
         }
         /// <summary>
         /// Setup the client, empties the test directory
@@ -289,6 +294,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             bool result = _adlsClient.CreateDirectory(path, permission);
             Assert.IsTrue(result);
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.Name));
+            Assert.IsTrue(diren.Name == "testDir");
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.FullName));
             Assert.IsTrue(diren.Type == DirectoryEntryType.DIRECTORY);
             Assert.IsTrue(diren.Permission.Equals(permission));
             Assert.IsTrue(diren.Length == 0);
@@ -347,6 +355,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             {
             }
             DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.Name));
+            Assert.IsTrue(diren.Name== "testCreate.txt");
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.FullName));
             Assert.IsTrue(diren.FullName.Equals(path));
             Assert.IsTrue(diren.Length == 0);
             Assert.IsTrue(!diren.HasAcl);

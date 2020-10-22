@@ -1679,9 +1679,36 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Transfer Status encapsulating the details of upload</returns>
         public virtual TransferStatus BulkUpload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, bool isBinary = false, CancellationToken cancelToken = default(CancellationToken))
         {
-            return FileUploader.Upload(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, isBinary, cancelToken);
+            return BulkUpload(srcPath, destPath, numThreads, shouldOverwrite, false, progressTracker, notRecurse, resume, isBinary, cancelToken);
         }
-
+        /// <summary>
+        /// Upload directory or file from local to remote. Transfers the contents under source directory under 
+        /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
+        /// By default logs the transfer progress in system's temp path, so that user can recover using <paramref name="resume"/> if upload has crashed.
+        /// This progress logging can be disabled using <paramref name="disableTransferLogging"/>.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// By default files are uploaded at new line boundaries. However if files does not have newline within 4MB chunks,
+        /// the transfer will fail. In that case it is required to pass true to <paramref name="isBinary"/> to avoid uploads at newline boundaries.
+        /// </summary>
+        /// <param name="srcPath">Local source path</param>
+        /// <param name="destPath">Remote destination path - It should always be a directory.</param>
+        /// <param name="numThreads">Number of threads- Default -1, if not passed will take default number of threads (8 times the number of physical cores)</param>
+        /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination exists, Default IfExists.Overwrite</param>
+        /// <param name="disableTransferLogging">If true, logging of transfer progress is disabled. This and <paramref name="resume"/> cannot be true at same time. Default false</param>
+        /// <param name="progressTracker">Progresstracker to track progress of file transfer, Default null</param>
+        /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration, Default false</param>
+        /// <param name="resume">If true then we want to resume from last transfer, Default false</param>
+        /// <param name="isBinary">If false then writes files to data lake at newline boundaries, however if the file has no newline within 4MB chunks it will throw exception.
+        /// If true, then upload at new line boundaries is not guranteed but the upload will be faster. By default false, if file has no newlines within 4MB chunks true should be apssed</param>
+        /// <param name="cancelToken">Cancellation token</param>
+        /// <returns>Transfer Status encapsulating the details of upload</returns>
+        public virtual TransferStatus BulkUpload(string srcPath, string destPath, int numThreads, IfExists shouldOverwrite, bool disableTransferLogging, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, bool isBinary, CancellationToken cancelToken)
+        {
+            return FileUploader.Upload(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, disableTransferLogging, resume, isBinary, cancelToken);
+        }
         /// <summary>
         /// Download directory or file from remote server to local. Transfers the contents under source directory under 
         /// the destination directory. Transfers the source file and saves it as the destination path.
@@ -1701,7 +1728,32 @@ namespace Microsoft.Azure.DataLake.Store
         /// <returns>Transfer status encapsulating the details of download</returns>
         public virtual TransferStatus BulkDownload(string srcPath, string destPath, int numThreads = -1, IfExists shouldOverwrite = IfExists.Overwrite, IProgress<TransferStatus> progressTracker = null, bool notRecurse = false, bool resume = false, CancellationToken cancelToken = default(CancellationToken))
         {
-            return FileDownloader.Download(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, resume, cancelToken);
+            return BulkDownload(srcPath, destPath, numThreads, shouldOverwrite, false, progressTracker, notRecurse, resume, cancelToken);
+        }
+
+        /// <summary>
+        /// Download directory or file from remote server to local. Transfers the contents under source directory under 
+        /// the destination directory. Transfers the source file and saves it as the destination path.
+        /// This method does not throw any exception for any entry's transfer failure. Refer the return value <see cref="TransferStatus"/> to 
+        /// get the status/exception of each entry's transfer.
+        /// By default logs the transfer progress in system's temp path, so that user can recover using <paramref name="resume"/> if upload has crashed.
+        /// This progress logging can be disabled using <paramref name="disableTransferLogging"/>.
+        /// It is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="srcPath">Remote source path</param>
+        /// <param name="destPath">Local destination path. It should always be a directory.</param>
+        /// <param name="numThreads">Number of threads- Default -1 if not passed will take default number of threads (8 times the number of physical cores)</param>
+        /// <param name="shouldOverwrite">Whether to overwrite or skip if the destination exists, Default IfExists.Overwrite</param>
+        /// <param name="disableTransferLogging">If true, logging of transfer progress is disabled. This and <paramref name="resume"/> cannot be true at same time. Default false</param>
+        /// <param name="progressTracker">Progresstracker to track progress of file transfer, Default null</param>
+        /// <param name="notRecurse">If true then does an enumeration till level one else does recursive enumeration, default false</param>
+        /// <param name="resume">If true then we want to resume from last transfer, default false</param>
+        /// <param name="cancelToken">Cancel token</param>
+        /// <returns>Transfer status encapsulating the details of download</returns>
+        public virtual TransferStatus BulkDownload(string srcPath, string destPath, int numThreads, IfExists shouldOverwrite, bool disableTransferLogging, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, CancellationToken cancelToken)
+        {
+            return FileDownloader.Download(srcPath, destPath, this, numThreads, shouldOverwrite, progressTracker, notRecurse, disableTransferLogging, resume, cancelToken);
         }
 
         /// <summary>

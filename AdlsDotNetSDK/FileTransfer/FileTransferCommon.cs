@@ -89,7 +89,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         protected readonly TransferLog RecordedMetadata;
         protected const string TransferLogFileSeparator = "-";
         protected CancellationToken CancelToken;
-        protected FileTransferCommon(string srcPath, string destPath, AdlsClient client, int numThreads, IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool resume, bool ingressOrEgressTest, long chunkSize, string metaDataPath, CancellationToken cancelToken, string metaDataInfo = null)
+        protected FileTransferCommon(string srcPath, string destPath, AdlsClient client, int numThreads, IfExists doOverwrite, IProgress<TransferStatus> progressTracker, bool notRecurse, bool disableTransferLogging, bool resume, bool ingressOrEgressTest, long chunkSize, string metaDataPath, CancellationToken cancelToken, string metaDataInfo = null)
         {
             if (string.IsNullOrWhiteSpace(srcPath))
             {
@@ -106,18 +106,18 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
             ChunkSize = chunkSize;
             NotRecurse = notRecurse;
             metaDataInfo = string.IsNullOrEmpty(metaDataInfo) ? ChunkSize.ToString() : metaDataInfo + $",ChunkSize:{chunkSize},{(NotRecurse ? "NotRecurse" : "Recurse")}";
-            RecordedMetadata = new TransferLog(resume, metaDataPath, metaDataInfo);
+            RecordedMetadata = new TransferLog(resume, metaDataPath, metaDataInfo, disableTransferLogging);
             Status = new TransferStatus();
             ConsumerQueue = new PriorityQueueWrapper<BaseJob>();
             CancelToken = cancelToken;
         }
         // Gets the metadata path where the metadata is stored for transfer to resume. For upload, it will be the source path appended with the destination directory or file.
         // For download it will be the destination path appended with source directory or file. Hash the filename so that it does not cross MAX_CHAR limit
-        internal static string GetTransferLogFileName(string sourcePath, string destPath, char sourceSeparator, char destSeparator)
+        internal static string GetTransferLogFileName(string accountName, string sourcePath, string destPath, char sourceSeparator, char destSeparator)
         {
             string separator = Regex.Escape($"{sourceSeparator}{destSeparator}");
             var regex = new Regex($"[:{separator}]");
-            return HashString($"{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat");
+            return HashString($"{accountName}{regex.Replace(sourcePath, TransferLogFileSeparator)}{TransferLogFileSeparator}{regex.Replace(destPath, TransferLogFileSeparator)}-transfer.dat");
         }
         // Uses MD5 to hash the filename, here security is not a concern, just speed
         internal static string HashString(string fileName)

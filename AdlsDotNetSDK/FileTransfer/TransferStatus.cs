@@ -118,7 +118,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         }
         public override string ToString()
         {
-            return $"JobStatus: {Status}, Error: {Errors}";
+            return $"EntryName: {EntryName}, EntryType: {Type}, JobStatus: {Status}, Error: {Errors}";
         }
     }
     /// <summary>

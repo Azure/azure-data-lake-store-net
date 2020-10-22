@@ -20,57 +20,69 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         private readonly FileStream _stream;
         private readonly StreamWriter _writeStream;
         private readonly Thread _writeThread;
+        private readonly bool _disableLogging;
         internal static char MetaDataDelimiter = '|';
         internal static char MetaDataTerminator = '*';
         private static string FlushIndicator = "|*";
         // MetaDataInfo is appen
-        internal TransferLog(bool resume, string transferLogFile, string validateMetaDataInfo)
+        internal TransferLog(bool resume, string transferLogFile, string validateMetaDataInfo, bool disableLogging)
         {
             if (string.IsNullOrEmpty(transferLogFile))
             {
                 throw new ArgumentNullException(nameof(transferLogFile));
             }
             _transferLogFile = transferLogFile;
-
-            Utils.CreateParentDirectory(transferLogFile);
-            try
+            if(disableLogging && resume)
             {
-                _stream = new FileStream(transferLogFile, resume ? FileMode.Open : FileMode.Create,
-                    FileAccess.ReadWrite);
+                throw new ArgumentException("resume and disablelogging both cannot be true");
             }
-            catch (FileNotFoundException)
+            _disableLogging = disableLogging;
+            if (!_disableLogging)
             {
-                throw new ArgumentException("You have selected to resume but the resume file does not exist. There can be number of reasons for this: No transfer has been run before for the given source and destination or the last transfer was successful or temp folder was cleaned up. Please run without resume.");
+                Utils.CreateParentDirectory(transferLogFile);
+                try
+                {
+                    _stream = new FileStream(transferLogFile, resume ? FileMode.Open : FileMode.Create,
+                        FileAccess.ReadWrite);
+                }
+                catch (FileNotFoundException)
+                {
+                    throw new ArgumentException("You have selected to resume but the resume file does not exist. There can be number of reasons for this: No transfer has been run before for the given source and destination or the last transfer was successful or temp folder was cleaned up. Please run without resume.");
+                }
+                if (resume)
+                {
+                    LoadedMetaData = new Dictionary<string, MetaData>();
+                    LoadFrom(validateMetaDataInfo);
+                }
+                _recordQueue = new QueueWrapper<string>(-1); // Purposeful-We will close it manually
+                _writeStream = new StreamWriter(_stream)
+                {
+                    AutoFlush = true
+                };
+                if (!resume)
+                {
+                    _writeStream.WriteLine($"{FirstLineConst},{validateMetaDataInfo}");
+                }
+                else
+                {
+                    // This is a precaution that if the transfer broke before with an incomplete line
+                    // We will ignore an empty line anyways
+                    _writeStream.WriteLine();
+                }
+                _writeThread = new Thread(RunMetaDataWrite)
+                {
+                    Name = "MetaDataWriteThread"
+                };
+                _writeThread.Start();
             }
-            if (resume)
-            {
-                LoadedMetaData = new Dictionary<string, MetaData>();
-                LoadFrom(validateMetaDataInfo);
-            }
-            _recordQueue = new QueueWrapper<string>(-1); // Purposeful-We will close it manually
-            _writeStream = new StreamWriter(_stream)
-            {
-                AutoFlush = true
-            };
-            if (!resume)
-            {
-                _writeStream.WriteLine($"{FirstLineConst},{validateMetaDataInfo}");
-            }
-            else
-            {
-                // This is a precaution that if the transfer broke before with an incomplete line
-                // We will ignore an empty line anyways
-                _writeStream.WriteLine();
-            }
-            _writeThread = new Thread(RunMetaDataWrite)
-            {
-                Name = "MetaDataWriteThread"
-            };
-            _writeThread.Start();
         }
 
         internal void EndRecording(bool closingDueToCancellation)
         {
+            if (_disableLogging)
+            {
+                return;
+            }
             _recordQueue.Add(null);
             _writeThread.Join();
             if (!closingDueToCancellation)
@@ -80,6 +92,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         }
         internal void AddRecord(string entry,bool doFlush = false)
         {
+            if (_disableLogging)
+            {
+                return;
+            }
             _recordQueue.Add(entry + MetaDataTerminator);
             if (doFlush)
             {
