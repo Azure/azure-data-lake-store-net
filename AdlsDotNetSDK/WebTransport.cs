@@ -51,15 +51,15 @@ namespace Microsoft.Azure.DataLake.Store
 
         #region Common
 
-        private static Stream GetCompressedStream(Stream inputStream, AdlsClient client, int postRequestLength)
+        private static Stream GetCompressedStream(byte[] data, int offset, int count, AdlsClient client, int postRequestLength)
         {
             if (client.WrapperStream != null && postRequestLength > MinDataSizeForCompression)
             {
 
-                return client.WrapperStream(inputStream);
+                return client.WrapperStream(data, offset, count);
 
             }
-            return inputStream;
+            return new MemoryStream(data, offset, count);
         }
 
 
@@ -189,6 +189,18 @@ namespace Microsoft.Azure.DataLake.Store
 
                     firstHeader = false;
                 }
+                if (request.Content != null)
+                {
+                    firstHeader = true;
+
+                    foreach (var requestHeader in request.Content.Headers)
+                    {
+                        message += (!firstHeader ? Environment.NewLine : "") +
+                                       $"[{requestHeader.Key}:{requestHeader.Value.FirstOrDefault()}]";
+
+                        firstHeader = false;
+                    }
+                }
                 message += $"{Environment.NewLine}{Environment.NewLine}";
                 message += $"ResponseStatus:{response.StatusCode}{Environment.NewLine}{Environment.NewLine}ResponseHeaders:{Environment.NewLine}";
                 firstHeader = true;
@@ -275,27 +287,41 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="customHeaders">Custom headers</param>
         private static void AssignCommonHttpHeaders(HttpRequestMessage webReq, AdlsClient client, RequestOptions req, string token, IDictionary<string, string> customHeaders, int postRequestLength)
         {
-             webReq.Headers.TryAddWithoutValidation("Authorization", token);
+            if(!webReq.Headers.TryAddWithoutValidation("Authorization", token))
+            {
+                throw new ArgumentException("Unable to add Authorization header");
+            }
             string latencyHeader = LatencyTracker.GetLatency();
             if (!string.IsNullOrEmpty(latencyHeader))
             {
-                webReq.Headers.TryAddWithoutValidation("x-ms-adl-client-latency", latencyHeader);
+                if (!webReq.Headers.TryAddWithoutValidation("x-ms-adl-client-latency", latencyHeader))
+                {
+                    throw new ArgumentException("Unable to add x-ms-adl-client-latency header");
+                }
             }
 
             if (client.ContentEncoding != null && postRequestLength > MinDataSizeForCompression)
             {
-                webReq.Headers.TryAddWithoutValidation("Content-Encoding", client.ContentEncoding);
+                if(webReq.Content != null && !webReq.Content.Headers.TryAddWithoutValidation("Content-Encoding", client.ContentEncoding))
+                {
+                    throw new ArgumentException("Unable to add Content-Encoding header");
+                }
 
             }
-
             if (client.DipIp != null && !req.IgnoreDip)
             {
-                webReq.Headers.TryAddWithoutValidation("Host", client.AccountFQDN);
+                if(!webReq.Headers.TryAddWithoutValidation("Host", client.AccountFQDN))
+                {
+                    throw new ArgumentException("Unable to add Host header");
+                }
             }
 
             if (!req.KeepAlive)
             {
-                webReq.Headers.TryAddWithoutValidation("Connection", "Close");
+                if(!webReq.Headers.TryAddWithoutValidation("Connection", "Close"))
+                {
+                    throw new ArgumentException("Unable to add Connection header");
+                }
             }
 
             if (customHeaders != null)
@@ -303,16 +329,30 @@ namespace Microsoft.Azure.DataLake.Store
                 string contentType;
                 if (customHeaders.TryGetValue("Content-Type", out contentType))
                 {
-                    webReq.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+                    if(webReq.Content != null && !webReq.Content.Headers.TryAddWithoutValidation("Content-Type", contentType))
+                    {
+                        throw new ArgumentException("Unable to add Content-Type header");
+                    }
                 }
                 foreach (var key in customHeaders.Keys)
                 {
                     if (!HeadersNotToBeCopied.Contains(key))
-                        webReq.Headers.TryAddWithoutValidation(key, customHeaders[key]);
+                    {
+                        if(!webReq.Headers.TryAddWithoutValidation(key, customHeaders[key]))
+                        {
+                            throw new ArgumentException($"Unable to add key header");
+                        }
+                    }
                 }
             }
-            webReq.Headers.TryAddWithoutValidation("User-Agent", client.GetUserAgent());
-            webReq.Headers.TryAddWithoutValidation("x-ms-client-request-id", req.RequestId);
+            if(!webReq.Headers.TryAddWithoutValidation("User-Agent", client.GetUserAgent()))
+            {
+                throw new ArgumentException("Unable to add User-Agent header");
+            }
+            if(!webReq.Headers.TryAddWithoutValidation("x-ms-client-request-id", req.RequestId))
+            {
+                throw new ArgumentException("Unable to add x-ms-client-request-id header");
+            }
         }
         
         /// <summary>
@@ -611,7 +651,7 @@ namespace Microsoft.Azure.DataLake.Store
                     {
                         if (op.RequiresBody && requestData.Data != null)
                         {
-                            postStream = GetCompressedStream(new MemoryStream(requestData.Data, requestData.Offset, requestData.Count), client, requestData.Count);
+                            postStream = GetCompressedStream(requestData.Data, requestData.Offset, requestData.Count, client, requestData.Count);
                         }
                         else
                         {
