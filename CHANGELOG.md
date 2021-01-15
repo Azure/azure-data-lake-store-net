@@ -1,4 +1,8 @@
 # Changes to the SDK
+### Version 1.2.5-alpha
+- Internal changes. Fix passing content-encoding.
+- Implement conditional create with overwrite. Helps maintain atomicity during retries.
+- Remove retry policy for concatenate since it is not atomic.
 ### Version 1.2.4-alpha
 - Fix conflict for parallel transfers for different account but same source and destination path in same host.
 - Expose the option to disable transfer logging for bulk uploads and bulk downloads.
