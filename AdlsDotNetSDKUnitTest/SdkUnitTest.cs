@@ -348,9 +348,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Unit test for successfully creating a file
         /// </summary>
         [TestMethod]
-        public void TestCreate()
+        [DataRow(true)]
+        public void TestCreate(bool useConditinalOverwrite)
         {
             string path = $"{UnitTestDir}/testCreate.txt";
+            _adlsClient.SetConditionalCreateWithOverwrite(useConditinalOverwrite);
             using (_adlsClient.CreateFile(path, IfExists.Overwrite, "732"))
             {
             }
@@ -363,6 +365,34 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(!diren.HasAcl);
             Assert.IsTrue(diren.Type == DirectoryEntryType.FILE);
             Assert.IsTrue(diren.Permission.Equals("732"));
+            _adlsClient.SetConditionalCreateWithOverwrite(!useConditinalOverwrite);
+        }
+
+        /// <summary>
+        /// Unit test for successfully creating a file
+        /// </summary>
+        [TestMethod]
+        [DataRow(true)]
+        public void TestCreateWithOverwrite(bool useConditinalOverwrite)
+        {
+            string path = $"{UnitTestDir}/testCreate.txt";
+            _adlsClient.SetConditionalCreateWithOverwrite(useConditinalOverwrite);
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, "732"))
+            {
+            }
+            using (_adlsClient.CreateFile(path, IfExists.Overwrite, "732"))
+            {
+            }
+            DirectoryEntry diren = _adlsClient.GetDirectoryEntry(path);
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.Name));
+            Assert.IsTrue(diren.Name== "testCreate.txt");
+            Assert.IsTrue(!string.IsNullOrEmpty(diren.FullName));
+            Assert.IsTrue(diren.FullName.Equals(path));
+            Assert.IsTrue(diren.Length == 0);
+            Assert.IsTrue(!diren.HasAcl);
+            Assert.IsTrue(diren.Type == DirectoryEntryType.FILE);
+            Assert.IsTrue(diren.Permission.Equals("732"));
+            _adlsClient.SetConditionalCreateWithOverwrite(!useConditinalOverwrite);
         }
 
         [TestMethod]
@@ -438,8 +468,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Unit test for creating and riting in a file. Verifying it by reading the file.
         /// </summary>
         [TestMethod]
-        public void TestCreateAppend()
+        [DataRow(true)]
+        public void TestCreateAppend(bool useConditinalOverwrite)
         {
+            _adlsClient.SetConditionalCreateWithOverwrite(useConditinalOverwrite);
             string path = $"{UnitTestDir}/testCreateAppend2.txt";
             string text1 = "I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.I am the first line.\n";
             string text2 = "I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.I am the second line.";
@@ -462,6 +494,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 } while (noOfBytes > 0);
             }
             Assert.IsTrue(output.Equals(text1 + text2));
+            _adlsClient.SetConditionalCreateWithOverwrite(!useConditinalOverwrite);
         }
         /// <summary>
         /// Unit test in trying to append to a non existing file
@@ -556,8 +589,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Verify by reading.
         /// </summary>
         [TestMethod]
-        public void TestAppendEmptyFile()
+        [DataRow(true)]
+        public void TestAppendEmptyFile(bool useConditinalOverwrite)
         {
+            _adlsClient.SetConditionalCreateWithOverwrite(useConditinalOverwrite);
             string path = $"{UnitTestDir}/testAppendEmptyFile.txt";
             string text1 = RandomString(9 * 1024 * 1024);
             byte[] textByte1 = Encoding.UTF8.GetBytes(text1);
@@ -579,6 +614,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 } while (noOfBytes > 0);
             }
             Assert.IsTrue(output.Equals(text1));
+            _adlsClient.SetConditionalCreateWithOverwrite(!useConditinalOverwrite);
         }
         /// <summary>
         /// Unit test to create a file and open a appendstream and make one append to empty file.

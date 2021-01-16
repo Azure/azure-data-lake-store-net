@@ -96,6 +96,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         [JsonProperty(PropertyName = "attributes", ItemConverterType = typeof(StringEnumConverter))]
         internal List<DirectoryEntryAttributeType> Attribute { get; set; }
+
+        [JsonProperty(PropertyName = "fileContextID")]
+        internal string FileContextID { get; set; }
+
         /// <summary>
         /// Default constructor
         /// </summary>
@@ -124,6 +128,7 @@ namespace Microsoft.Azure.DataLake.Store
             HasAcl = dir.HasAcl;
             ExpiryTime = dir.ExpiryTime;
             Attribute = dir.Attribute;
+            FileContextID = dir.FileContextID;
         }
         /// <summary>
         /// Constructor that initializes each property

@@ -1,4 +1,7 @@
 # Changes to the SDK
+### Version 1.1.22
+- Implement conditional create with overwrite. Helps maintain atomicity during retries.
+- Remove retry policy for concatenate since it is not atomic.
 ### Version 1.1.21
 - Fix Name field of DirectoryEntry.
 - Internal changes.
