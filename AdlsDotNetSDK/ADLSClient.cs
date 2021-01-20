@@ -128,6 +128,8 @@ namespace Microsoft.Azure.DataLake.Store
 
         private TimeSpan _perRequestTimeoutForEnumerateTrash = new TimeSpan(0, 0, 135);
 
+        private volatile bool _useConditionalCreateWithOverwrite = false;
+
         #endregion
 
         #region Constructors
@@ -369,6 +371,15 @@ namespace Microsoft.Azure.DataLake.Store
             _perRequestTimeout = timeout;
         }
 
+        /// <summary>
+        /// Sets whether to perform conditional create with overwrite. Helps resolving atomic issues with retries
+        /// </summary>
+        /// <param name="useConditionalCreateWithOverwrite">Whether to use conditional create</param>
+        public void SetConditionalCreateWithOverwrite(bool useConditionalCreateWithOverwrite)
+        {
+            _useConditionalCreateWithOverwrite = useConditionalCreateWithOverwrite;
+        }
+
         internal TimeSpan GetPerRequestTimeout()
         {
             return _perRequestTimeout;
@@ -583,32 +594,100 @@ namespace Microsoft.Azure.DataLake.Store
             }
             string leaseId = Guid.NewGuid().ToString();
             bool overwrite = mode == IfExists.Overwrite;
-            //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
-            RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
-
-            OperationResponse resp = new OperationResponse();
-            await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(GetPerRequestTimeout(), policy), resp, cancelToken).ConfigureAwait(false);
-            if (!resp.IsSuccessful)
+            if (overwrite && _useConditionalCreateWithOverwrite)
             {
-                throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
+                await CreateFileAtomicallyWithOverWrite(filename, octalPermission, createParent, leaseId, cancelToken).ConfigureAwait(false);
+            }
+            else
+            {
+                //If we are overwriting any existing file by that name then it doesn't matter to try it again even though the last request is in a inconsistent state
+                RetryPolicy policy = overwrite ? new ExponentialRetryPolicy() : (RetryPolicy)new NonIdempotentRetryPolicy();
+
+                OperationResponse resp = new OperationResponse();
+                await Core.CreateAsync(filename, overwrite, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(GetPerRequestTimeout(), policy), resp, cancelToken).ConfigureAwait(false);
+                if (!resp.IsSuccessful)
+                {
+                    throw GetExceptionFromResponse(resp, $"Error in creating file {filename}.");
+                }
             }
             return await AdlsOutputStream.GetAdlsOutputStreamAsync(filename, this, true, leaseId, bufferPool, bufferCapacity).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
-        /// access - any attempt to open the same file for append will fail while this stream is open.  
-        /// 
-        /// Threading: The returned stream is not thread-safe.
-        /// </summary>
-        /// <param name="filename">File name</param>
-        /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
-        /// <param name="bufferPool">Passed buffer pool</param>
-        /// <param name="bufferCapacity"></param>
-        /// <param name="octalPermission">Octal permission string</param>
-        /// <param name="createParent">If true creates any non-existing parent directories</param>
-        /// <returns>Output stream</returns>
-        internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true)
+        private async Task CreateFileAtomicallyWithOverWrite(string path, string octalPermission, bool createParent, string leaseId, CancellationToken cancelToken = default(CancellationToken))
+        {
+            bool checkExists = true;
+            OperationResponse resp = new OperationResponse();
+
+            var entry = await Core.GetFileStatusAsync(path, UserGroupRepresentation.ObjectID, this, new RequestOptions(GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                if (resp.HttpStatus == HttpStatusCode.NotFound && resp.RemoteExceptionName.Contains("FileNotFoundException"))
+                {
+                    checkExists = false;
+                }
+                else
+                {
+                    throw GetExceptionFromResponse(resp, "Error getting info for file " + path);
+                }
+            }
+
+            if (checkExists && entry.Type == DirectoryEntryType.DIRECTORY)
+            {
+                throw new AdlsException("Cannot overwrite directory "+path);
+            }
+
+            if(checkExists)
+            {
+
+                resp = new OperationResponse();
+                await Core.CheckAccessSync(path, "-w-", this, new RequestOptions(GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).ConfigureAwait(false);
+                if (!resp.IsSuccessful)
+                {
+                    if (resp.HttpStatus == HttpStatusCode.NotFound && resp.RemoteExceptionName.Contains("FileNotFoundException"))
+                    {
+                        checkExists = false;
+                    }
+                    else
+                    {
+                        throw GetExceptionFromResponse(resp, "Error checking access for " + path);
+                    }
+                }
+                if (checkExists)
+                {
+                    resp = new OperationResponse();
+                    await Core.DeleteAsync(path, false, entry.FileContextID, this, new RequestOptions(GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp).ConfigureAwait(false); // conditional delete
+                    if (!resp.IsSuccessful)
+                    {
+                        throw GetExceptionFromResponse(resp, "Error deleting the file for create+overwrite " + path);
+                    }
+                }
+            }
+
+            resp = new OperationResponse();
+            await Core.CreateAsync(path, false, octalPermission, leaseId, leaseId, createParent, SyncFlag.DATA, null, -1, 0, this, new RequestOptions(GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+            if (!resp.IsSuccessful)
+            {
+                if (resp.HttpStatus == HttpStatusCode.Forbidden && resp.RemoteExceptionName.Contains("FileAlreadyExistsException"))
+                {
+                    return;
+                }
+                throw GetExceptionFromResponse(resp, $"Error in creating file {path}.");
+            }
+        }
+/// <summary>
+/// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+/// access - any attempt to open the same file for append will fail while this stream is open.  
+/// 
+/// Threading: The returned stream is not thread-safe.
+/// </summary>
+/// <param name="filename">File name</param>
+/// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
+/// <param name="bufferPool">Passed buffer pool</param>
+/// <param name="bufferCapacity"></param>
+/// <param name="octalPermission">Octal permission string</param>
+/// <param name="createParent">If true creates any non-existing parent directories</param>
+/// <returns>Output stream</returns>
+internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true)
         {
             return CreateFileAsync(filename, mode, bufferPool, bufferCapacity, octalPermission, createParent).GetAwaiter().GetResult();
         }
@@ -827,7 +906,7 @@ namespace Microsoft.Azure.DataLake.Store
             }
             OperationResponse resp = new OperationResponse();
             await Core.ConcatAsync(destination, concatFiles, deleteSource, this,
-                new RequestOptions(GetPerRequestTimeout(), new ExponentialRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
+                new RequestOptions(GetPerRequestTimeout(), new NoRetryPolicy()), resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful)
             {
                 throw GetExceptionFromResponse(resp, $"Error in concating files {String.Join(",", concatFiles)} to destination {destination}");

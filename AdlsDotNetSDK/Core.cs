@@ -427,9 +427,30 @@ namespace Microsoft.Azure.DataLake.Store
         public static async Task<bool> DeleteAsync(string path, bool recursive, AdlsClient client, RequestOptions req,
             OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
         {
+            return await DeleteAsync(path, recursive, null, client, req, resp, cancelToken);
+        }
+
+        /// <summary>
+        /// Deletes a file or directory
+        /// </summary>
+        /// <param name="path">Path of the file or directory</param>
+        /// <param name="recursive"></param>
+        /// <param name="fileContextId">fileContextId</param>
+        /// <param name="client">ADLS Client</param>
+        /// <param name="req">Options to change behavior of the Http request </param>
+        /// <param name="resp">Stores the response/ouput of the Http request </param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>True if delete is successful</returns>
+        internal static async Task<bool> DeleteAsync(string path, bool recursive, string fileContextId, AdlsClient client, RequestOptions req,
+            OperationResponse resp, CancellationToken cancelToken = default(CancellationToken))
+        {
             bool isSuccessful = false;
             QueryParams qp = new QueryParams();
             qp.Add("recursive", Convert.ToString(recursive));
+            if (!string.IsNullOrEmpty(fileContextId))
+            {
+                qp.Add("fileContextId", fileContextId);
+            }
             var responseTuple = await WebTransport.MakeCallAsync("DELETE", path, default(ByteBuffer), default(ByteBuffer), qp, client, req, resp, cancelToken).ConfigureAwait(false);
             if (!resp.IsSuccessful) return false;
 
@@ -471,6 +492,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             return isSuccessful;
         }
+
         /// <summary>
         /// Renames a path.
         /// For renaming directory: If the destination exists then it puts the source directory one level under the destination.
