@@ -273,9 +273,10 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Update the DipIp
         /// </summary>
+        /// <param name="connectionFailure">True if the request failure is because of connetion failure</param>
         /// <param name="cancelToken"></param>
         /// <returns></returns>
-        internal virtual Task UpdateDipAsync(CancellationToken cancelToken)
+        internal virtual Task UpdateDipIfNeededAsync(bool connectionFailure, CancellationToken cancelToken)
         {
             return Task.FromResult(default(object));
         }

@@ -605,14 +605,23 @@ namespace Microsoft.Azure.DataLake.Store
                 {
                     break;
                 }
-                // If dip is used, this request is not ignoring dip, and there is a connection failure, then reset the DIP
-                if (client.DipIp != null && !req.IgnoreDip && resp.ConnectionFailure)
-                {
-                    await client.UpdateDipAsync(cancelToken).ConfigureAwait(false);
-                }
 
             } while (!resp.IsSuccessful && req.RetryOption.ShouldRetry((int)resp.HttpStatus, resp.Ex));
             resp.OpCode = opCode;
+
+            // If dip is used, this request is not ignoring dip, then reset the DIP
+            if (client.DipIp != null && !req.IgnoreDip)
+            {
+                try
+                {
+                    await client.UpdateDipIfNeededAsync(resp.ConnectionFailure, default(CancellationToken)).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // This should not cause exception of the main request
+                }
+            }
+
             return retVal;
         }
 
@@ -806,15 +815,20 @@ namespace Microsoft.Azure.DataLake.Store
                 resp.LastCallLatency = watch.ElapsedMilliseconds;
                 HandleMakeSingleCallResponse(opCode, path, resp, retVal?.Item2 ?? 0, requestData.Count, req, client, quer.Serialize(opCode), ref numRetries);
 
-                // If dip is used, this request is not ignoring dip, and there is a connection failure, then reset the DIP
-                if (client.DipIp != null && !req.IgnoreDip && resp.ConnectionFailure)
-                {
-                    WebTransportLog.Debug("Connection Failure, DIP enabled, Resetting Dip");
-                    client.UpdateDipAsync(default(CancellationToken)).GetAwaiter().GetResult();
-                }
-
             } while (!resp.IsSuccessful && req.RetryOption.ShouldRetry((int)resp.HttpStatus, resp.Ex));
             resp.OpCode = opCode;
+            // If dip is used, this request is not ignoring dip, then reset the DIP
+            if (client.DipIp != null && !req.IgnoreDip)
+            {
+                try
+                {
+                    client.UpdateDipIfNeededAsync(resp.ConnectionFailure, default(CancellationToken)).GetAwaiter().GetResult();
+                }
+                catch (Exception)
+                {
+                    // This should not cause exception of the main request
+                }
+            }
             return retVal;
         }
 
