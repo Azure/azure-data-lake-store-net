@@ -469,8 +469,9 @@ namespace Microsoft.Azure.DataLake.Store
                                 totalLengthToRead -= noBytes;
 
                             } while (noBytes > 0 && totalLengthToRead > 0);
-
-                            ParseRemoteError(errorResponseData.Data, errorResponseData.Count, resp, errorResponse.Headers["Content-Type"]);
+                            // Pass errorResponseData.Offset instead of errorResponseData.Count because errorResponseData.Offset can be less than errorResponseData.Count 
+                            //This will be the case mostly for chunked error response where we initialize the byte with 1000 bytes
+                            ParseRemoteError(errorResponseData.Data, errorResponseData.Offset, resp, errorResponse.Headers["Content-Type"]);
                         }
                     }
                 }

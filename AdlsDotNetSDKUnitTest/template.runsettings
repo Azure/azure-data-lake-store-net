@@ -44,6 +44,7 @@
     <Parameter name="LinkPaths" value="" />
 
     <Parameter name="TlsEnabled" value="" />
+    <Parameter name="FailureExpectedOnColon" value="false" />
   </TestRunParameters>
 
   <!-- Adapter Specific sections -->
