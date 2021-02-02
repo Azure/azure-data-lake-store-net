@@ -4,13 +4,13 @@
     <TargetFrameworks>net452;netstandard1.4;netcoreapp1.1</TargetFrameworks>
     <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>1.1.23</Version>
+	  <Version>1.1.24</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>Implement conditional create with overwrite, Remove retry policy for concatenate, Internal changes</PackageReleaseNotes>
+    <PackageReleaseNotes>Fix null character in the exception when error is recieved as chunked response</PackageReleaseNotes>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageLicenseUrl>https://raw.githubusercontent.com/Azure/azure-data-lake-store-net/master/LICENSE</PackageLicenseUrl>
     <PackageIconUrl>http://go.microsoft.com/fwlink/?LinkID=288890</PackageIconUrl>

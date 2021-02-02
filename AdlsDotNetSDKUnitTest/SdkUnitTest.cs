@@ -85,7 +85,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static string _dogFoodAuthEndPoint;
 
         private static bool _isAccountTieredStore;
-
+        private static bool _isFailureExpectedOnColon = false;
 
         private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
@@ -120,6 +120,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _domain = (string)context.Properties["Domain"];
             _dogFoodAuthEndPoint = (string)context.Properties["DogFoodAuthenticationEndPoint"];
             _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
+            _isFailureExpectedOnColon = bool.Parse((string)context.Properties["FailureExpectedOnColon"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
             if (bool.Parse((string)context.Properties["TlsEnabled"]))
             {
@@ -280,7 +281,18 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         public void TestCreatePathWithColon()
         {
             string path = $"{UnitTestDir}/testCreateFile:8080";
-            _adlsClient.CreateDirectory(path);
+            try
+            {
+                _adlsClient.CreateDirectory(path);
+            }
+            catch(AdlsException ex)
+            {
+                Assert.IsFalse(ex.Message.Contains('\0'));
+                if (!_isFailureExpectedOnColon)
+                {
+                    Assert.Fail();
+                }
+            }
         }
 
         /// <summary>

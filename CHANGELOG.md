@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 1.1.24
+- Fix null character in the exception when error is recieved as chunked response
 ### Version 1.1.23
 - Internal changes.
 ### Version 1.1.22
