@@ -180,8 +180,10 @@ namespace Microsoft.Azure.DataLake.Store
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
 #if NETSTANDARD1_4
                 dotNetVersion = "NETSTANDARD1_4";
+#elif NETSTANDARD2_0
+                dotNetVersion = "NETSTANDARD2_0";
 #else
-                dotNetVersion="NETCOREAPP1_1";
+                dotNetVersion = "NETCOREAPP1_1";
 #endif
 #endif
             }
