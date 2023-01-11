@@ -1,10 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFrameworks>net452;netstandard1.4;netstandard2.0;netcoreapp1.1</TargetFrameworks>
-    <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
+	  <TargetFrameworks>netstandard2.0;netstandard2.1;</TargetFrameworks>
+	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>1.1.25</Version>
+	  <Version>2.0.0-alpha</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>
@@ -22,29 +21,10 @@
     <AssemblyOriginatorKeyFile>..\tools\MSSharedLibKey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.10" />
+    <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.24" />
     <PackageReference Include="System.Net.Requests" Version="4.3.0" />
-    <PackageReference Include="System.Buffers" Version="4.3.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'net452'">
-    <Reference Include="System.Net.Http" />
-	  <Reference Include="System.Management" />
-	  <PackageReference Include="NLog" Version="4.4.12" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.4'">
-    <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
-	  <PackageReference Include="NLog" Version="4.5.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
-    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Threading.Thread" Version="4.3.0" />
-	  <PackageReference Include="NLog" Version="4.5.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp1.1'">
-    <PackageReference Include="NLog" Version="4.5.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="System.Buffers" Version="4.5.1" />
+    <PackageReference Include="NLog" Version="5.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
   </ItemGroup>
 </Project>
