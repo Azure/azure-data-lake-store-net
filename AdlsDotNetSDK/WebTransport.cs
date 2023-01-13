@@ -295,25 +295,12 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (client.DipIp != null && !req.IgnoreDip)
             {
-#if NET452
                 webReq.Host = client.AccountFQDN;
-#else
-                webReq.Headers["Host"] = client.AccountFQDN;
-#endif
             }
 
             if (!req.KeepAlive)
             {
-                /*
-                     * Connection cant be set directly as a header in net452.
-                     * KeepAlive needs to be set as a property in HttpWebRequest when we want to close connection.
-                */
-#if NET452
                 webReq.KeepAlive = false;
-
-#else
-                webReq.Headers["Connection"] = "Close";
-#endif
             }
 
             if (customHeaders != null)
@@ -329,13 +316,10 @@ namespace Microsoft.Azure.DataLake.Store
                         webReq.Headers[key] = customHeaders[key];
                 }
             }
-#if NET452
             webReq.UserAgent = client.GetUserAgent();
             webReq.ServicePoint.UseNagleAlgorithm = false;
             webReq.ServicePoint.Expect100Continue = false;
-#else
-            webReq.Headers["User-Agent"] = client.GetUserAgent();
-#endif
+
             webReq.Headers["x-ms-client-request-id"] = req.RequestId;
             webReq.Method = opMethod;
         }
@@ -346,12 +330,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="count">Content length</param>
         private static void SetWebRequestContentLength(HttpWebRequest webReq, int count)
         {
-#if NET452
             webReq.ContentLength = count;
-#else
-            // Set the ContentLength property of the WebRequest.  
-            webReq.Headers["Content-Length"] = Convert.ToString(count);
-#endif
         }
         private static CancellationTokenSource GetCancellationTokenSourceForTimeout(RequestOptions req)
         {
@@ -674,9 +653,7 @@ namespace Microsoft.Azure.DataLake.Store
                 // If security certificate is used then no need to pass token
                 if (req.ClientCert != null)
                 {
-#if NET452
                     webReq.ClientCertificates.Add(req.ClientCert);
-#endif
                 }
 
                 Stopwatch watch = Stopwatch.StartNew();
@@ -864,9 +841,7 @@ namespace Microsoft.Azure.DataLake.Store
                 // If security certificate is used then no need to pass token
                 if (req.ClientCert != null)
                 {
-#if NET452
                     webReq.ClientCertificates.Add(req.ClientCert);
-#endif
                 }
 
                 Stopwatch watch = Stopwatch.StartNew();
@@ -897,11 +872,7 @@ namespace Microsoft.Azure.DataLake.Store
                         {
                             if (op.RequiresBody && requestData.Data != null)
                             {
-#if NET452
                                 using (Stream ipStream = GetCompressedStream(webReq.GetRequestStream(), client, requestData.Count))
-#else
-                            using (Stream ipStream = GetCompressedStream(webReq.GetRequestStreamAsync().GetAwaiter().GetResult(), client, requestData.Count))
-#endif
                                 {
                                     ipStream.Write(requestData.Data, requestData.Offset, requestData.Count);
                                 }
@@ -911,11 +882,7 @@ namespace Microsoft.Azure.DataLake.Store
                                 SetWebRequestContentLength(webReq, 0);
                             }
                         }
-#if NET452
                         using (var webResponse = (HttpWebResponse)webReq.GetResponse())
-#else
-                    using (var webResponse = (HttpWebResponse)webReq.GetResponseAsync().GetAwaiter().GetResult())
-#endif
                         {
                             resp.HttpStatus = webResponse.StatusCode;
                             resp.HttpMessage = webResponse.StatusDescription;
