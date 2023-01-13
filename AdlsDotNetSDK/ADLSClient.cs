@@ -148,7 +148,7 @@ namespace Microsoft.Azure.DataLake.Store
                 SdkVersion = "SDKVersionUnknown";
             }
             string osInfo;
-            string dotNetVersion = "NETSTANDARD2_0";
+            string dotNetVersion = "NETSTANDARD2_0-"+System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
             try
             {
                 // The below calculation is wrong before net6 since Environment.ProcessorCount gives the count of logical processors not cores.
