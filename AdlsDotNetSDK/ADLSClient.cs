@@ -15,11 +15,7 @@ using Microsoft.Azure.DataLake.Store.RetryPolicies;
 using Microsoft.Rest;
 using NLog;
 using System.IO;
-using System.Linq;
 
-#if NET452
-using System.Management;
-#endif
 [assembly: InternalsVisibleTo("Microsoft.Azure.DataLake.InternalStoreSDK, PublicKey=" +
                               "0024000004800000940000000602000000240000525341310004000001000100b5fc90e7027f67" +
                               "871e773a8fde8938c81dd402ba65b9201d60593e96c492651e889cc13f1415ebb53fac1131ae0b" +
@@ -106,7 +102,6 @@ namespace Microsoft.Azure.DataLake.Store
         public static int DefaultNumThreads { get; internal set; }
 
         internal const int DefaultThreadsCalculationFactor = 8;
-        internal const int DefaultCoreCount = 8;
 
         /// <summary>
         /// DIP IP
@@ -153,37 +148,14 @@ namespace Microsoft.Azure.DataLake.Store
                 SdkVersion = "SDKVersionUnknown";
             }
             string osInfo;
-            string dotNetVersion = "";
+            string dotNetVersion = "NETSTANDARD2_0-"+System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
             try
             {
-#if NET452
-                // Cannot get Caption/Architecture from Win32_OperatingSystem because they can have localised values
-                osInfo = Environment.OSVersion.VersionString + " " + IntPtr.Size * 8;
-
-                dotNetVersion = "NET452";
-                int coreCount = 0;
-                foreach (var item in new ManagementObjectSearcher("Select NumberOfCores from Win32_Processor").Get())
-                {
-                    coreCount += int.Parse(item["NumberOfCores"].ToString());
-                }
-                if(coreCount <= 0)
-                {
-                    ClientLogger.Debug("Physical core count is returned as 0, changing it to 8");
-                    coreCount = DefaultCoreCount;
-                }
-                DefaultNumThreads = DefaultThreadsCalculationFactor * coreCount;
-#else
-                // The below calculation is wrong since Environment.ProcessorCount gives the count of logical processors not cores. 
-                // Currently there is no way to calculate that for .net standard
-                DefaultNumThreads = DefaultThreadsCalculationFactor * Environment.ProcessorCount;
+                // The below calculation is wrong before net6 since Environment.ProcessorCount gives the count of logical processors not cores.
+                // Not sure if we have a better way here.
+                DefaultNumThreads = Math.Max(DefaultThreadsCalculationFactor, DefaultThreadsCalculationFactor * Environment.ProcessorCount);
                 osInfo = System.Runtime.InteropServices.RuntimeInformation.OSDescription + " " +
                          System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
-#if NETSTANDARD1_4
-                dotNetVersion = "NETSTANDARD1_4";
-#else
-                dotNetVersion="NETCOREAPP1_1";
-#endif
-#endif
             }
             catch (Exception)
             {

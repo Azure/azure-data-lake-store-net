@@ -1,12 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Text;
-#if NET452
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.ComponentModel;
-#endif
 
 namespace Microsoft.Azure.DataLake.Store.FileTransfer
 {
@@ -130,7 +128,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 return _fileExists.Value;
             }
         }
-#if NET452
+
         // https://msdn.microsoft.com/en-us/library/windows/desktop/aa364596(v=vs.85).aspx
         // Pinvoke to set the file as parse
         [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
@@ -150,7 +148,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 throw new Win32Exception();
             }
         }
-#endif
+
         // For downloader. For chunked downloads: Creates the file if it does not exist. Else returns a write stream. This is necessary since multiple threads will write 
         // to the same file at different offset. First thread to get the lock will create the file. Rest threads will open the file for read. For non chunked downloads:  
         // Creates the directory and the file
@@ -172,9 +170,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 }
                 Utils.CreateParentDirectory(dest);
                 var fs = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-#if NET452
                 MarkFileSparse(fs.SafeFileHandle);
-#endif
                 _downloadTempFileExists = true;
                 return fs;
             }
