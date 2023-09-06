@@ -170,7 +170,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 }
                 Utils.CreateParentDirectory(dest);
                 var fs = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-                MarkFileSparse(fs.SafeFileHandle);
+                if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    MarkFileSparse(fs.SafeFileHandle);
+                }
                 _downloadTempFileExists = true;
                 return fs;
             }
