@@ -24,6 +24,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
         private const int NumTests = 7;
+        private TestContext testContextInstance;
+
+        /// <summary>
+        /// Gets or sets the test context which provides
+        /// information about and functionality for the current test run.
+        /// </summary>
+        public TestContext TestContext
+        {
+            get { return testContextInstance; }
+            set { testContextInstance = value; }
+        }
         private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
@@ -114,7 +125,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRetry()
         {
-            int port = 8080;
+            int port = 9080;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -143,7 +154,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry1()
         {
-            int port = 8081;
+            int port = 9081;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -156,6 +167,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)408);
+            TestContext.WriteLine(resp.HttpMessage);
             Assert.IsTrue(resp.HttpMessage.Equals("Request Timeout"));
             Assert.IsTrue(resp.Retries == 1);
             server.StopServer();
@@ -166,7 +178,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry2()
         {
-            int port = 8082;
+            int port = 9082;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -178,6 +190,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)429);
+            TestContext.WriteLine(resp.HttpMessage);
             Assert.IsTrue(resp.HttpMessage.Equals("Too Many Requests"));
             Assert.IsTrue(resp.Retries == 1);
             server.StopServer();
@@ -188,7 +201,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry3()
         {
-            int port = 8083;
+            int port = 9083;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -235,7 +248,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCancellation()
         {
-            int port = 8084;
+            int port = 9084;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(200, "OK"));
@@ -262,7 +275,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTimeout()
         {
-            int port = 8085;
+            int port = 9085;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(200, "OK"));
@@ -283,6 +296,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(watch.ElapsedMilliseconds < 7000);
             Assert.IsNotNull(state.AdlsClient);
             Assert.IsInstanceOfType(state.Ex, typeof(Exception));
+            TestContext.WriteLine(state.Ex.Message);
             Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
             server.StopAbruptly();
         }
@@ -290,7 +304,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConnectionBroken()
         {
-            int port = 8086;
+            int port = 9086;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
             server.EnqueMockResponse(new MockResponse(200, "OK"));
@@ -396,7 +410,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestListStatusWithArrayInResponse()
         {
-            int port = 8087;
+            int port = 9087;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -418,7 +432,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void testListStatusWithMultipleArrayInResponse()
         {
-            int port = 8088;
+            int port = 9088;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();

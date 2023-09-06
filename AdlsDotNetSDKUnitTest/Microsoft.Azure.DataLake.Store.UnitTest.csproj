@@ -1,7 +1,7 @@
 ﻿<Project>
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.props" />
   <PropertyGroup>    
-    <TargetFrameworks>net6.0</TargetFrameworks>    
+    <TargetFrameworks>net7.0</TargetFrameworks>    
   </PropertyGroup>
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
 
@@ -9,7 +9,6 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
   <PropertyGroup>
-    <PostBuildEvent>copy $(ProjectDir)NLog.config $(TargetDir)</PostBuildEvent>
     <SignAssembly>true</SignAssembly>
     <DelaySign>true</DelaySign>
     <AssemblyOriginatorKeyFile>..\tools\MSSharedLibKey.snk</AssemblyOriginatorKeyFile>
@@ -31,6 +30,12 @@
   
   <ItemGroup>
     <None Update="template.runsettings">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Update="NLog.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
