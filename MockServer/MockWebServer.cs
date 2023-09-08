@@ -93,24 +93,35 @@ namespace MockServer
             while (true)
             {
                 MockResponse resp = GetMockResponse();
-                Console.WriteLine("Got a request. Sendiing back mock response!");
                 if (resp == null)
                 {
-                    _webListener.Close();
+                     _webListener.Close();
                     return;
                 }
+
+                try
+                { 
+                
                 var context = _webListener.GetContext();
-                context.Response.StatusCode = (int)resp.StatusCode.Value;
-                context.Response.StatusDescription = resp.StatusDescription;
+                HttpListenerRequest request = context.Request;
+                var response = context.Response;
+
+                Console.WriteLine(request.Headers.AllKeys);
+                response.StatusCode = (int)resp.StatusCode.Value;
+                response.StatusDescription = resp.StatusDescription;
                 if (resp.ResponseBody != null)
                 {
                     Wait(context.Request.InputStream);
                     var bytes = Encoding.UTF8.GetBytes(resp.ResponseBody);
-                    context.Response.ContentType = "application/json";
-                    context.Response.ContentLength64 = bytes.Length;
-                    context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length).Wait();
+                    response.ContentType = "application/json";
+                    response.ContentLength64 = bytes.Length;
+                    response.OutputStream.WriteAsync(bytes, 0, bytes.Length).Wait();
                 }
-                
+                response.Close();
+                }catch (Exception ex) {
+                    Console.WriteLine(ex);
+                    return;
+                }
             }
         }
         /// <summary>

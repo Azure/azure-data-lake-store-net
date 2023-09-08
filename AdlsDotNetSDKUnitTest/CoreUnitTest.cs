@@ -125,7 +125,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRetry()
         {
-            int port = 9080;
+            int port = 8080;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -154,7 +154,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry1()
         {
-            int port = 9081;
+            int port = 8081;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -178,7 +178,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry2()
         {
-            int port = 9082;
+            int port = 8082;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -201,7 +201,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestry3()
         {
-            int port = 9083;
+            int port = 8083;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -248,10 +248,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestCancellation()
         {
-            int port = 9084;
+            int port = 8084;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
@@ -261,7 +260,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             };
             Thread worker = new Thread(run);
             worker.Start(state);
-            Thread.Sleep(10000);
+            Thread.Sleep(10*1000);
             Stopwatch watch = Stopwatch.StartNew();
             source.Cancel();
             worker.Join();
@@ -275,10 +274,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTimeout()
         {
-            int port = 9085;
+            int port = 8085;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
@@ -304,10 +302,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConnectionBroken()
         {
-            int port = 9086;
+            int port = 8086;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
@@ -410,7 +407,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestListStatusWithArrayInResponse()
         {
-            int port = 9087;
+            int port = 8087;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
@@ -432,7 +429,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void testListStatusWithMultipleArrayInResponse()
         {
-            int port = 9088;
+            int port = 8088;
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
