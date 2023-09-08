@@ -1,5 +1,5 @@
 # Changes to the SDK
-### Version 2.0.1-alpha
+### Version 2.0.0-alpha.2
 - Fix bug with bulkdownloader on non-Windows Operating Systems
 ### Version 2.0.0-alpha
 - Add dot net standard 2.0 for target and upgrade newtonsoft json version in new alpha sdk version
