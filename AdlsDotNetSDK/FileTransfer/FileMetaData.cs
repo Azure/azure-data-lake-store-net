@@ -141,12 +141,10 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             int bytesReturned = 0;
             NativeOverlapped lpOverlapped = new NativeOverlapped();
-            bool result = DeviceIoControl(fileHandle, 590020, //FSCTL_SET_SPARSE,
+            DeviceIoControl(fileHandle, 590020, //FSCTL_SET_SPARSE,
                     IntPtr.Zero, 0, IntPtr.Zero, 0, ref bytesReturned, ref lpOverlapped);
-            if (result == false)
-            {
-                throw new Win32Exception();
-            }
+            // Lets not fail if we are not able to mark a file sparse. 
+            // This is a perf improvement. 
         }
 
         // For downloader. For chunked downloads: Creates the file if it does not exist. Else returns a write stream. This is necessary since multiple threads will write 
