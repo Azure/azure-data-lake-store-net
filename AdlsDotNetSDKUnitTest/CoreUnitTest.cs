@@ -24,6 +24,17 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static AdlsClient _adlsClient = SdkUnitTest.SetupSuperClient();
         private static Process _cmdProcess;
         private const int NumTests = 7;
+        private TestContext testContextInstance;
+
+        /// <summary>
+        /// Gets or sets the test context which provides
+        /// information about and functionality for the current test run.
+        /// </summary>
+        public TestContext TestContext
+        {
+            get { return testContextInstance; }
+            set { testContextInstance = value; }
+        }
         private static string TestToken = Guid.NewGuid().ToString();
         [ClassInitialize]
         public static void Setup(TestContext context)
@@ -156,6 +167,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)408);
+            TestContext.WriteLine(resp.HttpMessage);
             Assert.IsTrue(resp.HttpMessage.Equals("Request Timeout"));
             Assert.IsTrue(resp.Retries == 1);
             server.StopServer();
@@ -178,6 +190,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)429);
+            TestContext.WriteLine(resp.HttpMessage);
             Assert.IsTrue(resp.HttpMessage.Equals("Too Many Requests"));
             Assert.IsTrue(resp.Retries == 1);
             server.StopServer();
@@ -238,7 +251,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             int port = 8084;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
@@ -248,7 +260,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             };
             Thread worker = new Thread(run);
             worker.Start(state);
-            Thread.Sleep(10000);
+            Thread.Sleep(10*1000);
             Stopwatch watch = Stopwatch.StartNew();
             source.Cancel();
             worker.Join();
@@ -265,7 +277,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             int port = 8085;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()
@@ -283,6 +294,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             Assert.IsTrue(watch.ElapsedMilliseconds < 7000);
             Assert.IsNotNull(state.AdlsClient);
             Assert.IsInstanceOfType(state.Ex, typeof(Exception));
+            TestContext.WriteLine(state.Ex.Message);
             Assert.IsTrue(state.Ex.Message.Contains("Operation timed out"));
             server.StopAbruptly();
         }
@@ -293,7 +305,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             int port = 8086;
             MockWebServer server = new MockWebServer(port);
             server.StartServer();
-            server.EnqueMockResponse(new MockResponse(200, "OK"));
             AdlsClient adlsClient = AdlsClient.CreateClientWithoutAccntValidation(MockWebServer.Host + ":" + port, TestToken);
             CancellationTokenSource source = new CancellationTokenSource();
             RequestState state = new RequestState()

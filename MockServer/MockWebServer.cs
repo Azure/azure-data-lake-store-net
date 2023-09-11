@@ -4,7 +4,6 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.IO;
-using Microsoft.Net.Http.Server;
 
 namespace MockServer
 {
@@ -29,7 +28,7 @@ namespace MockServer
         /// <summary>
         /// Http listener that immplements a mock server on a localhost and a particular port
         /// </summary>
-        private readonly WebListener _webListener;
+        private readonly HttpListener _webListener;
         /// <summary>
         /// Initializes the Httplistener to listen to a particular port of localhost
         /// </summary>
@@ -38,9 +37,8 @@ namespace MockServer
         {
             _threadWorker = new Thread(Run);
             _list = new Queue<MockResponse>();
-            var settings = new WebListenerSettings();
-            settings.UrlPrefixes.Add("http://" + Host + ":" + port + "/");
-            _webListener = new WebListener(settings);
+            _webListener = new HttpListener();
+            _webListener.Prefixes.Add("http://" + Host + ":" + port + "/");
         }
         /// <summary>
         /// Starts the server thread
@@ -97,21 +95,32 @@ namespace MockServer
                 MockResponse resp = GetMockResponse();
                 if (resp == null)
                 {
-                    _webListener.Dispose();
+                     _webListener.Close();
                     return;
                 }
-                using (var context = _webListener.AcceptAsync().GetAwaiter().GetResult())
+
+                try
+                { 
+                
+                var context = _webListener.GetContext();
+                HttpListenerRequest request = context.Request;
+                var response = context.Response;
+
+                Console.WriteLine(request.Headers.AllKeys);
+                response.StatusCode = (int)resp.StatusCode.Value;
+                response.StatusDescription = resp.StatusDescription;
+                if (resp.ResponseBody != null)
                 {
-                    Wait(context.Request.Body);
-                    context.Response.StatusCode = (int)resp.StatusCode.Value;
-                    context.Response.ReasonPhrase = resp.StatusDescription;
-                    if (resp.ResponseBody != null)
-                    {
-                        var bytes = Encoding.UTF8.GetBytes(resp.ResponseBody);
-                        context.Response.ContentType = "application/json";
-                        context.Response.ContentLength = bytes.Length;
-                        context.Response.Body.WriteAsync(bytes, 0, bytes.Length).Wait();
-                    }
+                    Wait(context.Request.InputStream);
+                    var bytes = Encoding.UTF8.GetBytes(resp.ResponseBody);
+                    response.ContentType = "application/json";
+                    response.ContentLength64 = bytes.Length;
+                    response.OutputStream.WriteAsync(bytes, 0, bytes.Length).Wait();
+                }
+                response.Close();
+                }catch (Exception ex) {
+                    Console.WriteLine(ex);
+                    return;
                 }
             }
         }
@@ -134,7 +143,7 @@ namespace MockServer
 
         public void StopAbruptly()
         {
-            _webListener.Dispose();
+            _webListener.Close();
         }
     }
     /// <summary>
