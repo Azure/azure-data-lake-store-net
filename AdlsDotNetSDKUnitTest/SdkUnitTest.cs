@@ -199,17 +199,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         {
             string clientAccountPath = _accntName;
             AdlsClient client;
+            string[] scopes = new string[] { "https://management.core.windows.net/.default" };
             if (clientAccountPath.EndsWith("azuredatalakestore.net"))
             {
-                string[] scopes = new string[] { "https://datalake.azure.net/.default" };
-
                 var clientCreds = new ClientSecretCredential(_domain, clientId, clientSecret);
                 client = AdlsClient.CreateClient(clientAccountPath, clientCreds, scopes);
             }
             else
             {
-                string[] scopes = new string[] { "https://management.core.windows.net/.default" };
-
                 var serviceSettings = new TokenCredentialOptions();
                 serviceSettings.AuthorityHost = new Uri(_dogFoodAuthEndPoint);
 
