@@ -12,7 +12,7 @@ using Microsoft.Azure.DataLake.Store.AclTools;
 using Microsoft.Azure.DataLake.Store.FileProperties;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
-using Microsoft.Rest;
+using Azure.Core;
 using NLog;
 using System.IO;
 
@@ -89,7 +89,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Authorization token provider
         /// </summary>
-        private ServiceClientCredentials AccessProvider { get; }
+        private TokenCredential AccessProvider { get; }
+        /// <summary>
+        /// The scopes to request when acquiring a token using AccessProvider
+        /// </summary>
+        public readonly string[] _tokenScopes = new string[] { "https://datalake.azure.net//.default" };
         /// <summary>
         /// SDK version- AssemblyFileVersion
         /// </summary>
@@ -191,9 +195,14 @@ namespace Microsoft.Azure.DataLake.Store
             AccessToken = token;
         }
 
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        internal AdlsClient(string accnt, long clientId, TokenCredential creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
         {
             AccessProvider = creds;
+        }
+
+        internal AdlsClient(string accnt, long clientId, TokenCredential creds, string[] scopes, bool skipAccntValidation = false) : this(accnt, clientId, creds, skipAccntValidation)
+        {
+            _tokenScopes = scopes;
         }
 
         private bool IsValidAccount(string accnt)
@@ -235,9 +244,22 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
         /// <returns>AdlsClient</returns>
-        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds)
+        public static AdlsClient CreateClient(string accountFqdn, TokenCredential creds)
         {
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds);
+        }
+
+        /// <summary>
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <returns>AdlsClient</returns>
+        public static AdlsClient CreateClient(string accountFqdn, TokenCredential creds, string[] scopes)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, scopes);
         }
         #endregion
 
@@ -312,9 +334,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             if (AccessProvider != null)
             {
-                HttpRequestMessage request = new HttpRequestMessage();
-                await AccessProvider.ProcessHttpRequestAsync(request, cancelToken).ConfigureAwait(false);
-                return request.Headers.Authorization.ToString();
+                return "Bearer " + (await AccessProvider.GetTokenAsync(new TokenRequestContext(_tokenScopes), cancelToken).ConfigureAwait(false)).Token;
             }
             lock (_thisLock)
             {

@@ -1,8 +1,7 @@
 ﻿using Microsoft.Azure.DataLake.Store.Acl;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
-using Microsoft.Rest;
-using Microsoft.Rest.Azure.Authentication;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Azure.Core;
+using Azure.Identity;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -199,20 +198,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static AdlsClient SetupCommonClient(string clientId, string clientSecret)
         {
             string clientAccountPath = _accntName;
-            var creds = new ClientCredential(clientId, clientSecret);
             AdlsClient client;
+
             if (clientAccountPath.EndsWith("azuredatalakestore.net"))
             {
-                ServiceClientCredentials clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds).GetAwaiter().GetResult();
+                var clientCreds = new ClientSecretCredential(_domain, clientId, clientSecret);
                 client = AdlsClient.CreateClient(clientAccountPath, clientCreds);
             }
             else
             {
-                var serviceSettings = ActiveDirectoryServiceSettings.Azure;
-                serviceSettings.TokenAudience = new Uri("https://management.core.windows.net/");
-                serviceSettings.AuthenticationEndpoint = new Uri(_dogFoodAuthEndPoint);
-                var clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds, serviceSettings).GetAwaiter().GetResult();
-                client = AdlsClient.CreateClient(clientAccountPath, clientCreds);
+                var serviceSettings = new TokenCredentialOptions();
+                serviceSettings.AuthorityHost = new Uri(_dogFoodAuthEndPoint);
+                string[] scopes = new string[] { "https://management.core.windows.net//.default" };
+
+                var clientCreds = new ClientSecretCredential(_domain, clientId, clientSecret, serviceSettings);
+                client = AdlsClient.CreateClient(clientAccountPath, clientCreds, scopes);
             }
 
             return client;

@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.0-alpha.3
+- Migrate from using ADAL libraries from auth to MSAL
 ### Version 2.0.0-alpha.2
 - Fix bug with bulkdownloader on non-Windows Operating Systems/filesystems
 ### Version 2.0.0-alpha
