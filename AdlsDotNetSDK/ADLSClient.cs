@@ -93,7 +93,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// The scopes to request when acquiring a token using AccessProvider
         /// </summary>
-        public readonly string[] _tokenScopes = new string[] { "https://management.core.windows.net/.default" };
+        public readonly string[] _tokenScopes = new string[] { "https://datalake.azure.net//.default" };
         /// <summary>
         /// SDK version- AssemblyFileVersion
         /// </summary>
