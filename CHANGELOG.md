@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.1-alpha.1
+- Version Change only
 ### Version 2.0.0-alpha.3
 - Migrate from using ADAL libraries from auth to MSAL
 ### Version 2.0.0-alpha.2
