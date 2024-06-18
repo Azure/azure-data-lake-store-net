@@ -9,7 +9,7 @@
     <Authors>Microsoft</Authors>
     <Description>Microsoft Azure Data Lake Store Filesystem Library for Dot Net</Description>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes> Version Change only</PackageReleaseNotes>
+    <PackageReleaseNotes>Version Change only</PackageReleaseNotes>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageLicenseUrl>https://raw.githubusercontent.com/Azure/azure-data-lake-store-net/master/LICENSE</PackageLicenseUrl>
     <PackageIconUrl>http://go.microsoft.com/fwlink/?LinkID=288890</PackageIconUrl>
