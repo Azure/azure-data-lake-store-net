@@ -3,7 +3,7 @@
 	  <TargetFrameworks>netstandard2.0;</TargetFrameworks>
 	  <PackageId>Microsoft.Azure.DataLake.Store</PackageId>
 	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <Version>2.0.1-alpha.1</Version>
+	  <Version>2.0.1</Version>
     <FileVersion>$(Version)</FileVersion>
     <PackageVersion>$(Version)</PackageVersion>
     <Authors>Microsoft</Authors>

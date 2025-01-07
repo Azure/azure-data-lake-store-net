@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.1
+- Version Change only to stable from alpha
 ### Version 2.0.1-alpha.1
 - Version Change only
 ### Version 2.0.0-alpha.3
