@@ -152,7 +152,7 @@ namespace Microsoft.Azure.DataLake.Store
                 SdkVersion = "SDKVersionUnknown";
             }
             string osInfo;
-            string dotNetVersion = "NETSTANDARD2_0-"+System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
+            string dotNetVersion = "NETSTANDARD2_0-" + System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
             try
             {
                 // The below calculation is wrong before net6 since Environment.ProcessorCount gives the count of logical processors not cores.
@@ -626,10 +626,10 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (checkExists && entry.Type == DirectoryEntryType.DIRECTORY)
             {
-                throw new AdlsException("Cannot overwrite directory "+path);
+                throw new AdlsException("Cannot overwrite directory " + path);
             }
 
-            if(checkExists)
+            if (checkExists)
             {
 
                 resp = new OperationResponse();
@@ -667,20 +667,20 @@ namespace Microsoft.Azure.DataLake.Store
                 throw GetExceptionFromResponse(resp, $"Error in creating file {path}.");
             }
         }
-/// <summary>
-/// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
-/// access - any attempt to open the same file for append will fail while this stream is open.  
-/// 
-/// Threading: The returned stream is not thread-safe.
-/// </summary>
-/// <param name="filename">File name</param>
-/// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
-/// <param name="bufferPool">Passed buffer pool</param>
-/// <param name="bufferCapacity"></param>
-/// <param name="octalPermission">Octal permission string</param>
-/// <param name="createParent">If true creates any non-existing parent directories</param>
-/// <returns>Output stream</returns>
-internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true)
+        /// <summary>
+        /// Synchronous API that creates a file and returns the stream to write data to that file in ADLS. The file is opened with exclusive 
+        /// access - any attempt to open the same file for append will fail while this stream is open.  
+        /// 
+        /// Threading: The returned stream is not thread-safe.
+        /// </summary>
+        /// <param name="filename">File name</param>
+        /// <param name="mode">Overwrites the existing file if the mode is Overwrite</param>
+        /// <param name="bufferPool">Passed buffer pool</param>
+        /// <param name="bufferCapacity"></param>
+        /// <param name="octalPermission">Octal permission string</param>
+        /// <param name="createParent">If true creates any non-existing parent directories</param>
+        /// <returns>Output stream</returns>
+        internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, AdlsArrayPool<byte> bufferPool, int bufferCapacity, string octalPermission = null, bool createParent = true)
         {
             return CreateFileAsync(filename, mode, bufferPool, bufferCapacity, octalPermission, createParent).GetAwaiter().GetResult();
         }
@@ -1395,6 +1395,16 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
             return EnumerateDeletedItemsWithTokenAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Asynchronously gets the trash entries
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        public virtual async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
         {
             var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
             return result.trashEntries;

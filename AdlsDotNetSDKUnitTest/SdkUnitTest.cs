@@ -2950,7 +2950,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         }
 
         [TestMethod]
-        public void TestTrashEnumeratePagination()
+        public void TestTrashEnumerateWithToken()
         {
             string prefix = GetFileOrFolderName("file");
 
@@ -2963,7 +2963,6 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
             Thread.Sleep(3000);
 
-            // First call to get the first 50 entries
             var (trashEntries, nextListAfter) = _adlsClient.EnumerateDeletedItemsWithToken(prefix, null, 10, null);
 
             Assert.IsTrue(trashEntries.Count() == 10);
