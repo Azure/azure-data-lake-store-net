@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.2-alpha.1
+- Add ability to pass continuation token in Get-AzDataLakeStoreDeletedItem
 ### Version 2.0.1
 - Version Change only to stable from alpha
 ### Version 2.0.1-alpha.1
