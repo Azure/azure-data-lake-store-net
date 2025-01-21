@@ -152,7 +152,7 @@ namespace Microsoft.Azure.DataLake.Store
                 SdkVersion = "SDKVersionUnknown";
             }
             string osInfo;
-            string dotNetVersion = "NETSTANDARD2_0-"+ System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
+            string dotNetVersion = "NETSTANDARD2_0-"+System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
             try
             {
                 // The below calculation is wrong before net6 since Environment.ProcessorCount gives the count of logical processors not cores.
@@ -626,7 +626,7 @@ namespace Microsoft.Azure.DataLake.Store
 
             if (checkExists && entry.Type == DirectoryEntryType.DIRECTORY)
             {
-                throw new AdlsException("Cannot overwrite directory " +path);
+                throw new AdlsException("Cannot overwrite directory "+path);
             }
 
             if(checkExists)
