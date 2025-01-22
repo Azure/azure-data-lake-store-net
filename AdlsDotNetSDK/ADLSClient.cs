@@ -1390,6 +1390,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
         /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the continuation token</returns>
         public virtual (IEnumerable<TrashEntry>, string) EnumerateDeletedItemsWithToken(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
         {
             return EnumerateDeletedItemsWithTokenAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
@@ -1419,6 +1420,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
         /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the next listAfter token</returns>
         public virtual async Task<(IEnumerable<TrashEntry>, string)> EnumerateDeletedItemsWithTokenAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
         {
             var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
