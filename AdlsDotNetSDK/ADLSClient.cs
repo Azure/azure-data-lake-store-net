@@ -1381,6 +1381,22 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         }
 
         /// <summary>
+        /// Search trash under a account with hint and a starting point. This is a long running operation,
+        /// and user is updated with progress periodically.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the continuation token</returns>
+        public virtual (IEnumerable<TrashEntry>, string) EnumerateDeletedItemsWithToken(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDeletedItemsWithTokenAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
         /// Asynchronously gets the trash entries
         /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
@@ -1390,6 +1406,28 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public virtual async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
+            return result.trashEntries;
+        }
+
+        /// <summary>
+        /// Asynchronously gets the trash entries along with the next listAfter token.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the next listAfter token</returns>
+        public virtual async Task<(IEnumerable<TrashEntry>, string)> EnumerateDeletedItemsWithTokenAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
+            return (result.trashEntries, result.nextListAfter);
+        }
+
+        private async Task<(List<TrashEntry> trashEntries, string nextListAfter)> EnumerateDeletedItemsInternalAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
         {
             List<TrashEntry> trashEntries = new List<TrashEntry>();
             string nextListAfter = listAfter;
@@ -1431,7 +1469,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
                         progressTracker.Report(progress);
                     }
 
-                    // empty NextListAfter implies search is complete. Break when serach is complete
+                    // empty NextListAfter implies search is complete. Break when search is complete
                     // or when we have found requisite number of entries
                     if (String.IsNullOrEmpty(trashstatus.NextListAfter) || numFound >= numResults)
                     {
@@ -1446,7 +1484,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
                 }
             }
 
-            return trashEntries;
+            return (trashEntries, nextListAfter);
         }
 
         /// <summary>
