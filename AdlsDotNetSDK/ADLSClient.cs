@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -256,6 +255,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// </summary>
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <param name="scopes">Scopes to request when acquiring a token using AccessProvider</param>
         /// <returns>AdlsClient</returns>
         public static AdlsClient CreateClient(string accountFqdn, TokenCredential creds, string[] scopes)
         {
