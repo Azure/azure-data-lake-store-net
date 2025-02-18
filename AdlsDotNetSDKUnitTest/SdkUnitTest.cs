@@ -2948,7 +2948,28 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.DIRECTORY);
             }
         }
-        
+
+        [TestMethod]
+        public void TestTrashEnumerateWithToken()
+        {
+            string prefix = GetFileOrFolderName("file");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string streamName = prefix + "_" + GetFileOrFolderName("file");
+                SetupTrashFile(streamName, "file");
+            }
+
+            Thread.Sleep(3000);
+
+            var (trashEntries, nextListAfter) = _adlsClient.EnumerateDeletedItemsWithToken(prefix, null, 10, null);
+
+            Assert.IsTrue(trashEntries.Count() == 10);
+            Assert.IsTrue(string.IsNullOrEmpty(nextListAfter));
+            Assert.IsTrue(trashEntries.All(entry => entry.Type == TrashEntryType.FILE));
+        }
+
         #endregion
 
         private bool VerifyGuid(string objectId)
