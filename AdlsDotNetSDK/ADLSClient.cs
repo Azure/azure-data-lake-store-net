@@ -1609,6 +1609,32 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
             return true;
         }
 
+        /// <summary>
+        /// Checks whether file or directory exists
+        /// </summary>
+        /// <param name="path">Path name</param>
+        /// <returns>True if the path exists else false</returns>
+        public async virtual Task<bool> CheckExistsAsync(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                throw new ArgumentException("Path is null or empty");
+            }
+            try
+            {
+                await GetDirectoryEntryAsync(path).ConfigureAwait(false);
+            }
+            catch (AdlsException e)
+            {
+                if (e.HttpStatus == HttpStatusCode.NotFound)
+                {
+                    return false;
+                }
+                throw e;
+            }
+            return true;
+        }
+
         #endregion
 
         #region SDKTools
