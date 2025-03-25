@@ -12,11 +12,15 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     public class LongRunningUnitTest
     {
         private static AdlsClient _adlsClient;
-        private static readonly string RemotePath = "/LongRunningUnitTest" + SdkUnitTest.TestId;
+        private static string BasePath;
+
+        private static string RemotePath;
 
         [ClassInitialize]
         public static void SetupTest(TestContext context)
         {
+            BasePath = context.Properties["BasePath"].ToString();
+            RemotePath = "/" + BasePath + "/LongRunningUnitTest" + SdkUnitTest.TestId;
             _adlsClient = SdkUnitTest.SetupSuperClient();
             _adlsClient.DeleteRecursive(RemotePath);
             _adlsClient.CreateDirectory(RemotePath);

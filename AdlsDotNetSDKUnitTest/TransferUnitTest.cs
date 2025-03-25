@@ -13,14 +13,15 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     public class TransferUnitTest
     {
         private static AdlsClient _adlsClient;
+        private static string BasePath;
         private static readonly string LocalRelativePath = @".\" + SdkUnitTest.TestId;
         private static readonly string LocalPath = Directory.GetCurrentDirectory() + @"\" + SdkUnitTest.TestId;
-        private static readonly string RemotePath = "/Test1" + SdkUnitTest.TestId;
+        private static string RemotePath;
         private static readonly string LocalPathUpload1 = $"{LocalPath}\\B";
         private static readonly string LocalPathUpload2 = $"{LocalRelativePath}\\C";
-        private static readonly string RemotePathUpload1 = $"{RemotePath}/Uploader/B";
-        private static readonly string RemotePathUpload2 = $"{RemotePath}/Uploader/C";
-        private static readonly string RemotePathDownload = $"{RemotePath}/Downloader/A";
+        private static string RemotePathUpload1;
+        private static string RemotePathUpload2;
+        private static string RemotePathDownload;
         private static readonly string LocalPathDownload = $"{LocalPath}\\A";
         private static int TransferChunkSize = 240 * 1024;
         private static int LowFileSize = 100 * 1024;
@@ -31,6 +32,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassInitialize]
         public static void SetupClassTests(TestContext context)
         {
+            BasePath = context.Properties["BasePath"].ToString();
+            RemotePath ="/" + BasePath+  "/Test1" + SdkUnitTest.TestId;
+            RemotePathUpload1 = $"{RemotePath}/Uploader/B";
+            RemotePathUpload2 = $"{RemotePath}/Uploader/C";
+            RemotePathDownload = $"{RemotePath}/Downloader/A";
+
             _adlsClient = SdkUnitTest.SetupSuperClient();
 
             _adlsClient.DeleteRecursive(RemotePath);

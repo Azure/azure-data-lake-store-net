@@ -85,8 +85,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private static bool _isAccountTieredStore;
         private static bool _isFailureExpectedOnColon = false;
+        private static string BasePath;
+        private static string UnitTestDir;
 
-        private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -101,8 +102,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [AssemblyInitialize]
         public static void SetupUnitTest(TestContext context)
         {
-            
-            _accntName = (string)context.Properties["Account"];
+            BasePath = context.Properties["BasePath"].ToString();
+            UnitTestDir = "/" + BasePath + "/Test" + TestId;
+            _accntName = context.Properties["Account"].ToString();
             _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
             _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
             _ownerClientSecret = (string)context.Properties["AccountOwnerClientSecret"];
@@ -121,10 +123,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
             _isFailureExpectedOnColon = bool.Parse((string)context.Properties["FailureExpectedOnColon"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
-            if (bool.Parse((string)context.Properties["TlsEnabled"]))
+            string tlsEnabled = (string)context.Properties["TlsEnabled"];
+            if (!string.IsNullOrEmpty(tlsEnabled) && bool.Parse(tlsEnabled))
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            }
+            }    
         }
         /// <summary>
         /// Setup the client, empties the test directory
