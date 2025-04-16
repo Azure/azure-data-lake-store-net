@@ -20,12 +20,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Adls Client
         /// </summary>
         private static AdlsClient _adlsClient;
+        private static string BasePath;
 
-        private static readonly string RemotePath = "/Test2" + SdkUnitTest.TestId;
+        private static string RemotePath;
         /// <summary>
         /// Unittest path
         /// </summary>
-        private static readonly string UnitTestPath = $"{RemotePath}/RecursiveAcl/A";
+        private static string UnitTestPath;
 
         private static readonly string LocalPath = @"C:\Data1" + SdkUnitTest.TestId;
         /// <summary>
@@ -47,6 +48,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassInitialize]
         public static void SetupClient(TestContext context)
         {
+            BasePath = (string)context.Properties["BasePath"];
+            RemotePath = "/" + BasePath+ "/Test2" + SdkUnitTest.TestId;
+            UnitTestPath  = $"{RemotePath}/RecursiveAcl/A";
             _adlsClient = SdkUnitTest.SetupSuperClient();
 
             _adlsClient.DeleteRecursive(RemotePath);

@@ -25,7 +25,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static Process _cmdProcess;
         private const int NumTests = 7;
         private TestContext testContextInstance;
-
+        private static string BasePath;
+        private static string rootPath;
         /// <summary>
         /// Gets or sets the test context which provides
         /// information about and functionality for the current test run.
@@ -60,6 +61,8 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                     sw.WriteLine(cmdPart1 + i + "/ " + cmdPart2);
                 }
             }
+            BasePath = (string)context.Properties["BasePath"];
+            rootPath = "/" + BasePath+ "/Test/dir";
         }
         /// <summary>
         /// Unit test to try creating an invalid account
@@ -100,7 +103,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestPathMissingRootSeparator()
         {
-            string path = "CorePathMissingRootSeparator" + SdkUnitTest.TestId;
+            string path = BasePath + "/CorePathMissingRootSeparator" + SdkUnitTest.TestId;
             string direcPath = path + "/directory";
             Assert.IsTrue(_adlsClient.CreateDirectory(direcPath));
             string filePath = path + "/file";
@@ -138,7 +141,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             OperationResponse resp = new OperationResponse();
             adlsClient.SetInsecureHttp();
             Stopwatch watch = Stopwatch.StartNew();
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
+            Core.AppendAsync(rootPath, null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             watch.Stop();
             long time = watch.ElapsedMilliseconds;
@@ -164,7 +167,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             OperationResponse resp = new OperationResponse();
             adlsClient.SetInsecureHttp();
             //Core.AppendAsync()
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
+            Core.AppendAsync(rootPath, null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)408);
             TestContext.WriteLine(resp.HttpMessage);
@@ -187,7 +190,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             RequestOptions req = new RequestOptions(new ExponentialRetryPolicy(1, 1000));
             OperationResponse resp = new OperationResponse();
             adlsClient.SetInsecureHttp();
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
+            Core.AppendAsync(rootPath, null, null, SyncFlag.DATA, 0, null, -1, 0, adlsClient, req, resp).GetAwaiter()
                 .GetResult();
             Assert.IsTrue(resp.HttpStatus == (HttpStatusCode)429);
             TestContext.WriteLine(resp.HttpMessage);
@@ -212,7 +215,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             AdlsOutputStream ostream = null;
             try
             {
-                ostream = adlsClient.CreateFile("/Test/dir", IfExists.Overwrite, "");
+                ostream = adlsClient.CreateFile(rootPath, IfExists.Overwrite, "");
             }
             catch (IOException)
             {
@@ -343,7 +346,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 req = new RequestOptions(state.IsRetry ? new ExponentialRetryPolicy() : (RetryPolicy)new NoRetryPolicy());
             }
             byte[] ip = Encoding.UTF8.GetBytes("wait:300");
-            Core.AppendAsync("/Test/dir", null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter().GetResult();
+            Core.AppendAsync(rootPath, null, null, SyncFlag.DATA, 0, ip, 0, ip.Length, adlsClient, req, resp, state.CancelToken).GetAwaiter().GetResult();
             state.Ex = resp.Ex;
             state.IsConnectionFailure = resp.ConnectionFailure;
         }
@@ -366,7 +369,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             byte[] ip = Encoding.UTF8.GetBytes("wait:300");
             try
             {
-                adlsClient.ConcurrentAppendAsync("/Test/dir", true, ip, 0, ip.Length, state.CancelToken).GetAwaiter().GetResult();
+                adlsClient.ConcurrentAppendAsync(rootPath, true, ip, 0, ip.Length, state.CancelToken).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

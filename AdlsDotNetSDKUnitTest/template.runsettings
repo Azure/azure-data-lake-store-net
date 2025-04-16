@@ -45,6 +45,9 @@
 
     <Parameter name="TlsEnabled" value="" />
     <Parameter name="FailureExpectedOnColon" value="false" />
+
+    <Parameter name="BasePath" value="DotnetPublicGen1" />
+
   </TestRunParameters>
 
   <!-- Adapter Specific sections -->
