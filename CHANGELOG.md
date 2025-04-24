@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.3
+- Suppress CodeQL warnings for file transfer
 ### Version 2.0.2
 - Add ability to pass continuation token in Get-AzDataLakeStoreDeletedItem
 - Dependency updates.
@@ -50,7 +52,7 @@
 - Fix async cancellation token
 - Minor fixes: Fix MockADlsClient Create with overwrite, Fix HasAcl in copy constructor
 ### Version 1.1.13
-- Fix timeouts not getting retried 
+- Fix timeouts not getting retried
 ### Version 1.1.12
 - Increase the default thread count if physical cores is 0, Fix threadcount to be defaultthreadcount if input is 0
 - Enable getconsistent length in getfilestatus
@@ -76,7 +78,7 @@
 - Fix BulkUpload for very large files which reaches the concatenate limit
 ### Version 1.1.8
 - Fix FileTransfer upload for relative input path. Add unittest
-- Fix error message for remote exceptions which does not return json output. 
+- Fix error message for remote exceptions which does not return json output.
 - Add Authentication header length for logging and Adls exception message for 401
 - Add async api corresponding to non-async methods in mock adlsclient
 - Add cancellation token to recursive acl change and recursive DU and acl dump. Add progress tracking to recursive acl change
@@ -115,7 +117,7 @@
 - Add query parameter getConsistentLength to getfilestatus to get consistent length and pass it for open and append
 - Fix retrieving x-ms-requestid for remote exception
 - [Internal Only] In Core pass opcode as string to webtransport instead of enum
-- Fix the accessibility of Operation class 
+- Fix the accessibility of Operation class
 - For FileProperties add entry type column
 ### Version 1.0.5
 - Fix the condition for going up the tree while calculating disk usage.
