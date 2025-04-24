@@ -1,6 +1,4 @@
 # Changes to the SDK
-### Version 2.0.3
-- Suppress CodeQL warnings for file transfer
 ### Version 2.0.2
 - Add ability to pass continuation token in Get-AzDataLakeStoreDeletedItem
 - Dependency updates.
