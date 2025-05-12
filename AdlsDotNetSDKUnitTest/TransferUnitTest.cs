@@ -29,6 +29,7 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static int DataCreatorBuffSize = 2 * 1024; // At this offset there will be new lines while writing, this should be less than ADlsOutputStream.Buffercapacity.
         private static int CopyBufferSize = 4 * 1024; // Buffer size for FileCopy and ADlsOutputStream, not necessary at all just kept to catch corner cases
         private static int ReadBufferForwardSize = 8; // For nonbinary we read forward, this is the size we should read forward
+        private static bool symlinkTestsDisabled = true;
         [ClassInitialize]
         public static void SetupClassTests(TestContext context)
         {
@@ -48,10 +49,14 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             DataCreator.CreateDirRecursiveRemote(_adlsClient, RemotePathDownload, 2, 3, 3, 4, LowFileSize, HighFileSize, true);
             DataCreator.BuffSize = DataCreatorBuffSize;
             
-
             DataCreator.CreateDirRecursiveLocal(LocalPathUpload1, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
             DataCreator.CreateDirRecursiveLocal(LocalPathUpload2, 1, 3, 3, 4, LowFileSize, HighFileSize, "", true);
 
+            // Certain tests are expected to fail over symlink, so we skip them.
+            if (BasePath.ToLower().Contains("symlink"))
+            {
+                symlinkTestsDisabled = false;
+            } 
         }
 
         [TestInitialize]
@@ -68,6 +73,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestUploadNonBinary()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestUploadNonBinary because concat is not supported over symlink.");
+            }
             TransferStatus status = FileUploader.Upload(LocalPathUpload1, RemotePathUpload1, _adlsClient, 10, IfExists.Overwrite, null, false, false, false, false, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
@@ -83,6 +92,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestUploadBinary()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestUploadBinary because concat is not supported over symlink.");
+            }
             TransferStatus status = FileUploader.Upload(LocalPathUpload2, RemotePathUpload2, _adlsClient, 10, IfExists.Overwrite, null, false, true, false, true, default(CancellationToken), false, TransferChunkSize);
             Assert.IsTrue(status.EntriesFailed.Count == 0);
             Assert.IsTrue(status.EntriesSkipped.Count == 0);
