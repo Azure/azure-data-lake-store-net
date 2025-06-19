@@ -1860,6 +1860,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFile()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestSetPermissionFile because AppendStream requires W in Gen1 but RW in Gen2.");
+            }
+            
             string path = $"{UnitTestDir}/SetPermission.txt";
             string originalPermission = "770";
             string permission = "772";
@@ -2493,6 +2498,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultMode()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestAclDefaultMode because AppendStream requires W in Gen1 but RW in Gen2.");
+            }
+
             string path = $"{UnitTestDir}/TestAclDefaultMode";
             _adlsClient.CreateDirectory(path, "730");
             List<AclEntry> aclList = new List<AclEntry>() {
