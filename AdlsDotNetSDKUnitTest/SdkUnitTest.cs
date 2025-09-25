@@ -2678,6 +2678,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsToOriginalDestination()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsToOriginalDestination over symlink.");
+            }
             // Restore file
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2719,6 +2723,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsToNewDestination()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsToNewDestination over symlink.");
+            }
             // Restore file
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2797,6 +2805,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsFileWithOverwriteOrCopy()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsFileWithOverwriteOrCopy over symlink.");
+            }
             // Test copy
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2856,6 +2868,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsDirectoryWithCopy()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsDirectoryWithCopy over symlink.");
+            }
             // Test copy
             string dirName = GetFileOrFolderName("directory");
             SetupTrashFile(dirName, "directory");
@@ -2909,6 +2925,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateForMultipleFileSearch()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateForMultipleFileSearch over symlink.");
+            }
             string prefix = GetFileOrFolderName("file");
 
             int N = 10;
@@ -2968,6 +2988,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateForMultipleDirectorySearch()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateForMultipleDirectorySearch over symlink.");
+            }
             string prefix = GetFileOrFolderName("directory");
 
             int N = 10;
@@ -2992,6 +3016,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateWithToken()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateWithToken over symlink.");
+            }
             string prefix = GetFileOrFolderName("file");
 
             int N = 10;
