@@ -301,13 +301,6 @@ namespace Microsoft.Azure.DataLake.Store
             {
                 request.Headers.TryAddWithoutValidation("x-ms-adl-client-latency", latencyHeader);
             }
-
-            // Add content encoding if set
-            if (client.ContentEncoding != null && postRequestLength > MinDataSizeForCompression)
-            {
-                request.Headers.TryAddWithoutValidation("Content-Encoding", client.ContentEncoding);
-            }
-
             // Add Host header if using DIP
             if (client.DipIp != null && !req.IgnoreDip)
             {
@@ -739,6 +732,12 @@ namespace Microsoft.Azure.DataLake.Store
                                                 requestData.Count, linkedCts.Token).ConfigureAwait(false);
                                         }
                                         content = new ByteArrayContent(memoryStream.ToArray());
+                                        
+                                        // Set Content-Encoding header on the content (not request headers)
+                                        if (!string.IsNullOrEmpty(client.ContentEncoding))
+                                        {
+                                            content.Headers.ContentEncoding.Add(client.ContentEncoding);
+                                        }
                                     }
                                     else
                                     {
