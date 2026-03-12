@@ -69,6 +69,11 @@ namespace Microsoft.Azure.DataLake.Store
         public long TokenAcquisitionLatency { get; internal set; }
 
         /// <summary>
+        /// Indicates whether the file handle is symlink backed, can take values true/false/unknown.
+        /// </summary>
+        public string IsFileSymlink { get; internal set; }
+
+        /// <summary>
         /// For WebExceptionStatus
         /// </summary>
         internal bool ConnectionFailure { get; set; }

@@ -157,7 +157,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (WebTransportLog.IsDebugEnabled)
             {
                 string logLine =
-                    $"HTTPRequest,{(resp.IsSuccessful ? "Succeeded" : "failed")},cReqId:{req.RequestId},lat:{resp.LastCallLatency},err:{error},Reqlen:{requestLength},Resplen:{responseLength}" +
+                    $"HTTPRequest,{(resp.IsSuccessful ? "Succeeded" : "failed")},isFileSymlink:{resp.IsFileSymlink},cReqId:{req.RequestId},lat:{resp.LastCallLatency},err:{error},Reqlen:{requestLength},Resplen:{responseLength}" +
                     $"{(resp.HttpStatus == HttpStatusCode.Unauthorized ? $",Tokenlen:{resp.AuthorizationHeaderLength}" : "")},token_ns:{resp.TokenAcquisitionLatency},sReqId:{resp.RequestId}" +
                     $",path:{path},qp:{querParams}{(!req.KeepAlive ? ",keepAlive:false" : "")}{(!req.IgnoreDip && client.DipIp != null ? $",dipIp:{client.DipIp}" : "")}";
                 WebTransportLog.Debug(logLine);
@@ -352,7 +352,7 @@ namespace Microsoft.Azure.DataLake.Store
             if (!string.IsNullOrEmpty(encoding) && encoding.Equals("chunked"))
             {
                 // If the error response is from our FE, then it wont be chunked. If the error is from IIS
-                // then it may be chunked. So assign a default size of the error response. Even if the remote error 
+                // then it may be chunked. So assign a default size of the error response. Even if the remote error
                 // is not contained in that buffer size, its fine.
                 if (isResponseError)
                 {
@@ -423,10 +423,11 @@ namespace Microsoft.Azure.DataLake.Store
                         PostPowershellLogDetails(webReq, errorResponse);
                         resp.HttpStatus = errorResponse.StatusCode;
                         resp.RequestId = errorResponse.Headers["x-ms-request-id"];
+                        resp.IsFileSymlink = errorResponse.Headers["x-ms-isFileSymlink"];
                         if (resp.HttpStatus == HttpStatusCode.Unauthorized && TokenLog.IsDebugEnabled)
                         {
                             string tokenLogLine =
-                                $"HTTPRequest,HTTP401,cReqId:{requestId},sReqId:{resp.RequestId},path:{path},token:{token}";
+                                $"HTTPRequest,HTTP401,cReqId:{requestId},sReqId:{resp.RequestId},path:{path},token:{token},isFileSymlink:{resp.IsFileSymlink}";
                             TokenLog.Debug(tokenLogLine);
                         }
                         resp.HttpMessage = errorResponse.StatusDescription;
@@ -437,7 +438,7 @@ namespace Microsoft.Azure.DataLake.Store
                         }
                         using (Stream errorStream = errorResponse.GetResponseStream())
                         {
-                            // Reading the data from the error response into a byte array is necessary to show the actual error data as a part of the 
+                            // Reading the data from the error response into a byte array is necessary to show the actual error data as a part of the
                             // error message in case JSON parsing does not work. We read the bytes and then pass it back to JsonTextReader using a memorystream
                             int noBytes;
                             int totalLengthToRead = errorResponseData.Count;
@@ -448,7 +449,7 @@ namespace Microsoft.Azure.DataLake.Store
                                 totalLengthToRead -= noBytes;
 
                             } while (noBytes > 0 && totalLengthToRead > 0);
-                            // Pass errorResponseData.Offset instead of errorResponseData.Count because errorResponseData.Offset can be less than errorResponseData.Count 
+                            // Pass errorResponseData.Offset instead of errorResponseData.Count because errorResponseData.Offset can be less than errorResponseData.Count
                             //This will be the case mostly for chunked error response where we initialize the byte with 1000 bytes
                             ParseRemoteError(errorResponseData.Data, errorResponseData.Offset, resp, errorResponse.Headers["Content-Type"]);
                         }
@@ -704,6 +705,7 @@ namespace Microsoft.Azure.DataLake.Store
                                 resp.HttpStatus = webResponse.StatusCode;
                                 resp.HttpMessage = webResponse.StatusDescription;
                                 resp.RequestId = webResponse.Headers["x-ms-request-id"];
+                                resp.IsFileSymlink = webResponse.Headers["x-ms-isFileSymlink"];
                                 PostPowershellLogDetails(webReq, webResponse);
                                 if (op.ReturnsBody)
                                 {
@@ -887,6 +889,7 @@ namespace Microsoft.Azure.DataLake.Store
                             resp.HttpStatus = webResponse.StatusCode;
                             resp.HttpMessage = webResponse.StatusDescription;
                             resp.RequestId = webResponse.Headers["x-ms-request-id"];
+                            resp.IsFileSymlink = webResponse.Headers["x-ms-isFileSymlink"];
                             PostPowershellLogDetails(webReq, webResponse);
                             if (op.ReturnsBody)
                             {
