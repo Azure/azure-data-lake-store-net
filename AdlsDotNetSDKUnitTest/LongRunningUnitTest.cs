@@ -12,20 +12,34 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     public class LongRunningUnitTest
     {
         private static AdlsClient _adlsClient;
-        private static readonly string RemotePath = "/LongRunningUnitTest" + SdkUnitTest.TestId;
+        private static string BasePath;
 
+        private static string RemotePath;
+
+        private static bool symlinkTestsDisabled = true;
         [ClassInitialize]
         public static void SetupTest(TestContext context)
         {
+            BasePath = context.Properties["BasePath"].ToString();
+            RemotePath = "/" + BasePath + "/LongRunningUnitTest" + SdkUnitTest.TestId;
             _adlsClient = SdkUnitTest.SetupSuperClient();
             _adlsClient.DeleteRecursive(RemotePath);
             _adlsClient.CreateDirectory(RemotePath);
             AdlsClient.ConcatenateStreamListThreshold = 10;
+            // Certain tests are expected to fail over symlink, so we skip them.
+            if (BasePath.ToLower().Contains("symlink"))
+            {
+                symlinkTestsDisabled = false;
+            }
         }
 
         [TestMethod]
         public void ParallelConcatenate()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping ParallelConcatenate because concat is not supported over symlink.");
+            }
             string path = $"{RemotePath}/A";
             string destination = $"{RemotePath}/Concatdest";
             int countFile = 400;

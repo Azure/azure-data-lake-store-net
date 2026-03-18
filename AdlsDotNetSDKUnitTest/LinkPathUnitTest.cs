@@ -151,6 +151,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassCleanup]
         public static void CleanTests()
         {
+            if (!_shoudRunLinkTests)
+                return;
+                
             foreach (var dir in createdDirs)
             {
                 _adlsClient.DeleteRecursive(dir);

@@ -132,10 +132,13 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         /// Adls Client
         /// </summary>
         private static AdlsClient _adlsClient;
-        private static readonly string RemotePath = "/ReadWriteWithArrayPoolUnitTest" + SdkUnitTest.TestId;
+        private static string BasePath;
+        private static string RemotePath;
         [ClassInitialize]
         public static void SetupTest(TestContext context)
         {
+            BasePath = context.Properties["BasePath"].ToString();
+            RemotePath = "/" + BasePath + "/ReadWriteWithArrayPoolUnitTest" + SdkUnitTest.TestId;
             _arrayPool = new FixedStandardArrayPool<byte>(4 * 1024 * 1024, 2);
             _adlsClient = SdkUnitTest.SetupSuperClient();
         }

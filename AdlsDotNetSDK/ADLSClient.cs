@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -12,7 +11,7 @@ using Microsoft.Azure.DataLake.Store.AclTools;
 using Microsoft.Azure.DataLake.Store.FileProperties;
 using Microsoft.Azure.DataLake.Store.FileTransfer;
 using Microsoft.Azure.DataLake.Store.RetryPolicies;
-using Microsoft.Rest;
+using Azure.Core;
 using NLog;
 using System.IO;
 
@@ -89,7 +88,11 @@ namespace Microsoft.Azure.DataLake.Store
         /// <summary>
         /// Authorization token provider
         /// </summary>
-        private ServiceClientCredentials AccessProvider { get; }
+        private TokenCredential AccessProvider { get; }
+        /// <summary>
+        /// The scopes to request when acquiring a token using AccessProvider
+        /// </summary>
+        public readonly string[] _tokenScopes = new string[] { "https://datalake.azure.net//.default" };
         /// <summary>
         /// SDK version- AssemblyFileVersion
         /// </summary>
@@ -191,9 +194,14 @@ namespace Microsoft.Azure.DataLake.Store
             AccessToken = token;
         }
 
-        internal AdlsClient(string accnt, long clientId, ServiceClientCredentials creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
+        internal AdlsClient(string accnt, long clientId, TokenCredential creds, bool skipAccntValidation = false) : this(accnt, clientId, skipAccntValidation)
         {
             AccessProvider = creds;
+        }
+
+        internal AdlsClient(string accnt, long clientId, TokenCredential creds, string[] scopes, bool skipAccntValidation = false) : this(accnt, clientId, creds, skipAccntValidation)
+        {
+            _tokenScopes = scopes;
         }
 
         private bool IsValidAccount(string accnt)
@@ -235,9 +243,23 @@ namespace Microsoft.Azure.DataLake.Store
         /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
         /// <param name="creds">Credentials that retrieves the Auth token</param>
         /// <returns>AdlsClient</returns>
-        public static AdlsClient CreateClient(string accountFqdn, ServiceClientCredentials creds)
+        public static AdlsClient CreateClient(string accountFqdn, TokenCredential creds)
         {
             return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds);
+        }
+
+        /// <summary>
+        /// Factory method that creates an instance of AdlsClient using ServiceClientCredential. If an application wants to perform multi-threaded operations using this SDK
+        /// it is highly recomended to set ServicePointManager.DefaultConnectionLimit to the number of threads application wants the sdk to use before creating any instance of AdlsClient.
+        /// By default ServicePointManager.DefaultConnectionLimit is set to 2.
+        /// </summary>
+        /// <param name="accountFqdn">Azure data lake store account name including full domain name  (e.g. contoso.azuredatalakestore.net)</param>
+        /// <param name="creds">Credentials that retrieves the Auth token</param>
+        /// <param name="scopes">Scopes to request when acquiring a token using AccessProvider</param>
+        /// <returns>AdlsClient</returns>
+        public static AdlsClient CreateClient(string accountFqdn, TokenCredential creds, string[] scopes)
+        {
+            return new AdlsClient(accountFqdn, Interlocked.Increment(ref _atomicClientId), creds, scopes);
         }
         #endregion
 
@@ -312,9 +334,7 @@ namespace Microsoft.Azure.DataLake.Store
         {
             if (AccessProvider != null)
             {
-                HttpRequestMessage request = new HttpRequestMessage();
-                await AccessProvider.ProcessHttpRequestAsync(request, cancelToken).ConfigureAwait(false);
-                return request.Headers.Authorization.ToString();
+                return "Bearer " + (await AccessProvider.GetTokenAsync(new TokenRequestContext(_tokenScopes), cancelToken).ConfigureAwait(false)).Token;
             }
             lock (_thisLock)
             {
@@ -1361,6 +1381,22 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         }
 
         /// <summary>
+        /// Search trash under a account with hint and a starting point. This is a long running operation,
+        /// and user is updated with progress periodically.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the continuation token</returns>
+        public virtual (IEnumerable<TrashEntry>, string) EnumerateDeletedItemsWithToken(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken = default(CancellationToken))
+        {
+            return EnumerateDeletedItemsWithTokenAsync(hint, listAfter, numResults, progressTracker, cancelToken).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
         /// Asynchronously gets the trash entries
         /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
         /// </summary>
@@ -1370,6 +1406,28 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
         /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
         /// <param name="cancelToken">CancellationToken to cancel the request</param>
         public virtual async Task<IEnumerable<TrashEntry>> EnumerateDeletedItemsAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
+            return result.trashEntries;
+        }
+
+        /// <summary>
+        /// Asynchronously gets the trash entries along with the next listAfter token.
+        /// Caution: Undeleting files is a best effort operation.  There are no guarantees that a file can be restored once it is deleted. The use of this API is enabled via whitelisting. If your ADL account is not whitelisted, then using this api will throw Not immplemented exception. For further information and assistance please contact Microsoft support.
+        /// </summary>
+        /// <param name="hint">String to match. Cannot be empty.</param>
+        /// <param name="listAfter">Token returned by system in the previous API invocation</param>
+        /// <param name="numResults">Search is executed until we find numResults or search completes. Maximum allowed value for this param is 4000. The number of returned entries could be more or less than numResults</param>
+        /// <param name="progressTracker">Object to track progress of the task. Can be null</param>
+        /// <param name="cancelToken">CancellationToken to cancel the request</param>
+        /// <returns>A tuple containing the list of trash entries and the next listAfter token</returns>
+        public virtual async Task<(IEnumerable<TrashEntry>, string)> EnumerateDeletedItemsWithTokenAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
+        {
+            var result = await EnumerateDeletedItemsInternalAsync(hint, listAfter, numResults, progressTracker, cancelToken).ConfigureAwait(false);
+            return (result.trashEntries, result.nextListAfter);
+        }
+
+        private async Task<(List<TrashEntry> trashEntries, string nextListAfter)> EnumerateDeletedItemsInternalAsync(string hint, string listAfter, int numResults, IProgress<EnumerateDeletedItemsProgress> progressTracker, CancellationToken cancelToken)
         {
             List<TrashEntry> trashEntries = new List<TrashEntry>();
             string nextListAfter = listAfter;
@@ -1411,7 +1469,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
                         progressTracker.Report(progress);
                     }
 
-                    // empty NextListAfter implies search is complete. Break when serach is complete
+                    // empty NextListAfter implies search is complete. Break when search is complete
                     // or when we have found requisite number of entries
                     if (String.IsNullOrEmpty(trashstatus.NextListAfter) || numFound >= numResults)
                     {
@@ -1426,7 +1484,7 @@ internal virtual AdlsOutputStream CreateFile(string filename, IfExists mode, Adl
                 }
             }
 
-            return trashEntries;
+            return (trashEntries, nextListAfter);
         }
 
         /// <summary>

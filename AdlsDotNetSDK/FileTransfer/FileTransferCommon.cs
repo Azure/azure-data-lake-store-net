@@ -122,7 +122,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         // Uses MD5 to hash the filename, here security is not a concern, just speed
         internal static string HashString(string fileName)
         {
-            var md5 = MD5.Create();
+            var md5 = MD5.Create(); // CodeQL [SM02196]: This is not used for cryptography, it is used for hashing filename and is not being used for any auth.
             byte[] hashBytes = md5.ComputeHash(Encoding.UTF8.GetBytes(fileName));
             var sb = new StringBuilder(HashStringBuilderLength);
             foreach (byte b in hashBytes)
@@ -283,7 +283,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
         {
             RecordedMetadata.AddRecord($"COMPLETE{TransferLog.MetaDataDelimiter}{source}", autoFlush);
         }
-        // If the transfer process is being resumed and it was successfully transfered before then we return false- meaning 
+        // If the transfer process is being resumed and it was successfully transfered before then we return false- meaning
         // it does not need to be transfered
         protected bool AddDirectoryToConsumerQueue(string dirFullName, bool isUpload)
         {
@@ -331,7 +331,7 @@ namespace Microsoft.Azure.DataLake.Store.FileTransfer
                 }
                 else
                 {
-                    // If this file was attempted in last transfer and it is being resumed, at the enumeration time we just add the jobs for the chunks which are not 
+                    // If this file was attempted in last transfer and it is being resumed, at the enumeration time we just add the jobs for the chunks which are not
                     // reported in the log file. In reality there can be different states 1) Only those reported in resume file are done 2) More than reported are done however concat wasn't started yet
                     // 3) All chunks are actually done and concat is half done 4) All chunks are done and concat is done. The discrepancy between the resume file and actual events is because the
                     // log file is written in a separate producer-consumer queue (not serialized) for perf reasons. All these cases checked and are taken care in FileMetaData.

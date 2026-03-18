@@ -17,13 +17,16 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
     [TestClass]
     public class MockAdlsApiTest{
         private static AdlsClient _adlsClient = MockAdlsFileSystem.MockAdlsClient.GetMockClient();
-        private static string rootPath = "/a";
+        private static string BasePath;
+        private static string rootPath;
         private static string TestString = "Hello";
         private static Random random = new Random();
 
         [ClassInitialize]
         public static void SetupClient(TestContext context)
         {
+            BasePath = context.Properties["BasePath"].ToString();
+            rootPath  = "/" + BasePath + "/a";
             _adlsClient.CreateDirectory(rootPath);
             _adlsClient.CreateDirectory(rootPath+"/b0");
             var testByte= Encoding.UTF8.GetBytes(TestString);

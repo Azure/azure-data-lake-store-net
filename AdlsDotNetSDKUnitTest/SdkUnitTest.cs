@@ -1,8 +1,7 @@
 ﻿using Microsoft.Azure.DataLake.Store.Acl;
-using Microsoft.IdentityModel.Clients.ActiveDirectory;
-using Microsoft.Rest;
-using Microsoft.Rest.Azure.Authentication;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Azure.Core;
+using Azure.Identity;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -86,8 +85,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
 
         private static bool _isAccountTieredStore;
         private static bool _isFailureExpectedOnColon = false;
+        private static string BasePath;
+        private static string UnitTestDir;
+        private static bool symlinkTestsDisabled = true;
 
-        private static readonly string UnitTestDir = "/Test" + TestId;
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -102,8 +103,9 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [AssemblyInitialize]
         public static void SetupUnitTest(TestContext context)
         {
-            
-            _accntName = (string)context.Properties["Account"];
+            BasePath = context.Properties["BasePath"].ToString();
+            UnitTestDir = "/" + BasePath + "/Test" + TestId;
+            _accntName = context.Properties["Account"].ToString();
             _ownerObjectId = (string)context.Properties["AccountOwnerObjectId"];
             _ownerClientId = (string)context.Properties["AccountOwnerClientId"];
             _ownerClientSecret = (string)context.Properties["AccountOwnerClientSecret"];
@@ -122,10 +124,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
             _isAccountTieredStore = bool.Parse((string)context.Properties["IsAccountTieredStore"]);
             _isFailureExpectedOnColon = bool.Parse((string)context.Properties["FailureExpectedOnColon"]);
             ServicePointManager.DefaultConnectionLimit = AdlsClient.DefaultNumThreads;
-            if (bool.Parse((string)context.Properties["TlsEnabled"]))
+            string tlsEnabled = (string)context.Properties["TlsEnabled"];
+            if (!string.IsNullOrEmpty(tlsEnabled) && bool.Parse(tlsEnabled))
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-            }
+            }    
         }
         /// <summary>
         /// Setup the client, empties the test directory
@@ -134,6 +137,12 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [ClassInitialize]
         public static void SetupTest(TestContext context)
         {
+            // Certain tests are expected to fail over symlink, so we skip them.
+            if (BasePath.ToLower().Contains("symlink"))
+            {
+                symlinkTestsDisabled = false;
+            }  
+
             _adlsClient = SetupSuperClient();
             
             _adlsClient.DeleteRecursive(UnitTestDir);
@@ -199,20 +208,21 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         private static AdlsClient SetupCommonClient(string clientId, string clientSecret)
         {
             string clientAccountPath = _accntName;
-            var creds = new ClientCredential(clientId, clientSecret);
             AdlsClient client;
+
             if (clientAccountPath.EndsWith("azuredatalakestore.net"))
             {
-                ServiceClientCredentials clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds).GetAwaiter().GetResult();
+                var clientCreds = new ClientSecretCredential(_domain, clientId, clientSecret);
                 client = AdlsClient.CreateClient(clientAccountPath, clientCreds);
             }
             else
             {
-                var serviceSettings = ActiveDirectoryServiceSettings.Azure;
-                serviceSettings.TokenAudience = new Uri("https://management.core.windows.net/");
-                serviceSettings.AuthenticationEndpoint = new Uri(_dogFoodAuthEndPoint);
-                var clientCreds = ApplicationTokenProvider.LoginSilentAsync(_domain, creds, serviceSettings).GetAwaiter().GetResult();
-                client = AdlsClient.CreateClient(clientAccountPath, clientCreds);
+                var serviceSettings = new TokenCredentialOptions();
+                serviceSettings.AuthorityHost = new Uri(_dogFoodAuthEndPoint);
+                string[] scopes = new string[] { "https://management.core.windows.net//.default" };
+
+                var clientCreds = new ClientSecretCredential(_domain, clientId, clientSecret, serviceSettings);
+                client = AdlsClient.CreateClient(clientAccountPath, clientCreds, scopes);
             }
 
             return client;
@@ -1079,6 +1089,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [DataRow(true)]
         public void TestRenameDirectoryDestinationExistsSubDirec(bool overwrite)
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRenameDirectoryDestinationExistsSubDirec due to feature differences between Cosmos and Xstore.");
+            }
             string srcpath = $"{UnitTestDir}/testRenameSource1" + overwrite;
             string destPath = $"{UnitTestDir}/testRenameDestination1" + overwrite;
             string subDestpath = destPath + "/testRenameSource1" + overwrite;
@@ -1377,6 +1391,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConcatOneFile()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestConcatOneFile because concat is not supported over symlink.");
+            }
             string destPath = $"{UnitTestDir}/destPathOneFile.txt";
             string srcFile1 = $"{UnitTestDir}/Source/srcPathOneFile.txt";
             string text1 = RandomString(2 * 1024);
@@ -1470,6 +1488,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConcatTwoFile()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestConcatTwoFile because concat is not supported over symlink.");
+            }
             TestConcatTwoFile(false, UnitTestDir + "/destPath2.txt", UnitTestDir + "/Source");
             TestConcatTwoFile(true, UnitTestDir + "/destPath3.txt", UnitTestDir + "/Source1");
             TestConcatTwoFile(false, UnitTestDir + "/destPath6.txt", UnitTestDir + "/Source1", "prefix+with,signs");
@@ -1543,6 +1565,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConcatThreeFile()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestConcatThreeFile because concat is not supported over symlink.");
+            }
             TestConcatThreeFile(false, UnitTestDir + "/destPath4.txt", UnitTestDir + "/Source2");
             TestConcatThreeFile(true, UnitTestDir + "/destPath5.txt", UnitTestDir + "/Source3");
         }
@@ -1627,6 +1653,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestConcatExisting()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestConcatExisting because concat is not supported over symlink.");
+            }
             string sourcePath = UnitTestDir + "/TestConcatExisting";
             List<string> srcList = new List<string>();
             string destPath = sourcePath + "/destPath.txt";
@@ -1830,6 +1860,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestSetPermissionFile()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestSetPermissionFile because AppendStream requires W in Gen1 but RW in Gen2.");
+            }
+            
             string path = $"{UnitTestDir}/SetPermission.txt";
             string originalPermission = "770";
             string permission = "772";
@@ -2463,6 +2498,11 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestAclDefaultMode()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestAclDefaultMode because AppendStream requires W in Gen1 but RW in Gen2.");
+            }
+
             string path = $"{UnitTestDir}/TestAclDefaultMode";
             _adlsClient.CreateDirectory(path, "730");
             List<AclEntry> aclList = new List<AclEntry>() {
@@ -2638,6 +2678,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsToOriginalDestination()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsToOriginalDestination over symlink.");
+            }
             // Restore file
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2679,6 +2723,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsToNewDestination()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsToNewDestination over symlink.");
+            }
             // Restore file
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2757,6 +2805,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsFileWithOverwriteOrCopy()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsFileWithOverwriteOrCopy over symlink.");
+            }
             // Test copy
             string streamName = GetFileOrFolderName("file");
             SetupTrashFile(streamName, "file");
@@ -2816,6 +2868,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestRestoreDeletedItemsDirectoryWithCopy()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestRestoreDeletedItemsDirectoryWithCopy over symlink.");
+            }
             // Test copy
             string dirName = GetFileOrFolderName("directory");
             SetupTrashFile(dirName, "directory");
@@ -2869,6 +2925,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateForMultipleFileSearch()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateForMultipleFileSearch over symlink.");
+            }
             string prefix = GetFileOrFolderName("file");
 
             int N = 10;
@@ -2928,6 +2988,10 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
         [TestMethod]
         public void TestTrashEnumerateForMultipleDirectorySearch()
         {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateForMultipleDirectorySearch over symlink.");
+            }
             string prefix = GetFileOrFolderName("directory");
 
             int N = 10;
@@ -2948,7 +3012,32 @@ namespace Microsoft.Azure.DataLake.Store.UnitTest
                 Assert.IsTrue(trashEntries.ElementAt(i).Type == TrashEntryType.DIRECTORY);
             }
         }
-        
+
+        [TestMethod]
+        public void TestTrashEnumerateWithToken()
+        {
+            if (!symlinkTestsDisabled)
+            {
+                Assert.Inconclusive("Skipping TestTrashEnumerateWithToken over symlink.");
+            }
+            string prefix = GetFileOrFolderName("file");
+
+            int N = 10;
+            for (int i = 0; i < N; i++)
+            {
+                string streamName = prefix + "_" + GetFileOrFolderName("file");
+                SetupTrashFile(streamName, "file");
+            }
+
+            Thread.Sleep(3000);
+
+            var (trashEntries, nextListAfter) = _adlsClient.EnumerateDeletedItemsWithToken(prefix, null, 10, null);
+
+            Assert.IsTrue(trashEntries.Count() == 10);
+            Assert.IsTrue(string.IsNullOrEmpty(nextListAfter));
+            Assert.IsTrue(trashEntries.All(entry => entry.Type == TrashEntryType.FILE));
+        }
+
         #endregion
 
         private bool VerifyGuid(string objectId)
