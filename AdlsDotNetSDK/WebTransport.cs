@@ -423,7 +423,7 @@ namespace Microsoft.Azure.DataLake.Store
                         PostPowershellLogDetails(webReq, errorResponse);
                         resp.HttpStatus = errorResponse.StatusCode;
                         resp.RequestId = errorResponse.Headers["x-ms-request-id"];
-                        resp.IsFileSymlink = errorResponse.Headers["x-ms-is-file-symlink"];
+                        resp.IsFileSymlink = errorResponse.Headers["x-ms-is-file-symlink"] ?? "unknown";
                         if (resp.HttpStatus == HttpStatusCode.Unauthorized && TokenLog.IsDebugEnabled)
                         {
                             string tokenLogLine =
@@ -705,7 +705,7 @@ namespace Microsoft.Azure.DataLake.Store
                                 resp.HttpStatus = webResponse.StatusCode;
                                 resp.HttpMessage = webResponse.StatusDescription;
                                 resp.RequestId = webResponse.Headers["x-ms-request-id"];
-                                resp.IsFileSymlink = webResponse.Headers["x-ms-is-file-symlink"];
+                                resp.IsFileSymlink = webResponse.Headers["x-ms-is-file-symlink"] ?? "unknown";
                                 PostPowershellLogDetails(webReq, webResponse);
                                 if (op.ReturnsBody)
                                 {
@@ -889,7 +889,7 @@ namespace Microsoft.Azure.DataLake.Store
                             resp.HttpStatus = webResponse.StatusCode;
                             resp.HttpMessage = webResponse.StatusDescription;
                             resp.RequestId = webResponse.Headers["x-ms-request-id"];
-                            resp.IsFileSymlink = webResponse.Headers["x-ms-is-file-symlink"];
+                            resp.IsFileSymlink = webResponse.Headers["x-ms-is-file-symlink"] ?? "unknown";
                             PostPowershellLogDetails(webReq, webResponse);
                             if (op.ReturnsBody)
                             {
