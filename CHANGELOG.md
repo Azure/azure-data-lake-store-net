@@ -1,4 +1,6 @@
 # Changes to the SDK
+### Version 2.0.3
+- Populate x-ms-is-file-symlink in OperationResponse to identify if a file is symlink backed.
 ### Version 2.0.2
 - Add ability to pass continuation token in Get-AzDataLakeStoreDeletedItem
 - Dependency updates.
