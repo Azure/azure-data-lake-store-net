@@ -59,6 +59,7 @@ namespace Microsoft.Azure.DataLake.Store
         /// Request Id or the trace ID returned from the server for the last request for the operation
         /// </summary>
         public string RequestId { get; internal set; }
+        
         /// <summary>
         /// Total latency for the last request for the operation
         /// </summary>
@@ -102,6 +103,7 @@ namespace Microsoft.Azure.DataLake.Store
             Ex = null;
             Error = "";
             RequestId = "";
+            IsFileSymlink = "";
             LastCallLatency = TokenAcquisitionLatency = 0;
             ConnectionFailure = false;
         }
